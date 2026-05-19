@@ -47,7 +47,7 @@
 ### 可用数据源
 
 - [sentences-bundle](https://github.com/hitokoto-osc/sentences-bundle)
-- [sentences-bundle国内加速镜像](https://gitcode.com/gh_mirrors/se/sentences-bundle)
+- [sentences-bundle-JSDelivr](https://cdn.jsdelivr.net/gh/hitokoto-osc/sentences-bundle@1.0.647/)
 
 ### API文档
 
