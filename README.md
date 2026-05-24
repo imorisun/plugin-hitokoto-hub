@@ -6,7 +6,7 @@
 
 ## 🌐 演示与交流
 
-- **演示站点**：[https://www.puresky.top/](https://www.puresky.top/)
+- **演示站点**：[https://www.puresky.top/hitokoto](https://www.puresky.top/hitokoto)
 - **文档**：[https://www.puresky.top/docs/](https://www.puresky.top/docs/)
 - **QQ 交流群**：
 
