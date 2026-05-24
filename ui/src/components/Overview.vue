@@ -189,6 +189,11 @@
               <span class="font-medium">{{ row.count }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="浏览量">
+            <template #default="{ row }">
+              <span class="font-medium text-green-600">{{ row.viewCount }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="已发布">
             <template #default="{ row }">
               <span class="font-medium text-green-600">{{ row.publishedCount }}</span>

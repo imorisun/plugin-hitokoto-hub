@@ -73,23 +73,33 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
             ListOptions.builder().fieldQuery(Queries.equal("status.isPublished", true)).build());
         Mono<List<OverviewResponse.CategoryDistribution>> categoryDistribution =
             client.listAll(Category.class, null, Sort.unsorted()).flatMap(category -> {
-                OverviewResponse.CategoryDistribution dist =
-                    new OverviewResponse.CategoryDistribution();
-                String categoryName = category.getMetadata().getName();
-                String displayName = category.getSpec().getName();
-                long totalCount = category.getStatus().getSentenceCount();
+                    OverviewResponse.CategoryDistribution dist =
+                        new OverviewResponse.CategoryDistribution();
+                    String categoryName = category.getMetadata().getName();
+                    String displayName = category.getSpec().getName();
+                    long totalCount = category.getStatus().getSentenceCount();
 
-                dist.setCategoryName(categoryName);
-                dist.setDisplayName(displayName);
-                dist.setCount(totalCount);
+                    dist.setCategoryName(categoryName);
+                    dist.setDisplayName(displayName);
+                    dist.setCount(totalCount);
 
-                return client.countBy(Sentence.class, ListOptions.builder().fieldQuery(
-                    Queries.and(Queries.equal("spec.categoryName", categoryName),
-                        Queries.equal("status.isPublished", true))).build()).doOnNext(count -> {
-                    dist.setPublishedCount(count);
-                    dist.setNotPublishedCount(totalCount - count);
-                }).thenReturn(dist);
-            }).collectList();
+                    return client.countBy(Sentence.class, ListOptions.builder()
+                            .fieldQuery(Queries.and(
+                                Queries.equal("spec.categoryName", categoryName),
+                                Queries.equal("status.isPublished", true)))
+                            .build())
+                        .flatMap(count -> {
+                            dist.setPublishedCount(count);
+                            dist.setNotPublishedCount(totalCount - count);
+
+                            return client.countBy(CategoryViewRecord.class, ListOptions.builder()
+                                    .fieldQuery(Queries.equal("spec.categoryName", categoryName))
+                                    .build())
+                                .doOnNext(dist::setViewCount)
+                                .thenReturn(dist);
+                        });
+                })
+                .collectList();
 
         return Mono.zip(sentenceCount, categoryCount, publishedSentenceCount, categoryDistribution)
             .map(tuple -> {
@@ -121,11 +131,12 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
             Sort.by("metadata.creationTimestamp").ascending()
         ).collectList();
 
-        Mono<Map<String, String>> categoryNameMap = client.listAll(Category.class, null, Sort.unsorted())
-            .collectMap(
-                category -> category.getMetadata().getName(),
-                category -> category.getSpec().getName()
-            );
+        Mono<Map<String, String>> categoryNameMap =
+            client.listAll(Category.class, null, Sort.unsorted())
+                .collectMap(
+                    category -> category.getMetadata().getName(),
+                    category -> category.getSpec().getName()
+                );
 
         Mono<Long> totalCount = client.countBy(CategoryViewRecord.class,
             ListOptions.builder()
@@ -154,13 +165,16 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
                 response.setTodayViewCount(today);
 
                 if (!records.isEmpty()) {
-                    Map<String, Map<String, Long>> aggregatedData = aggregateByGranularity(records, granularity);
-                    List<ViewStatisticsResponse.TimePoint> timePoints = buildTimePoints(aggregatedData, nameMap);
+                    Map<String, Map<String, Long>> aggregatedData =
+                        aggregateByGranularity(records, granularity);
+                    List<ViewStatisticsResponse.TimePoint> timePoints =
+                        buildTimePoints(aggregatedData, nameMap);
                     response.setTimeSeries(timePoints);
                     response.setEchartsData(buildEchartsData(timePoints));
                 } else {
                     response.setTimeSeries(new ArrayList<>());
-                    ViewStatisticsResponse.EChartsData emptyECharts = new ViewStatisticsResponse.EChartsData();
+                    ViewStatisticsResponse.EChartsData emptyECharts =
+                        new ViewStatisticsResponse.EChartsData();
                     emptyECharts.setXAxis(new ArrayList<>());
                     emptyECharts.setSeries(new ArrayList<>());
                     response.setEchartsData(emptyECharts);
@@ -170,7 +184,8 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
             });
     }
 
-    private Map<String, Map<String, Long>> aggregateByGranularity(List<CategoryViewRecord> records, String granularity) {
+    private Map<String, Map<String, Long>> aggregateByGranularity(List<CategoryViewRecord> records,
+        String granularity) {
         DateTimeFormatter formatter = switch (granularity) {
             case "week" -> DateTimeFormatter.ofPattern("yyyy-'W'ww");
             case "month" -> DateTimeFormatter.ofPattern("yyyy-MM");
@@ -186,13 +201,15 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
                 },
                 LinkedHashMap::new,
                 Collectors.groupingBy(
-                    record -> record.getSpec().getCategoryName() != null ? record.getSpec().getCategoryName() : "未知分类",
+                    record -> record.getSpec().getCategoryName() != null ? record.getSpec()
+                        .getCategoryName() : "未知分类",
                     Collectors.counting()
                 )
             ));
     }
 
-    private List<ViewStatisticsResponse.TimePoint> buildTimePoints(Map<String, Map<String, Long>> aggregatedData,
+    private List<ViewStatisticsResponse.TimePoint> buildTimePoints(
+        Map<String, Map<String, Long>> aggregatedData,
         Map<String, String> nameMap) {
         List<ViewStatisticsResponse.TimePoint> timePoints = new ArrayList<>();
         for (Map.Entry<String, Map<String, Long>> entry : aggregatedData.entrySet()) {
@@ -202,9 +219,11 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
             point.setTotalCount(totalCount);
             List<ViewStatisticsResponse.CategoryDetail> details = new ArrayList<>();
             for (Map.Entry<String, Long> categoryEntry : entry.getValue().entrySet()) {
-                ViewStatisticsResponse.CategoryDetail detail = new ViewStatisticsResponse.CategoryDetail();
+                ViewStatisticsResponse.CategoryDetail detail =
+                    new ViewStatisticsResponse.CategoryDetail();
                 detail.setCategoryName(categoryEntry.getKey());
-                detail.setDisplayName(nameMap.getOrDefault(categoryEntry.getKey(), categoryEntry.getKey()));
+                detail.setDisplayName(
+                    nameMap.getOrDefault(categoryEntry.getKey(), categoryEntry.getKey()));
                 detail.setCount(categoryEntry.getValue());
                 details.add(detail);
             }
@@ -214,7 +233,8 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
         return timePoints;
     }
 
-    private ViewStatisticsResponse.EChartsData buildEchartsData(List<ViewStatisticsResponse.TimePoint> timePoints) {
+    private ViewStatisticsResponse.EChartsData buildEchartsData(
+        List<ViewStatisticsResponse.TimePoint> timePoints) {
         if (timePoints.isEmpty()) {
             ViewStatisticsResponse.EChartsData empty = new ViewStatisticsResponse.EChartsData();
             empty.setXAxis(new ArrayList<>());
@@ -268,64 +288,95 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
     @Data
     @Schema(name = "OverviewResponse")
     public static class OverviewResponse {
-        @Schema(description = "句子总数") private long sentenceCount;
-        @Schema(description = "分类总数") private long categoryCount;
-        @Schema(description = "已发布句子数") private long publishedSentenceCount;
-        @Schema(description = "未发布句子数") private long notPublishedSentenceCount;
-        @Schema(description = "各分类句子数量分布") private List<CategoryDistribution> categoryDistribution;
+        @Schema(description = "句子总数")
+        private long sentenceCount;
+        @Schema(description = "分类总数")
+        private long categoryCount;
+        @Schema(description = "已发布句子数")
+        private long publishedSentenceCount;
+        @Schema(description = "未发布句子数")
+        private long notPublishedSentenceCount;
+        @Schema(description = "各分类句子数量分布")
+        private List<CategoryDistribution> categoryDistribution;
 
         @Data
         @Schema(name = "CategoryDistribution")
         public static class CategoryDistribution {
-            @Schema(description = "分类 metadata name") private String categoryName;
-            @Schema(description = "分类显示名称") private String displayName;
-            @Schema(description = "句子数量") private long count;
-            @Schema(description = "公开的句子数量") private long publishedCount;
-            @Schema(description = "未公开的句子数量") private long notPublishedCount;
+            @Schema(description = "分类 metadata name")
+            private String categoryName;
+            @Schema(description = "分类显示名称")
+            private String displayName;
+            @Schema(description = "句子数量")
+            private long count;
+            @Schema(description = "公开的句子数量")
+            private long publishedCount;
+            @Schema(description = "未公开的句子数量")
+            private long notPublishedCount;
+            @Schema(description = "浏览量")
+            private long viewCount;
         }
     }
 
     @Data
     @Schema(name = "ViewStatisticsResponse")
     public static class ViewStatisticsResponse {
-        @Schema(description = "是否成功") private boolean success;
-        @Schema(description = "提示信息") private String message;
-        @Schema(description = "总计") private long totalViewCount;
-        @Schema(description = "今日") private long todayViewCount;
-        @Schema(description = "时间序列数据") private List<TimePoint> timeSeries;
-        @Schema(description = "ECharts 格式数据") private EChartsData echartsData;
+        @Schema(description = "是否成功")
+        private boolean success;
+        @Schema(description = "提示信息")
+        private String message;
+        @Schema(description = "总计")
+        private long totalViewCount;
+        @Schema(description = "今日")
+        private long todayViewCount;
+        @Schema(description = "时间序列数据")
+        private List<TimePoint> timeSeries;
+        @Schema(description = "ECharts 格式数据")
+        private EChartsData echartsData;
 
         @Data
         @Schema(name = "TimePoint")
         public static class TimePoint {
-            @Schema(description = "时间点") private String time;
-            @Schema(description = "该时间点总数") private Long totalCount;
-            @Schema(description = "各分类详情") private List<CategoryDetail> details;
+            @Schema(description = "时间点")
+            private String time;
+            @Schema(description = "该时间点总数")
+            private Long totalCount;
+            @Schema(description = "各分类详情")
+            private List<CategoryDetail> details;
         }
 
         @Data
         @Schema(name = "CategoryDetail")
         public static class CategoryDetail {
-            @Schema(description = "分类名称") private String categoryName;
-            @Schema(description = "分类显示名称") private String displayName;
-            @Schema(description = "数量") private Long count;
+            @Schema(description = "分类名称")
+            private String categoryName;
+            @Schema(description = "分类显示名称")
+            private String displayName;
+            @Schema(description = "数量")
+            private Long count;
         }
 
         @Data
         @Schema(name = "EChartsData")
         public static class EChartsData {
-            @Schema(description = "X轴数据") private List<String> xAxis;
-            @Schema(description = "系列数据") private List<EChartsSeries> series;
+            @Schema(description = "X轴数据")
+            private List<String> xAxis;
+            @Schema(description = "系列数据")
+            private List<EChartsSeries> series;
         }
 
         @Data
         @Schema(name = "EChartsSeries")
         public static class EChartsSeries {
-            @Schema(description = "分类名称") private String name;
-            @Schema(description = "分类显示名称") private String displayName;
-            @Schema(description = "图表类型") private String type = "line";
-            @Schema(description = "数据点") private List<Long> data;
-            @Schema(description = "是否平滑曲线") private boolean smooth = true;
+            @Schema(description = "分类名称")
+            private String name;
+            @Schema(description = "分类显示名称")
+            private String displayName;
+            @Schema(description = "图表类型")
+            private String type = "line";
+            @Schema(description = "数据点")
+            private List<Long> data;
+            @Schema(description = "是否平滑曲线")
+            private boolean smooth = true;
         }
     }
 }
