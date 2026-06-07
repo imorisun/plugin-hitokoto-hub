@@ -96,8 +96,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
             String encode = request.queryParam("encode").filter(StringUtils::isNotBlank)
                 .orElse(config.getEncode());
 
-            // 解析默认分类（多行文本）
-            List<String> defaultCategories = parseCategoryLines(config.getDefaultCategory());
+            List<String> defaultCategories = config.getDefaultCategory();
 
             // 请求参数优先，没有则用设置里的
             List<String> finalCategories = null;
@@ -168,14 +167,6 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         });
     }
 
-    // 解析多行文本为分类 ID 列表
-    private List<String> parseCategoryLines(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return Collections.emptyList();
-        }
-        return Arrays.stream(raw.split("\\n")).map(String::trim)
-            .filter(StringUtils::isNotBlank).toList();
-    }
 
     // 多分类查询
     private ListOptions buildListOptions(List<String> categoryNames) {

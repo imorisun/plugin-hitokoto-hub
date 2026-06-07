@@ -176,13 +176,6 @@
                 :stripe="true"
                 table-layout="auto"
         >
-          <el-table-column label="metaDataName">
-            <template #default="{ row }">
-              <span class="cursor-pointer" @click="copyToClipboard(row.categoryName)">
-                {{ row.categoryName }}
-              </span>
-            </template>
-          </el-table-column>
           <el-table-column prop="displayName" label="分类名称"/>
           <el-table-column label="句子总数" min-width="100">
             <template #default="{ row }">

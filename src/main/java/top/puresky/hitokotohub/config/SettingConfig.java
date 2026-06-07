@@ -3,6 +3,7 @@ package top.puresky.hitokotohub.config;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import reactor.core.publisher.Mono;
+import java.util.List;
 
 public interface SettingConfig {
     Mono<BasicConfig> getBasicConfig();
@@ -15,7 +16,7 @@ public interface SettingConfig {
         @Schema(description = "默认随机条数")
         private Integer randomLimit;
         @Schema(description = "默认分类")
-        private String defaultCategory;
+        private List<String> defaultCategory;
         @Schema(description = "默认返回格式")
         private String encode;
         @Schema(description = "点赞冷却时间（小时）")
