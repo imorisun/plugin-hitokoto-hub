@@ -42,7 +42,7 @@ public class HitokotoFinderImpl implements HitokotoFinder {
                     : config.getRandomLimit();
 
                 // 解析请求参数和默认分类
-                List<String> defaultCategories = parseCategoryLines(config.getDefaultCategory());
+                List<String> defaultCategories = config.getDefaultCategory();
 
                 List<String> finalCategories = null;
                 if (StringUtils.isNotBlank(categoryName)) {
@@ -123,14 +123,6 @@ public class HitokotoFinderImpl implements HitokotoFinder {
             .map(this::toCategoryVo);
     }
 
-    // 解析多行文本为分类 ID 列表
-    private List<String> parseCategoryLines(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return Collections.emptyList();
-        }
-        return Arrays.stream(raw.split("\\n")).map(String::trim)
-            .filter(StringUtils::isNotBlank).toList();
-    }
 
     private SentenceVo toSentenceVo(@NonNull Sentence s) {
         var spec = s.getSpec();
