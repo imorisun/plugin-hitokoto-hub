@@ -91,8 +91,11 @@ public class HitokotoHubPlugin extends BasePlugin {
         // 插件停用时取消注册自定义模型
         Scheme sentenceScheme = schemeManager.get(Sentence.class);
         Scheme categoryScheme = schemeManager.get(Category.class);
+        Scheme categoryViewRecordScheme = schemeManager.get(CategoryViewRecord.class);
+
         schemeManager.unregister(sentenceScheme);
         schemeManager.unregister(categoryScheme);
+        schemeManager.unregister(categoryViewRecordScheme);
         System.out.println("✅ 一言数据中心插件已停止！");
     }
 }
