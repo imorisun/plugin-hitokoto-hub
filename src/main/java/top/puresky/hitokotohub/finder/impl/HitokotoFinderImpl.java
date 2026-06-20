@@ -1,7 +1,6 @@
 package top.puresky.hitokotohub.finder.impl;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

@@ -1,12 +1,13 @@
 package top.puresky.hitokotohub.config;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
 import lombok.Data;
 import reactor.core.publisher.Mono;
-import java.util.List;
 
 public interface SettingConfig {
     Mono<BasicConfig> getBasicConfig();
+    Mono<AiConfig> getAiConfig();
 
     @Data
     class BasicConfig {
@@ -27,5 +28,21 @@ public interface SettingConfig {
         private Integer statsMaxKeep;
         @Schema(description = "统计数据保留天数")
         private Integer statsRetentionDays;
+    }
+    @Data
+    class AiConfig {
+        public static final String GROUP = "ai";
+        @Schema(description = "启用 AI 生成")
+        private Boolean enableAiGenerate;
+        @Schema(description = "AI 生成模型名称")
+        private String languageModelName;
+        @Schema(description = "生成句子的主题")
+        private String aiTopic;
+        @Schema(description = "AI 生成句子的数量")
+        private Integer aiSentenceCount;
+        @Schema(description = "AI 生成的句子保存到的分类")
+        private String aiSentenceCategory;
+        @Schema(description = "AI 生成的句子是否自动发布")
+        private Boolean aiSentenceAutoPublish;
     }
 }

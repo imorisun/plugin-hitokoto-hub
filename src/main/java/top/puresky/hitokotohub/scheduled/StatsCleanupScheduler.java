@@ -16,6 +16,7 @@ import run.halo.app.extension.index.query.Queries;
 import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.endpoint.SentencePublicEndpoint;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
+import top.puresky.hitokotohub.service.AiGenerateService;
 
 @Slf4j
 @Component
@@ -26,6 +27,8 @@ public class StatsCleanupScheduler {
     private final ReactiveExtensionClient client;
     private final SettingConfig settingConfig;
     private final SentencePublicEndpoint sentencePublicEndpoint;
+    private final AiGenerateService aiGenerateService;
+
 
     // 每 6 小时清理一次过期的点赞缓存
     @Scheduled(fixedRate = 21600000)
@@ -81,5 +84,21 @@ public class StatsCleanupScheduler {
             })
             .doOnError(e -> log.error("统计数据清理失败", e))
             .subscribe();
+    }
+
+    // 每天凌晨2点执行一次AI自动生成句子
+    @Scheduled(cron = "0 0 2 * * *")
+    public void generateAiSentences() {
+        settingConfig.getAiConfig()
+            .flatMap(config -> settingConfig.getAiConfig().flatMap(aiConfig -> {
+                if (aiConfig.getEnableAiGenerate()) {
+                    return aiGenerateService.sentencesGenerateAndSave(
+                        aiConfig.getLanguageModelName(), aiConfig.getAiTopic(),
+                        aiConfig.getAiSentenceCount(), aiConfig.getAiSentenceCategory(),
+                        aiConfig.getAiSentenceAutoPublish());
+                } else {
+                    return Mono.empty();
+                }
+            })).subscribe();
     }
 }
