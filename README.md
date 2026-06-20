@@ -3,7 +3,10 @@
 > 轻拾人间辞藻，言说万千心绪
 
 轻言是一款 Halo 2.x 插件，为你的网站注入"一句话"的灵动与温度。支持创建、管理海量句子，按分类归档，并提供随机获取、关键词搜索、点赞互动等丰富的开放接口。
-
+### 注意
+1. 最新版插件需要依赖官方的AI基座 [AI Foundation](https://www.halo.run/store/apps/app-acslk9nu)
+2. 由于修改了一些设置项，更新后请重置插件设置
+3. 更新后若遇到问题，请先重置插件设置，并重启Halo
 ## 🌐 演示与交流
 
 - **演示站点**：[https://www.puresky.top/hitokoto](https://www.puresky.top/hitokoto)

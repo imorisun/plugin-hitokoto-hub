@@ -7,9 +7,11 @@ metadata:
   name: hitokoto-hub
 spec:
   enabled: true
-  requires: ">=2.23.0"
+  requires: ">=2.25.0"
   settingName: plugin-hitokoto-hub-settings
   configMapName: plugin-hitokoto-hub-configmap
+  pluginDependencies:
+    ai-foundation: "*"
   author:
     name: 晨阳
     website: https://www.puresky.top

@@ -14,7 +14,8 @@ dependencies {
     implementation platform('run.halo.tools.platform:plugin:2.23.0')
     implementation 'org.dhatim:fastexcel-reader:0.20.0'
     compileOnly 'run.halo.app:api'
-
+    compileOnly "run.halo.aifoundation:api:1.0.0-beta.1"
+    testImplementation "run.halo.aifoundation:api:1.0.0-beta.1"
     testImplementation 'run.halo.app:api'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -51,7 +52,7 @@ tasks.named('generatePluginComponentsIdx') {
 }
 
 halo {
-    version = '2.24'
+    version = '2.25'
     debug = false
 }
 

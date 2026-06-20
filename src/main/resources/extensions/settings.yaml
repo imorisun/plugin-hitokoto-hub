@@ -62,6 +62,63 @@ spec:
         - $formkit: number
           name: statsRetentionDays
           label: 统计数据保留天数
-          value: 30
+          value: 90
           validation: required|number|min:7|max:365
           help: 超过此天数的数据将被清理
+    - group: ai
+      label: AI设置
+      formSchema:
+        - $formkit: switch
+          name: enableAiGenerate
+          id: enableAiGenerate
+          label: 启用 AI 生成
+          value: false
+          help: 开启后，定时任务将在凌晨2点自动生成句子
+
+        - $formkit: aiModelSelector
+          name: languageModelName
+          label: 语言模型
+          modelType: language
+          clearable: true
+          placeholder: 请选择语言模型
+          help: 选择用于生成句子的 AI 模型
+          if: "$get(enableAiGenerate).value === true"
+
+        - $formkit: text
+          name: aiTopic
+          label: 生成主题
+          if: "$get(enableAiGenerate).value === true"
+          value: "温柔治愈"
+          placeholder: 请输入生成主题
+          help: 句子围绕的主题
+
+        - $formkit: number
+          name: aiSentenceCount
+          label: 生成数量
+          if: "$get(enableAiGenerate).value === true"
+          value: "5"
+          min: 1
+          max: 50
+          step: 1
+          help: 每次生成的句子数量
+
+        - $formkit: select
+          name: aiSentenceCategory
+          label: 目标分类
+          if: "$get(enableAiGenerate).value === true"
+          value:
+          clearable: true
+          autoSelect: true
+          action: /apis/hitokotohub.puresky.top/v1alpha1/categories
+          requestOption:
+            method: GET
+            labelField: spec.name
+            valueField: metadata.name
+          help: 句子保存到哪个分类
+
+        - $formkit: switch
+          name: aiSentenceAutoPublish
+          label: 是否自动发布
+          value: false
+          help: 开启后，将自动发布AI生成的句子
+          if: "$get(enableAiGenerate).value === true"
