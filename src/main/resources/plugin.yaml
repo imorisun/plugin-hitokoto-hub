@@ -5,6 +5,9 @@ kind: Plugin
 metadata:
   # The name defines how the plugin is invoked, A unique name
   name: hitokoto-hub
+  annotations:
+    "store.halo.run/app-id": "app-cmisffbv"
+    "store.halo.run/recommended-apps": '["app-acslk9nu"]'
 spec:
   enabled: true
   requires: ">=2.25.0"
