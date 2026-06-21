@@ -14,7 +14,7 @@ spec:
   settingName: plugin-hitokoto-hub-settings
   configMapName: plugin-hitokoto-hub-configmap
   pluginDependencies:
-    ai-foundation: "*"
+    ai-foundation?: "*"
   author:
     name: 晨阳
     website: https://www.puresky.top
