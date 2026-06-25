@@ -44,5 +44,7 @@ public interface SettingConfig {
         private String aiSentenceCategory;
         @Schema(description = "AI 生成的句子是否自动发布")
         private Boolean aiSentenceAutoPublish;
+        @Schema(description = "AI 生成句子的系统提示词")
+        private String aiSystemPrompt;
     }
 }
