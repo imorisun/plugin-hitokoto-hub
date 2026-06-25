@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -27,8 +28,7 @@ public class StatsCleanupScheduler {
     private final ReactiveExtensionClient client;
     private final SettingConfig settingConfig;
     private final SentencePublicEndpoint sentencePublicEndpoint;
-    private final AiGenerateService aiGenerateService;
-
+    private final ObjectProvider<AiGenerateService> aiServiceProvider;
 
     // 每 6 小时清理一次过期的点赞缓存
     @Scheduled(fixedRate = 21600000)
@@ -89,16 +89,29 @@ public class StatsCleanupScheduler {
     // 每天凌晨2点执行一次AI自动生成句子
     @Scheduled(cron = "0 0 2 * * *")
     public void generateAiSentences() {
+        AiGenerateService aiService = aiServiceProvider.getIfAvailable();
+        if (aiService == null) {
+            log.warn("AI Foundation 服务不可用（缺少依赖或未启用），跳过定时任务");
+            return;
+        }
+
         settingConfig.getAiConfig()
-            .flatMap(config -> settingConfig.getAiConfig().flatMap(aiConfig -> {
-                if (aiConfig.getEnableAiGenerate()) {
-                    return aiGenerateService.sentencesGenerateAndSave(
-                        aiConfig.getLanguageModelName(), aiConfig.getAiTopic(),
-                        aiConfig.getAiSentenceCount(), aiConfig.getAiSentenceCategory(),
-                        aiConfig.getAiSentenceAutoPublish());
+            .flatMap(aiConfig -> {
+                if (Boolean.TRUE.equals(aiConfig.getEnableAiGenerate())) {
+                    return aiService.sentencesGenerateAndSave(
+                        aiConfig.getLanguageModelName(),
+                        aiConfig.getAiSystemPrompt(),
+                        aiConfig.getAiTopic(),
+                        aiConfig.getAiSentenceCount(),
+                        aiConfig.getAiSentenceCategory(),
+                        aiConfig.getAiSentenceAutoPublish()
+                    );
                 } else {
+                    log.info("AI 自动生成未开启，跳过本次任务");
                     return Mono.empty();
                 }
-            })).subscribe();
+            })
+            .doOnError(e -> log.error("AI 生成句子定时任务执行失败", e))
+            .subscribe();
     }
 }

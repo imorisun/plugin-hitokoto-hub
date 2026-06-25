@@ -5,7 +5,9 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.aifoundation.AiModelService;
@@ -23,6 +25,7 @@ import top.puresky.hitokotohub.service.AiGenerateService;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnClass(name = "run.halo.aifoundation.AiModelService")
 public class AiGenerateServiceImpl implements AiGenerateService {
 
     private final ExtensionGetter extensionGetter;
@@ -32,6 +35,7 @@ public class AiGenerateServiceImpl implements AiGenerateService {
     @Override
     public Mono<Void> sentencesGenerateAndSave(
         String modelName,
+        String aiSystemPrompt,
         String topic,
         int count,
         String categoryName,
@@ -46,7 +50,7 @@ public class AiGenerateServiceImpl implements AiGenerateService {
             .required("content", "author", "source")
             .build().toMap();
 
-        String SYSTEM_PROMPT = """
+        String DEFAULT_SYSTEM_PROMPT = """
             # 角色设定
             你是一位精通中文文学与美学的文字匠人，擅长以古典诗词的凝练、现代散文的流畅、以及哲学思辨的深度来锻造句子。
             
@@ -64,11 +68,14 @@ public class AiGenerateServiceImpl implements AiGenerateService {
             现在，请根据用户输入生成优美句子。
             """;
 
+        String systemPrompt =
+            StringUtils.hasText(aiSystemPrompt) ? aiSystemPrompt : DEFAULT_SYSTEM_PROMPT;
+
         String USER_TEMPLATE = "请围绕以下主题生成%d条优美句子：%s";
         String prompt = String.format(USER_TEMPLATE, count, topic);
 
         GenerateTextRequest request = GenerateTextRequest.builder()
-            .system(SYSTEM_PROMPT)
+            .system(systemPrompt)
             .prompt(prompt)
             .output(OutputSpec.array(sentenceOutputSchema))
             .build();

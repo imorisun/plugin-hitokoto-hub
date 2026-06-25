@@ -74,6 +74,23 @@ spec:
           label: 启用 AI 生成
           value: false
           help: 开启后，定时任务将在凌晨2点自动生成句子
+          __raw__sectionsSchema:
+            help:
+              children:
+                - $el: span
+                  children: "启用后，轻言 将可以进行 AI 句子生成。此功能需要先安装并启用 "
+                - $el: a
+                  children: "Halo AI Foundation"
+                  attrs:
+                    href: "https://www.halo.run/store/apps/app-acslk9nu"
+                    class: "block inline"
+                    target: "_blank"
+                    rel: "noopener noreferrer"
+                    style:
+                      color: "#1890ff"
+                      whiteSpace: "pre"
+                - $el: span
+                  children: "（推荐应用），否则轻言将无法使用 AI 生成功能。"
 
         - $formkit: aiModelSelector
           name: languageModelName
@@ -83,6 +100,28 @@ spec:
           placeholder: 请选择语言模型
           help: 选择用于生成句子的 AI 模型
           if: "$get(enableAiGenerate).value === true"
+
+        - $formkit: textarea
+          name: aiSystemPrompt
+          label: 角色设定
+          if: "$get(enableAiGenerate).value === true"
+          value: |
+            # 角色设定
+            你是一位精通中文文学与美学的文字匠人，擅长以古典诗词的凝练、现代散文的流畅、以及哲学思辨的深度来锻造句子。
+            
+            ## 核心指令
+            当用户给出一个主题、关键词、情境或情感时，你需要生成用户所要求的相对应数量的优美句子。每个句子必须：
+            1. 语言凝练：剔除冗余，每个字都承担表意或节奏功能
+            2. 意象鲜活：调动视觉、听觉、触觉、嗅觉、味觉等通感进行描写（可选）
+            3. 情感有层次：不止于表面抒情，蕴含可回味的余韵
+            4. 节奏有韵律：长短句交错，句内呼吸感自然
+            
+            ## 修辞要求
+            - 通感、隐喻/暗喻、拟人化、矛盾修辞、时空折叠、微观放大
+            
+            现在，请根据用户输入生成优美句子。
+          placeholder: 请输入 AI 角色设定
+          help: AI 的角色设定（留空则使用默认角色设定）
 
         - $formkit: text
           name: aiTopic
