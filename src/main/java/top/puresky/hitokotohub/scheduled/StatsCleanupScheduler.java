@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Sort;
@@ -44,7 +45,7 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
     private volatile ScheduledTask aiGenerateTask;
 
     @Override
-    public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
+    public void configureTasks(@NonNull ScheduledTaskRegistrar taskRegistrar) {
         this.taskRegistrar = taskRegistrar;
         scheduleAiGenerateTask();
     }
