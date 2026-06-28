@@ -34,6 +34,8 @@ public interface SettingConfig {
         public static final String GROUP = "ai";
         @Schema(description = "启用 AI 生成")
         private Boolean enableAiGenerate;
+        @Schema(description = "AI 生成句子的 Cron 表达式")
+        private String aiCron;
         @Schema(description = "AI 生成模型名称")
         private String languageModelName;
         @Schema(description = "生成句子的主题")

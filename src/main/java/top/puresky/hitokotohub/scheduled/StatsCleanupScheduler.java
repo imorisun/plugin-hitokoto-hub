@@ -5,15 +5,23 @@ import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.annotation.SchedulingConfigurer;
+import org.springframework.scheduling.config.CronTask;
+import org.springframework.scheduling.config.ScheduledTask;
+import org.springframework.scheduling.config.ScheduledTaskRegistrar;
+import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.Queries;
+import run.halo.app.plugin.PluginConfigUpdatedEvent;
 import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.endpoint.SentencePublicEndpoint;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
@@ -23,12 +31,61 @@ import top.puresky.hitokotohub.service.AiGenerateService;
 @Component
 @RequiredArgsConstructor
 @EnableScheduling
-public class StatsCleanupScheduler {
+public class StatsCleanupScheduler implements SchedulingConfigurer {
+
+    private static final String DEFAULT_AI_CRON = "0 0 2 * * *";
 
     private final ReactiveExtensionClient client;
     private final SettingConfig settingConfig;
     private final SentencePublicEndpoint sentencePublicEndpoint;
     private final ObjectProvider<AiGenerateService> aiServiceProvider;
+
+    private ScheduledTaskRegistrar taskRegistrar;
+    private volatile ScheduledTask aiGenerateTask;
+
+    @Override
+    public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
+        this.taskRegistrar = taskRegistrar;
+        scheduleAiGenerateTask();
+    }
+
+    /**
+     * 监听插件配置变更，重新注册 AI 生成定时任务
+     */
+    @EventListener
+    public void onPluginConfigUpdated(PluginConfigUpdatedEvent event) {
+        if (event.getNewSettingValues().containsKey(SettingConfig.AiConfig.GROUP)) {
+            scheduleAiGenerateTask();
+        }
+    }
+
+    private synchronized void scheduleAiGenerateTask() {
+        if (taskRegistrar == null) {
+            return;
+        }
+        // 取消已存在的任务
+        if (aiGenerateTask != null) {
+            aiGenerateTask.cancel();
+            aiGenerateTask = null;
+        }
+        String cron = resolveAiCron();
+        aiGenerateTask = taskRegistrar.scheduleCronTask(new CronTask(this::generateAiSentences, cron));
+        log.info("AI 生成句子定时任务已注册，Cron 表达式: {}", cron);
+    }
+
+    private String resolveAiCron() {
+        try {
+            SettingConfig.AiConfig aiConfig = settingConfig.getAiConfig().block();
+            if (aiConfig != null && StringUtils.hasText(aiConfig.getAiCron())) {
+                // 验证 Cron 表达式是否合法
+                new CronTrigger(aiConfig.getAiCron());
+                return aiConfig.getAiCron();
+            }
+        } catch (Exception e) {
+            log.warn("读取或验证 AI Cron 设置失败，使用默认值: {}", DEFAULT_AI_CRON, e);
+        }
+        return DEFAULT_AI_CRON;
+    }
 
     // 每 6 小时清理一次过期的点赞缓存
     @Scheduled(fixedRate = 21600000)
@@ -86,8 +143,7 @@ public class StatsCleanupScheduler {
             .subscribe();
     }
 
-    // 每天凌晨2点执行一次AI自动生成句子
-    @Scheduled(cron = "0 0 2 * * *")
+    // AI 自动生成句子（Cron 表达式从设置中读取）
     public void generateAiSentences() {
         AiGenerateService aiService = aiServiceProvider.getIfAvailable();
         if (aiService == null) {

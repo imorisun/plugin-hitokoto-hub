@@ -73,7 +73,7 @@ spec:
           id: enableAiGenerate
           label: 启用 AI 生成
           value: false
-          help: 开启后，定时任务将在凌晨2点自动生成句子
+          help: 开启后，定时任务将按设定的时间自动生成句子
           __raw__sectionsSchema:
             help:
               children:
@@ -91,6 +91,37 @@ spec:
                       whiteSpace: "pre"
                 - $el: span
                   children: "（推荐应用），否则轻言将无法使用 AI 生成功能。"
+
+        - $formkit: select
+          name: aiCron
+          label: 定时生成时间
+          if: "$get(enableAiGenerate).value === true"
+          value: "0 0 2 * * *"
+          searchable: true
+          allowCreate: true
+          clearable: false
+          options:
+            - label: 每天凌晨 0 点
+              value: "0 0 0 * * *"
+            - label: 每天凌晨 2 点
+              value: "0 0 2 * * *"
+            - label: 每天早上 6 点
+              value: "0 0 6 * * *"
+            - label: 每天中午 12 点
+              value: "0 0 12 * * *"
+            - label: 每天晚上 8 点
+              value: "0 0 20 * * *"
+            - label: 每 1 小时
+              value: "0 0 * * * *"
+            - label: 每 6 小时
+              value: "0 0 */6 * * *"
+            - label: 每 12 小时
+              value: "0 0 */12 * * *"
+            - label: 每周一凌晨 0 点
+              value: "0 0 0 * * 1"
+            - label: 每月 1 号凌晨 0 点
+              value: "0 0 0 1 * *"
+          help: "AI 自动生成句子的时间，支持从预设中选择或手动输入 6 位 Cron 表达式（秒 分 时 日 月 周）"
 
         - $formkit: aiModelSelector
           name: languageModelName
