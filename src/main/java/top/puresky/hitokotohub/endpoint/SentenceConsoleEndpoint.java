@@ -56,7 +56,7 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
     private final RoleService roleService;
 
     @Override
-    public RouterFunction<ServerResponse> endpoint() {
+    public @NonNull RouterFunction<ServerResponse> endpoint() {
         return route().POST("sentence/-/batch", this::batchCreateSentence,
                 builder -> builder.operationId("batchCreateSentence").summary("批量创建句子").tag(TAG)
                     .requestBody(requestBodyBuilder().content(contentBuilder().array(
@@ -85,7 +85,7 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
     }
 
     @Override
-    public GroupVersion groupVersion() {
+    public @NonNull GroupVersion groupVersion() {
         return GroupVersion.parseAPIVersion(GROUP_VERSION);
     }
 

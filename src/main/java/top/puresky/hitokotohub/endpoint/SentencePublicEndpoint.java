@@ -54,7 +54,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
     private final Map<String, Long> likeCache = new ConcurrentHashMap<>();
 
     @Override
-    public RouterFunction<ServerResponse> endpoint() {
+    public @NonNull RouterFunction<ServerResponse> endpoint() {
         return route().GET("sentence/random", this::getRandomSentences,
             builder -> builder.operationId("getRandomSentences").summary("随机获取句子").tag(TAG)
                 .parameter(parameterBuilder().in(ParameterIn.QUERY).name("categoryName")
@@ -80,7 +80,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
     }
 
     @Override
-    public GroupVersion groupVersion() {
+    public @NonNull GroupVersion groupVersion() {
         return GroupVersion.parseAPIVersion(GROUP_VERSION);
     }
 

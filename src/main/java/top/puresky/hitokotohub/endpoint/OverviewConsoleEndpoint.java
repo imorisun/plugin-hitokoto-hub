@@ -46,7 +46,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
     private final ReactiveExtensionClient client;
 
     @Override
-    public RouterFunction<ServerResponse> endpoint() {
+    public @NonNull RouterFunction<ServerResponse> endpoint() {
         return route()
             .GET("overview", this::getOverview,
                 builder -> builder.operationId("getOverview")
@@ -62,17 +62,18 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
     }
 
     @Override
-    public GroupVersion groupVersion() {
+    public @NonNull GroupVersion groupVersion() {
         return GroupVersion.parseAPIVersion(GROUP_VERSION);
     }
 
     private @NonNull Mono<ServerResponse> getOverview(ServerRequest request) {
-        Mono<Long> sentenceCount = client.countBy(Sentence.class, null);
-        Mono<Long> categoryCount = client.countBy(Category.class, null);
+        Mono<Long> sentenceCount = client.countBy(Sentence.class, ListOptions.builder().build());
+        Mono<Long> categoryCount = client.countBy(Category.class, ListOptions.builder().build());
         Mono<Long> publishedSentenceCount = client.countBy(Sentence.class,
             ListOptions.builder().fieldQuery(Queries.equal("status.isPublished", true)).build());
         Mono<List<OverviewResponse.CategoryDistribution>> categoryDistribution =
-            client.listAll(Category.class, null, Sort.unsorted()).flatMap(category -> {
+            client.listAll(Category.class, ListOptions.builder().build(), Sort.unsorted())
+                .flatMap(category -> {
                     OverviewResponse.CategoryDistribution dist =
                         new OverviewResponse.CategoryDistribution();
                     String categoryName = category.getMetadata().getName();
@@ -132,7 +133,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
         ).collectList();
 
         Mono<Map<String, String>> categoryNameMap =
-            client.listAll(Category.class, null, Sort.unsorted())
+            client.listAll(Category.class, ListOptions.builder().build(), Sort.unsorted())
                 .collectMap(
                     category -> category.getMetadata().getName(),
                     category -> category.getSpec().getName()

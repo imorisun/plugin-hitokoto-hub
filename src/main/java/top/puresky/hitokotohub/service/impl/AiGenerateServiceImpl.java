@@ -30,7 +30,7 @@ public class AiGenerateServiceImpl implements AiGenerateService {
 
     private final ExtensionGetter extensionGetter;
     private final ReactiveExtensionClient client;
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Override
     public Mono<Void> sentencesGenerateAndSave(
@@ -91,9 +91,7 @@ public class AiGenerateServiceImpl implements AiGenerateService {
             })
             .flatMap(json -> {
                 try {
-                    List<Map<String, Object>> sentenceList =
-                        objectMapper.readValue(json, new TypeReference<>() {
-                        });
+                    List<Map<String, Object>> sentenceList = objectMapper.readValue(json, new TypeReference<>() {});
                     return Mono.just(sentenceList);
                 } catch (Exception e) {
                     log.error("解析AI返回的JSON失败", e);

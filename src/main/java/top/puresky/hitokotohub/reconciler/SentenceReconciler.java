@@ -11,6 +11,9 @@ import run.halo.app.extension.controller.Reconciler;
 import run.halo.app.extension.index.query.Queries;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.Sentence;
+import javax.swing.text.html.Option;
+import java.util.Collections;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -43,7 +46,7 @@ public class SentenceReconciler implements Reconciler<Reconciler.Request> {
             );
 
             if (ExtensionOperator.isDeleted(sentence)) {
-                sentence.getMetadata().setFinalizers(null);
+                sentence.getMetadata().setFinalizers(Collections.emptySet());
                 client.update(sentence);
             }
         });

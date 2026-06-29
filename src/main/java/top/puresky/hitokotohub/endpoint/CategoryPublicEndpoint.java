@@ -31,14 +31,14 @@ public class CategoryPublicEndpoint implements CustomEndpoint {
     private final ReactiveExtensionClient client;
 
     @Override
-    public RouterFunction<ServerResponse> endpoint() {
+    public @NonNull RouterFunction<ServerResponse> endpoint() {
         return route().GET("category/list", this::listCategories,
             builder -> builder.operationId("listCategories").summary("获取所有分类").tag(TAG)
                 .response(responseBuilder().implementationArray(CategoryItem.class))).build();
     }
 
     @Override
-    public GroupVersion groupVersion() {
+    public @NonNull GroupVersion groupVersion() {
         return GroupVersion.parseAPIVersion(GROUP_VERSION);
     }
 

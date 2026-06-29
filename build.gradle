@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id "io.freefair.lombok" version "9.2.0"
-    id "run.halo.plugin.devtools" version "0.6.2"
+    id "run.halo.plugin.devtools" version "0.7.0"
 }
 
 group 'top.puresky.hitokotohub'
@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    implementation platform('run.halo.tools.platform:plugin:2.23.0')
+    implementation platform('run.halo.tools.platform:plugin:2.25.0')
     implementation 'org.dhatim:fastexcel-reader:0.20.0'
     compileOnly 'run.halo.app:api'
     compileOnly "run.halo.aifoundation:api:1.0.0-beta.1"
@@ -53,7 +53,7 @@ tasks.named('generatePluginComponentsIdx') {
 
 halo {
     version = '2.25'
-    debug = false
+    debug = true
 }
 
 haloPlugin {
