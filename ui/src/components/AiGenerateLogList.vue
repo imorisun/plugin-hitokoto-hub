@@ -9,6 +9,17 @@
           </div>
         </div>
         <div class="flex shrink-0 items-center gap-2">
+          <VButton
+                  size="sm"
+                  type="primary"
+                  :loading="triggering"
+                  @click="handleTriggerGenerate"
+          >
+            <template #icon>
+              <el-icon><MagicStick/></el-icon>
+            </template>
+            立即生成
+          </VButton>
           <el-select
                   v-model="statusFilter"
                   placeholder="状态筛选"
@@ -73,7 +84,7 @@
               </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column label="模型" min-width="120">
+          <el-table-column label="模型" min-width="80">
             <template #default="{ row }">
               <el-tooltip
                       :content="row.spec.modelName || '-'"
@@ -161,7 +172,8 @@
 </template>
 
 <script setup lang="ts">
-import {IconRefreshLine, Toast, VCard, VEmpty, VLoading, VPagination} from '@halo-dev/components'
+import {IconRefreshLine, Toast, VButton, VCard, VEmpty, VLoading, VPagination} from '@halo-dev/components'
+import {MagicStick} from '@element-plus/icons-vue'
 import {onMounted, ref, watch} from 'vue'
 import {axiosInstance} from '@halo-dev/api-client'
 
@@ -199,6 +211,7 @@ const total = ref(0)
 const loading = ref(false)
 const logs = ref<AiGenerateLog[]>([])
 const statusFilter = ref('')
+const triggering = ref(false)
 
 const fetchLogs = async () => {
   loading.value = true
@@ -224,6 +237,26 @@ const fetchLogs = async () => {
 const handleStatusChange = () => {
   page.value = 1
   fetchLogs()
+}
+
+const handleTriggerGenerate = async () => {
+  triggering.value = true
+  try {
+    await axiosInstance.post(
+      '/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs/-/trigger'
+    )
+    Toast.success('AI生成任务已触发，请稍后查看日志')
+    // 短暂延迟后刷新列表，便于看到 RUNNING 记录
+    setTimeout(() => {
+      page.value = 1
+      fetchLogs()
+    }, 1000)
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '触发AI生成失败'
+    Toast.error(msg)
+  } finally {
+    triggering.value = false
+  }
 }
 
 const formatTime = (timestamp: string): string => {

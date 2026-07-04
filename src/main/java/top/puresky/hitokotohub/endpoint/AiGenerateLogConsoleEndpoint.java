@@ -5,11 +5,15 @@ import static org.springdoc.core.fn.builders.parameter.Builder.parameterBuilder;
 import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -21,7 +25,9 @@ import run.halo.app.extension.ListResult;
 import run.halo.app.extension.PageRequestImpl;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.Queries;
+import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.extension.AiGenerateLog;
+import top.puresky.hitokotohub.service.AiGenerateService;
 
 @Component
 @RequiredArgsConstructor
@@ -32,6 +38,8 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
     private static final String GROUP_VERSION = "console.api.hitokotohub.puresky.top/v1alpha1";
 
     private final ReactiveExtensionClient client;
+    private final ObjectProvider<AiGenerateService> aiServiceProvider;
+    private final SettingConfig settingConfig;
 
     @Override
     public @NonNull RouterFunction<ServerResponse> endpoint() {
@@ -49,6 +57,11 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
                         .implementation(String.class).required(false))
                     .response(responseBuilder().implementation(
                         ListResult.generateGenericClass(AiGenerateLog.class))))
+            .POST("ai-generate-logs/-/trigger", this::triggerGenerate,
+                builder -> builder.operationId("triggerAiGenerate")
+                    .summary("手动触发AI生成句子")
+                    .tag(TAG)
+                    .response(responseBuilder().implementation(Object.class)))
             .build();
     }
 
@@ -72,5 +85,36 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
 
         return client.listBy(AiGenerateLog.class, optionsBuilder.build(), pageRequest)
             .flatMap(logs -> ServerResponse.ok().bodyValue(logs));
+    }
+
+    private @NonNull Mono<ServerResponse> triggerGenerate(@NonNull ServerRequest request) {
+        AiGenerateService aiService = aiServiceProvider.getIfAvailable();
+        if (aiService == null) {
+            return ServerResponse.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .bodyValue(Map.of("message", "AI Foundation 服务不可用，请先安装并启用"));
+        }
+        return settingConfig.getAiConfig()
+            .flatMap(aiConfig -> {
+                if (!StringUtils.hasText(aiConfig.getLanguageModelName())) {
+                    return ServerResponse.badRequest()
+                        .bodyValue(Map.of("message", "请先在设置中选择 AI 模型"));
+                }
+                if (!StringUtils.hasText(aiConfig.getAiSentenceCategory())) {
+                    return ServerResponse.badRequest()
+                        .bodyValue(Map.of("message", "请先在设置中选择目标分类"));
+                }
+                // 异步触发，立即返回，用户可在日志列表查看进度
+                aiService.sentencesGenerateAndSave(
+                        aiConfig.getLanguageModelName(),
+                        aiConfig.getAiSystemPrompt(),
+                        aiConfig.getAiTopic(),
+                        aiConfig.getAiSentenceCount(),
+                        aiConfig.getAiSentenceCategory(),
+                        aiConfig.getAiSentenceAutoPublish())
+                    .doOnError(e -> log.error("手动触发AI生成失败", e))
+                    .subscribe();
+                return ServerResponse.ok()
+                    .bodyValue(Map.of("message", "AI生成任务已触发，请稍后查看日志"));
+            });
     }
 }
