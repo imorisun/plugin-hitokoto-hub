@@ -159,7 +159,7 @@ public class AiGenerateServiceImpl implements AiGenerateService {
                     createdLog.getSpec().setErrorMessage(err.getMessage());
                     return client.update(createdLog).then(Mono.error(err));
                 })
-                .flatMap(finalLog -> client.update(finalLog).then(Mono.<Void>empty()))
+                .flatMap(finalLog -> client.update(finalLog).then(Mono.empty()))
             );
     }
 }

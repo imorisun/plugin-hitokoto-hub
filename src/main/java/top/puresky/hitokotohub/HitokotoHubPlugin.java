@@ -99,15 +99,13 @@ public class HitokotoHubPlugin extends BasePlugin {
             });
 
         schemeManager.register(AiGenerateLog.class,
-            aiGenerateLogIndexSpecs -> {
-                aiGenerateLogIndexSpecs.add(
-                    IndexSpecs.<AiGenerateLog, String>single("spec.status", String.class)
-                        .indexFunc(
-                            aiGenerateLog -> aiGenerateLog.getSpec().getStatus().name())
-                        .nullable(false)
-                        .build()
-                );
-            });
+            aiGenerateLogIndexSpecs -> aiGenerateLogIndexSpecs.add(
+                IndexSpecs.<AiGenerateLog, String>single("spec.status", String.class)
+                    .indexFunc(
+                        aiGenerateLog -> aiGenerateLog.getSpec().getStatus().name())
+                    .nullable(false)
+                    .build()
+            ));
 
         System.out.println("✅ 一言数据中心插件启动成功！");
     }
