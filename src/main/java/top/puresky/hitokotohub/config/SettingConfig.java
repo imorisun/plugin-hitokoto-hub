@@ -8,6 +8,7 @@ import reactor.core.publisher.Mono;
 public interface SettingConfig {
     Mono<BasicConfig> getBasicConfig();
     Mono<AiConfig> getAiConfig();
+    Mono<SubmissionConfig> getSubmissionConfig();
 
     @Data
     class BasicConfig {
@@ -52,5 +53,19 @@ public interface SettingConfig {
         private Integer aiLogMaxKeep;
         @Schema(description = "AI日志保留天数")
         private Integer aiLogRetentionDays;
+    }
+    @Data
+    class SubmissionConfig {
+        public static final String GROUP = "submission";
+        @Schema(description = "启用访客提交")
+        private Boolean enableSubmission;
+        @Schema(description = "默认提交分类")
+        private String submissionDefaultCategory;
+        @Schema(description = "审核通过后自动发布")
+        private Boolean submissionAutoPublish;
+        @Schema(description = "提交冷却时间（分钟）")
+        private Integer submissionCooldown;
+        @Schema(description = "提交记录最大保留条数")
+        private Integer submissionMaxKeep;
     }
 }

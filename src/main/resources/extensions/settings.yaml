@@ -204,3 +204,45 @@ spec:
           value: 30
           validation: required|number|min:1|max:365
           help: 超过此天数的AI生成日志将被清理
+    - group: submission
+      label: 访客提交设置
+      formSchema:
+        - $formkit: switch
+          name: enableSubmission
+          id: enableSubmission
+          label: 启用访客提交
+          value: true
+          help: 开启后，访客可在模板页面提交句子，管理员在后台审核
+        - $formkit: select
+          name: submissionDefaultCategory
+          label: 默认提交分类
+          if: "$get(enableSubmission).value === true"
+          value:
+          clearable: true
+          autoSelect: true
+          action: /apis/hitokotohub.puresky.top/v1alpha1/categories
+          requestOption:
+            method: GET
+            labelField: spec.name
+            valueField: metadata.name
+          help: 访客提交句子时默认选中的分类（留空则让访客自行选择）
+        - $formkit: switch
+          name: submissionAutoPublish
+          label: 审核通过后自动发布
+          value: false
+          if: "$get(enableSubmission).value === true"
+          help: 开启后，审核通过的句子将自动发布；关闭则需手动发布
+        - $formkit: number
+          name: submissionCooldown
+          label: 提交冷却时间（分钟）
+          value: 10
+          validation: required|number|min:0|max:1440
+          if: "$get(enableSubmission).value === true"
+          help: 同一 IP 两次提交的间隔时间，0 表示不限制
+        - $formkit: number
+          name: submissionMaxKeep
+          label: 提交记录最大保留条数
+          value: 1000
+          validation: required|number|min:100|max:10000
+          if: "$get(enableSubmission).value === true"
+          help: 超过此数量将自动删除最旧的已处理提交记录

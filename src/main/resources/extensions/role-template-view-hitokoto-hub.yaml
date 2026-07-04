@@ -11,8 +11,8 @@ metadata:
       ["plugin:hitokoto-hub:view"]
 rules:
   - apiGroups: [ "hitokotohub.puresky.top" ]
-    resources: [ "sentences", "categories" ]
+    resources: [ "sentences", "categories", "sentencesubmissions" ]
     verbs: [ "get", "list", "watch" ]
   - apiGroups: [ "console.api.hitokotohub.puresky.top" ]
-    resources: [ "overview", "sentence" ,"overview/view-statistics" ]
+    resources: [ "overview", "sentence" ,"overview/view-statistics", "sentence-submissions" ]
     verbs: [ "get", "list" ]

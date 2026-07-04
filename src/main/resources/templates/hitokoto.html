@@ -508,6 +508,525 @@
                 line-height: 2.5;
             }
         }
+
+        /* ==================== 访客提交按钮 ==================== */
+        .submit-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(20, 12, 12, 0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(251, 113, 133, 0.14);
+            cursor: pointer;
+            color: var(--text-dim);
+            font-family: var(--ui-font);
+            font-size: 0.68rem;
+            letter-spacing: 0.06em;
+            padding: 0.4rem 0.8rem;
+            border-radius: 999px;
+            transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
+            opacity: 0;
+            animation: authorFadeIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            animation-delay: 1s;
+        }
+
+        .submit-btn:hover {
+            color: var(--accent);
+            background-color: rgba(251, 113, 133, 0.1);
+            border-color: rgba(251, 113, 133, 0.32);
+        }
+
+        .submit-btn:active {
+            transform: scale(0.94);
+        }
+
+        .submit-btn svg {
+            width: 14px;
+            height: 14px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        @keyframes fieldSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ==================== 提交弹窗 ==================== */
+        .submit-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 300;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .submit-modal.open,
+        .submit-modal.closing {
+            display: flex;
+        }
+
+        .submit-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .submit-modal.open .submit-modal__backdrop {
+            opacity: 1;
+        }
+
+        .submit-modal__card {
+            position: relative;
+            width: 100%;
+            max-width: 30rem;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: rgba(15, 9, 9, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(251, 113, 133, 0.22);
+            border-radius: 1rem;
+            padding: 1.75rem 1.5rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
+                        0 0 0 1px rgba(251, 113, 133, 0.05);
+            transform: translateY(20px) scale(0.98);
+            opacity: 0;
+            transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        opacity 0.35s ease;
+        }
+
+        .submit-modal.open .submit-modal__card {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .submit-modal.closing .submit-modal__card {
+            transform: translateY(10px) scale(0.98);
+            opacity: 0;
+            transition: transform 0.25s cubic-bezier(0.55, 0.06, 0.68, 0.19),
+                        opacity 0.25s ease;
+        }
+
+        .submit-modal.closing .submit-modal__backdrop {
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .submit-modal__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+        }
+
+        .submit-modal.open .submit-modal__header {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.15s both;
+        }
+
+        .submit-modal__title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text);
+            letter-spacing: 0.04em;
+        }
+
+        .submit-modal__close {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: color 0.3s, background-color 0.3s;
+        }
+
+        .submit-modal__close:hover {
+            color: var(--accent);
+            background-color: rgba(251, 113, 133, 0.1);
+        }
+
+        .submit-modal__close svg {
+            width: 16px;
+            height: 16px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .submit-field {
+            margin-bottom: 1rem;
+        }
+
+        .submit-modal.open .submit-field:nth-child(1) {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.22s both;
+        }
+        .submit-modal.open .submit-field:nth-child(2) {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.30s both;
+        }
+        .submit-modal.open .submit-field:nth-child(3) {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.38s both;
+        }
+        .submit-modal.open .submit-field:nth-child(4) {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.46s both;
+        }
+        .submit-modal.open .submit-field:nth-child(5) {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.54s both;
+        }
+
+        .submit-field__label {
+            display: block;
+            font-family: var(--ui-font);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            letter-spacing: 0.08em;
+            margin-bottom: 0.45rem;
+        }
+
+        .submit-field__label .required {
+            color: var(--accent);
+            margin-left: 0.15rem;
+        }
+
+        .submit-field__input,
+        .submit-field__textarea,
+        .submit-field__select {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(251, 113, 133, 0.16);
+            border-radius: 0.6rem;
+            padding: 0.6rem 0.8rem;
+            color: var(--text);
+            font-family: 'Noto Serif SC', serif;
+            font-size: 0.85rem;
+            transition: border-color 0.3s, background-color 0.3s;
+            outline: none;
+        }
+
+        .submit-field__input::placeholder,
+        .submit-field__textarea::placeholder {
+            color: var(--muted);
+            font-family: var(--ui-font);
+            font-size: 0.78rem;
+        }
+
+        .submit-field__input:focus,
+        .submit-field__textarea:focus,
+        .submit-field__select:focus {
+            border-color: rgba(251, 113, 133, 0.5);
+            background-color: rgba(251, 113, 133, 0.04);
+        }
+
+        .submit-field__textarea {
+            resize: vertical;
+            min-height: 5rem;
+            line-height: 1.7;
+        }
+
+        .submit-field__select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.8rem center;
+            padding-right: 2rem;
+            cursor: pointer;
+            font-family: var(--ui-font);
+            font-size: 0.8rem;
+        }
+
+        .submit-field__select option {
+            background: #1a1010;
+            color: var(--text);
+        }
+
+        /* ==================== 暗色主题滚动条与下拉框适配 ==================== */
+        .submit-modal__card,
+        .submit-field__textarea,
+        .submit-field__select {
+            color-scheme: dark;
+        }
+
+        .submit-modal__card::-webkit-scrollbar,
+        .submit-field__textarea::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .submit-modal__card::-webkit-scrollbar-track,
+        .submit-field__textarea::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+        }
+
+        .submit-modal__card::-webkit-scrollbar-thumb,
+        .submit-field__textarea::-webkit-scrollbar-thumb {
+            background: rgba(251, 113, 133, 0.25);
+            border-radius: 3px;
+            transition: background 0.3s;
+        }
+
+        .submit-modal__card::-webkit-scrollbar-thumb:hover,
+        .submit-field__textarea::-webkit-scrollbar-thumb:hover {
+            background: rgba(251, 113, 133, 0.45);
+        }
+
+        .submit-modal__card,
+        .submit-field__textarea {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(251, 113, 133, 0.25) rgba(0, 0, 0, 0.2);
+        }
+
+        .submit-field__select option:checked,
+        .submit-field__select option:focus,
+        .submit-field__select option:hover {
+            background: rgba(251, 113, 133, 0.2) !important;
+            color: #fff;
+        }
+
+        /* ==================== 自定义分类下拉框 ==================== */
+        .custom-select {
+            position: relative;
+            width: 100%;
+        }
+
+        .custom-select__trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(251, 113, 133, 0.16);
+            border-radius: 0.6rem;
+            padding: 0.6rem 0.8rem;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.3s, background-color 0.3s;
+        }
+
+        .custom-select__trigger:hover {
+            border-color: rgba(251, 113, 133, 0.3);
+        }
+
+        .custom-select__trigger:focus,
+        .custom-select--open .custom-select__trigger {
+            border-color: rgba(251, 113, 133, 0.5);
+            background-color: rgba(251, 113, 133, 0.04);
+        }
+
+        .custom-select__value {
+            font-family: var(--ui-font);
+            font-size: 0.8rem;
+            color: var(--text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .custom-select__value--placeholder {
+            color: var(--muted);
+        }
+
+        .custom-select__arrow {
+            width: 14px;
+            height: 14px;
+            fill: none;
+            stroke: var(--muted);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: transform 0.3s ease, stroke 0.3s ease;
+            flex-shrink: 0;
+            margin-left: 0.5rem;
+        }
+
+        .custom-select--open .custom-select__arrow {
+            transform: rotate(180deg);
+            stroke: var(--accent);
+        }
+
+        .custom-select__dropdown {
+            position: fixed;
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(20, 12, 12, 0.97);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(251, 113, 133, 0.18);
+            border-radius: 0.6rem;
+            padding: 4px;
+            z-index: 400;
+            opacity: 0;
+            transform: translateY(-8px);
+            pointer-events: none;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        .custom-select__dropdown--open {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .custom-select__option {
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-family: var(--ui-font);
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            transition: background-color 0.2s, color 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .custom-select__option:hover {
+            background: rgba(251, 113, 133, 0.12);
+            color: var(--accent);
+        }
+
+        .custom-select__option--selected {
+            background: rgba(251, 113, 133, 0.15);
+            color: var(--accent);
+        }
+
+        .custom-select__option--disabled {
+            color: var(--muted);
+            cursor: not-allowed;
+            font-style: italic;
+        }
+
+        .custom-select__option--disabled:hover {
+            background: transparent;
+            color: var(--muted);
+        }
+
+        .custom-select__dropdown::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .custom-select__dropdown::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-select__dropdown::-webkit-scrollbar-thumb {
+            background: rgba(251, 113, 133, 0.25);
+            border-radius: 3px;
+        }
+
+        .custom-select__dropdown::-webkit-scrollbar-thumb:hover {
+            background: rgba(251, 113, 133, 0.45);
+        }
+
+        .custom-select__dropdown {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(251, 113, 133, 0.25) transparent;
+        }
+
+        .submit-field__count {
+            display: block;
+            text-align: right;
+            font-family: var(--ui-font);
+            font-size: 0.65rem;
+            color: var(--muted);
+            margin-top: 0.3rem;
+            letter-spacing: 0.04em;
+        }
+
+        .submit-modal__footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.6rem;
+            margin-top: 1.5rem;
+        }
+
+        .submit-modal.open .submit-modal__footer {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.62s both;
+        }
+
+        .submit-modal__btn {
+            font-family: var(--ui-font);
+            font-size: 0.75rem;
+            letter-spacing: 0.06em;
+            padding: 0.55rem 1.3rem;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
+            border: 1px solid rgba(251, 113, 133, 0.2);
+            background: transparent;
+            color: var(--text-dim);
+        }
+
+        .submit-modal__btn:hover {
+            color: var(--text);
+            background-color: rgba(255, 255, 255, 0.04);
+        }
+
+        .submit-modal__btn--primary {
+            background: linear-gradient(135deg, rgba(251, 113, 133, 0.85), rgba(244, 114, 182, 0.75));
+            border-color: transparent;
+            color: #fff;
+        }
+
+        .submit-modal__btn--primary:hover {
+            background: linear-gradient(135deg, rgba(251, 113, 133, 1), rgba(244, 114, 182, 0.9));
+            color: #fff;
+        }
+
+        .submit-modal__btn--primary:active {
+            transform: scale(0.96);
+        }
+
+        .submit-modal__btn--primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        @media (min-width: 768px) {
+            .submit-btn {
+                font-size: 0.72rem;
+                gap: 0.45rem;
+            }
+
+            .submit-btn svg {
+                width: 15px;
+                height: 15px;
+            }
+
+            .submit-modal__card {
+                padding: 2rem 1.75rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -518,12 +1037,20 @@
 
 <header>
     <div class="music-btn">LiteWords</div>
-    <button class="like-btn" id="likeBtn" type="button" aria-label="点赞">
-        <svg class="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-        </svg>
-        <span class="like-count" id="likeCount">0</span>
-    </button>
+    <div class="header-actions">
+        <button class="submit-btn" id="submitBtn" type="button" aria-label="提交句子">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"/>
+            </svg>
+            <span>投递句子</span>
+        </button>
+        <button class="like-btn" id="likeBtn" type="button" aria-label="点赞">
+            <svg class="heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+            <span class="like-count" id="likeCount">0</span>
+        </button>
+    </div>
 </header>
 
 <main>
@@ -547,6 +1074,90 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- 访客提交句子弹窗 -->
+<div class="submit-modal" id="submitModal" role="dialog" aria-modal="true" aria-labelledby="submitModalTitle">
+    <div class="submit-modal__backdrop" id="submitModalBackdrop"></div>
+    <div class="submit-modal__card">
+        <div class="submit-modal__header">
+            <div class="submit-modal__title" id="submitModalTitle">投递一句</div>
+            <button class="submit-modal__close" id="submitModalClose" type="button" aria-label="关闭">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18 6 6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <form id="submitForm" autocomplete="off">
+            <div class="submit-field">
+                <label class="submit-field__label" for="submitContent">
+                    句子内容<span class="required">*</span>
+                </label>
+                <textarea
+                        class="submit-field__textarea"
+                        id="submitContent"
+                        name="content"
+                        maxlength="500"
+                        required
+                        placeholder="写下你想分享的那一句话..."
+                        rows="4"
+                ></textarea>
+                <span class="submit-field__count"><span id="submitContentCount">0</span> / 500</span>
+            </div>
+            <div class="submit-field">
+                <label class="submit-field__label">分类<span class="required">*</span></label>
+                <div class="custom-select" id="submitCategorySelect">
+                    <div class="custom-select__trigger" id="submitCategoryTrigger" tabindex="0">
+                        <span class="custom-select__value custom-select__value--placeholder" id="submitCategoryLabel">加载中...</span>
+                        <svg class="custom-select__arrow" viewBox="0 0 24 24">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </div>
+                </div>
+                <input type="hidden" id="submitCategory" value="">
+            </div>
+            <div class="submit-field">
+                <label class="submit-field__label" for="submitAuthor">作者</label>
+                <input
+                        class="submit-field__input"
+                        id="submitAuthor"
+                        name="author"
+                        type="text"
+                        maxlength="50"
+                        placeholder="留空则记为匿名"
+                >
+            </div>
+            <div class="submit-field">
+                <label class="submit-field__label" for="submitSource">来源</label>
+                <input
+                        class="submit-field__input"
+                        id="submitSource"
+                        name="source"
+                        type="text"
+                        maxlength="100"
+                        placeholder="如书名、电影、歌曲等"
+                >
+            </div>
+            <div class="submit-field">
+                <label class="submit-field__label" for="submitterName">你的昵称</label>
+                <input
+                        class="submit-field__input"
+                        id="submitterName"
+                        name="submitterName"
+                        type="text"
+                        maxlength="50"
+                        placeholder="让管理员知道是谁投递的"
+                >
+            </div>
+            <div class="submit-modal__footer">
+                <button class="submit-modal__btn" type="button" id="submitCancel">取消</button>
+                <button class="submit-modal__btn submit-modal__btn--primary" type="submit" id="submitConfirm" disabled>
+                    投递
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="custom-select__dropdown" id="submitCategoryDropdown"></div>
 <script>
     /* ==================== 句子状态 ==================== */
     const state = {
@@ -558,6 +1169,8 @@
 
     const LIKE_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like';
     const RANDOM_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/random?limit=1';
+    const CATEGORY_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/category/list';
+    const SUBMIT_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence-submission/submit';
 
     /* ==================== 文字入场动画 ==================== */
     function animateText(elementId) {
@@ -794,11 +1407,212 @@
         }
     });
 
+    /* ==================== 访客提交句子 ==================== */
+    const submitModal = document.getElementById('submitModal');
+    const submitForm = document.getElementById('submitForm');
+    const submitContent = document.getElementById('submitContent');
+    const submitContentCount = document.getElementById('submitContentCount');
+    const submitCategory = document.getElementById('submitCategory');
+    const submitConfirmBtn = document.getElementById('submitConfirm');
+    const categorySelect = document.getElementById('submitCategorySelect');
+    const categoryTrigger = document.getElementById('submitCategoryTrigger');
+    const categoryDropdown = document.getElementById('submitCategoryDropdown');
+    const categoryLabel = document.getElementById('submitCategoryLabel');
+    let submitCategoriesLoaded = false;
+    let submitting = false;
+
+    function openSubmitModal() {
+        submitModal.classList.add('open');
+        if (!submitCategoriesLoaded) {
+            loadSubmitCategories();
+        }
+        setTimeout(() => submitContent.focus(), 350);
+    }
+
+    function closeSubmitModal() {
+        submitModal.classList.add('closing');
+        submitModal.classList.remove('open');
+        closeCategoryDropdown();
+        setTimeout(() => {
+            submitModal.classList.remove('closing');
+            submitForm.reset();
+            submitContentCount.textContent = '0';
+            submitConfirmBtn.disabled = true;
+            categoryLabel.textContent = '请选择分类';
+            categoryLabel.classList.add('custom-select__value--placeholder');
+            categoryDropdown.querySelectorAll('.custom-select__option--selected')
+                .forEach((o) => o.classList.remove('custom-select__option--selected'));
+        }, 250);
+    }
+
+    async function loadSubmitCategories() {
+        try {
+            const res = await fetch(CATEGORY_API);
+            if (!res.ok) throw new Error('fetch failed');
+            const list = await res.json();
+            categoryDropdown.innerHTML = '';
+            if (!list || list.length === 0) {
+                categoryLabel.textContent = '暂无分类';
+                categoryLabel.classList.add('custom-select__value--placeholder');
+                submitCategory.value = '';
+                return;
+            }
+            categoryLabel.textContent = '请选择分类';
+            categoryLabel.classList.add('custom-select__value--placeholder');
+            list.forEach((c) => {
+                const opt = document.createElement('div');
+                opt.className = 'custom-select__option';
+                opt.dataset.value = c.name;
+                opt.textContent = c.displayName;
+                opt.addEventListener('click', () => {
+                    submitCategory.value = c.name;
+                    categoryLabel.textContent = c.displayName;
+                    categoryLabel.classList.remove('custom-select__value--placeholder');
+                    categoryDropdown.querySelectorAll('.custom-select__option--selected')
+                        .forEach((o) => o.classList.remove('custom-select__option--selected'));
+                    opt.classList.add('custom-select__option--selected');
+                    closeCategoryDropdown();
+                    validateSubmitForm();
+                });
+                categoryDropdown.appendChild(opt);
+            });
+            submitCategoriesLoaded = true;
+        } catch (e) {
+            categoryLabel.textContent = '分类加载失败';
+            categoryLabel.classList.add('custom-select__value--placeholder');
+        }
+    }
+
+    function validateSubmitForm() {
+        const content = submitContent.value.trim();
+        const category = submitCategory.value;
+        submitConfirmBtn.disabled = !(content && category);
+    }
+
+    async function handleSubmit(event) {
+        event.preventDefault();
+        if (submitting) return;
+        const content = submitContent.value.trim();
+        const categoryName = submitCategory.value;
+        if (!content) {
+            showToast('请输入句子内容');
+            return;
+        }
+        if (!categoryName) {
+            showToast('请选择分类');
+            return;
+        }
+        submitting = true;
+        submitConfirmBtn.disabled = true;
+        submitConfirmBtn.textContent = '投递中...';
+        try {
+            const body = {
+                content,
+                categoryName,
+                author: document.getElementById('submitAuthor').value.trim() || undefined,
+                source: document.getElementById('submitSource').value.trim() || undefined,
+                submitterName: document.getElementById('submitterName').value.trim() || undefined,
+            };
+            const res = await fetch(SUBMIT_API, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.success) {
+                showToast(data.message || '投递成功，等待审核');
+                closeSubmitModal();
+            } else if (res.status === 429) {
+                showToast(data.message || '提交过于频繁，请稍后再试');
+            } else if (res.status === 403) {
+                showToast(data.message || '访客提交功能未开启');
+            } else {
+                showToast(data.message || '提交失败，请稍后再试');
+            }
+        } catch (e) {
+            showToast('网络异常，请稍后再试');
+        } finally {
+            submitting = false;
+            submitConfirmBtn.textContent = '投递';
+            validateSubmitForm();
+        }
+    }
+
+    submitContent.addEventListener('input', () => {
+        submitContentCount.textContent = String(submitContent.value.length);
+        validateSubmitForm();
+    });
+    function positionCategoryDropdown() {
+        const triggerRect = categoryTrigger.getBoundingClientRect();
+        categoryDropdown.style.top = (triggerRect.bottom + 4) + 'px';
+        categoryDropdown.style.left = triggerRect.left + 'px';
+        categoryDropdown.style.width = triggerRect.width + 'px';
+    }
+
+    function closeCategoryDropdown() {
+        categorySelect.classList.remove('custom-select--open');
+        categoryDropdown.classList.remove('custom-select__dropdown--open');
+        categoryDropdown.style.top = '';
+        categoryDropdown.style.left = '';
+        categoryDropdown.style.width = '';
+    }
+
+    categoryTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wasOpen = categoryDropdown.classList.contains('custom-select__dropdown--open');
+        if (wasOpen) {
+            closeCategoryDropdown();
+        } else {
+            categorySelect.classList.add('custom-select--open');
+            categoryDropdown.classList.add('custom-select__dropdown--open');
+            positionCategoryDropdown();
+        }
+    });
+    categoryTrigger.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            const wasOpen = categoryDropdown.classList.contains('custom-select__dropdown--open');
+            if (wasOpen) {
+                closeCategoryDropdown();
+            } else {
+                categorySelect.classList.add('custom-select--open');
+                categoryDropdown.classList.add('custom-select__dropdown--open');
+                positionCategoryDropdown();
+            }
+        }
+    });
+    document.addEventListener('click', (e) => {
+        if (!categorySelect.contains(e.target) && !categoryDropdown.contains(e.target)) {
+            closeCategoryDropdown();
+        }
+    });
+    document.getElementById('submitBtn').addEventListener('click', openSubmitModal);
+    document.getElementById('submitCancel').addEventListener('click', closeSubmitModal);
+    document.getElementById('submitModalClose').addEventListener('click', closeSubmitModal);
+    document.getElementById('submitModalBackdrop').addEventListener('click', closeSubmitModal);
+    submitForm.addEventListener('submit', handleSubmit);
+    // 卡片滚动时重新定位下拉框
+    document.querySelector('.submit-modal__card').addEventListener('scroll', () => {
+        if (categoryDropdown.classList.contains('custom-select__dropdown--open')) {
+            positionCategoryDropdown();
+        }
+    });
+    window.addEventListener('resize', () => {
+        if (categoryDropdown.classList.contains('custom-select__dropdown--open')) {
+            positionCategoryDropdown();
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && submitModal.classList.contains('open')) {
+            closeSubmitModal();
+        }
+    });
+
     /* ==================== 交互绑定 ==================== */
     /* 双击屏幕任意位置点赞 / 取消点赞 */
     document.addEventListener('dblclick', (e) => {
-        /* 忽略交互按钮上的双击，避免与单击冲突 */
-        if (e.target.closest('.like-btn, .next-btn, .music-btn')) return;
+        /* 忽略交互按钮与弹窗上的双击，避免与单击冲突 */
+        if (e.target.closest('.like-btn, .next-btn, .music-btn, .submit-btn, .submit-modal')) return;
         const sel = window.getSelection && window.getSelection();
         if (sel && sel.removeAllRanges) sel.removeAllRanges();
         toggleLike(e.clientX, e.clientY);

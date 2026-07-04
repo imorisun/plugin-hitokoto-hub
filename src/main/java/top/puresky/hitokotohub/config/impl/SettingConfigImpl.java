@@ -21,4 +21,9 @@ public class SettingConfigImpl implements SettingConfig {
         return settingFetcher.fetch(AiConfig.GROUP,
             AiConfig.class);
     }
+    @Override
+    public Mono<SubmissionConfig> getSubmissionConfig() {
+        return settingFetcher.fetch(SubmissionConfig.GROUP,
+            SubmissionConfig.class);
+    }
 }

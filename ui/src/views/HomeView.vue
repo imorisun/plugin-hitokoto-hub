@@ -3,6 +3,7 @@ import {markRaw, shallowRef, watch} from 'vue'
 import SentenceList from '@/components/SentenceList.vue'
 import Overview from '@/components/Overview.vue'
 import AiGenerateLogList from '@/components/AiGenerateLogList.vue'
+import SubmissionList from '@/components/SubmissionList.vue'
 import {useRouteQuery} from '@vueuse/router'
 import {VPageHeader, VTabbar} from '@halo-dev/components'
 import IconBob from '~icons/my-icons/bob';
@@ -17,6 +18,11 @@ const tabs = shallowRef([
     id: 'SentenceList',
     label: '数据列表',
     component: markRaw(SentenceList),
+  },
+  {
+    id: 'SubmissionList',
+    label: '访客提交',
+    component: markRaw(SubmissionList),
   },
   {
     id: 'AiGenerateLog',
@@ -56,6 +62,7 @@ watch(
     </div>
     <Overview ref="overview" v-if="activeIndex == 'Overview'"/>
     <SentenceList ref="sentenceList" v-if="activeIndex == 'SentenceList'"/>
+    <SubmissionList v-if="activeIndex == 'SubmissionList'"/>
     <AiGenerateLogList v-if="activeIndex == 'AiGenerateLog'"/>
   </div>
 </template>

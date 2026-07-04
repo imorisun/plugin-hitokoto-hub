@@ -28,6 +28,7 @@ declare module 'vue' {
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     Overview: typeof import('./src/components/Overview.vue')['default']
     SentenceList: typeof import('./src/components/SentenceList.vue')['default']
+    SubmissionList: typeof import('./src/components/SubmissionList.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

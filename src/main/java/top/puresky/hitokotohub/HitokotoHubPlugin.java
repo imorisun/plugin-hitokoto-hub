@@ -10,6 +10,7 @@ import top.puresky.hitokotohub.extension.AiGenerateLog;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.extension.Sentence;
+import top.puresky.hitokotohub.extension.SentenceSubmission;
 
 /**
  * 一言库插件入口
@@ -107,6 +108,33 @@ public class HitokotoHubPlugin extends BasePlugin {
                     .build()
             ));
 
+        schemeManager.register(SentenceSubmission.class,
+            sentenceSubmissionIndexSpecs -> {
+                sentenceSubmissionIndexSpecs.add(
+                    IndexSpecs.<SentenceSubmission, String>single("spec.status", String.class)
+                        .indexFunc(
+                            submission -> submission.getSpec().getStatus().name())
+                        .nullable(false)
+                        .build()
+                );
+                sentenceSubmissionIndexSpecs.add(
+                    IndexSpecs.<SentenceSubmission, String>single("spec.categoryName",
+                            String.class)
+                        .indexFunc(
+                            submission -> submission.getSpec().getCategoryName())
+                        .nullable(false)
+                        .build()
+                );
+                sentenceSubmissionIndexSpecs.add(
+                    IndexSpecs.<SentenceSubmission, String>single("spec.submitterIp",
+                            String.class)
+                        .indexFunc(
+                            submission -> submission.getSpec().getSubmitterIp())
+                        .nullable(true)
+                        .build()
+                );
+            });
+
         System.out.println("✅ 一言数据中心插件启动成功！");
     }
 
@@ -117,11 +145,13 @@ public class HitokotoHubPlugin extends BasePlugin {
         Scheme categoryScheme = schemeManager.get(Category.class);
         Scheme categoryViewRecordScheme = schemeManager.get(CategoryViewRecord.class);
         Scheme aiGenerateLogScheme = schemeManager.get(AiGenerateLog.class);
+        Scheme sentenceSubmissionScheme = schemeManager.get(SentenceSubmission.class);
 
         schemeManager.unregister(sentenceScheme);
         schemeManager.unregister(categoryScheme);
         schemeManager.unregister(categoryViewRecordScheme);
         schemeManager.unregister(aiGenerateLogScheme);
+        schemeManager.unregister(sentenceSubmissionScheme);
         System.out.println("✅ 一言数据中心插件已停止！");
     }
 }
