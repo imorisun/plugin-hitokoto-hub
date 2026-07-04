@@ -97,15 +97,15 @@
               </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column label="分类">
+          <el-table-column label="分类" min-width="100">
             <template #default="{ row }">
               <el-tooltip
-                      :content="row.spec.categoryName || '-'"
+                      :content="getCategoryName(row.spec.categoryName)"
                       placement="top"
                       :disabled="!row.spec.categoryName"
               >
                 <span class="log-cell-ellipsis text-sm text-gray-600">
-                  {{ row.spec.categoryName || '-' }}
+                  {{ getCategoryName(row.spec.categoryName) }}
                 </span>
               </el-tooltip>
             </template>
@@ -176,6 +176,7 @@ import {IconRefreshLine, Toast, VButton, VCard, VEmpty, VLoading, VPagination} f
 import {MagicStick} from '@element-plus/icons-vue'
 import {onMounted, ref, watch} from 'vue'
 import {axiosInstance} from '@halo-dev/api-client'
+import {categoryCoreApiClient} from '@/api'
 
 interface AiGenerateLog {
   apiVersion: string
@@ -212,6 +213,22 @@ const loading = ref(false)
 const logs = ref<AiGenerateLog[]>([])
 const statusFilter = ref('')
 const triggering = ref(false)
+const categories = ref<any[]>([])
+
+const getCategoryName = (categoryName?: string): string => {
+  if (!categoryName) return '-'
+  const category = categories.value.find((c) => c.metadata.name === categoryName)
+  return category?.spec?.name || categoryName
+}
+
+const initCategories = async () => {
+  try {
+    const {data} = await categoryCoreApiClient.category.listCategory({page: 1, size: 100})
+    categories.value = data.items || []
+  } catch (e) {
+    console.error('获取分类列表失败', e)
+  }
+}
 
 const fetchLogs = async () => {
   loading.value = true
@@ -317,6 +334,7 @@ watch(size, () => {
 })
 
 onMounted(() => {
+  initCategories()
   fetchLogs()
 })
 </script>
