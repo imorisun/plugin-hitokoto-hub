@@ -248,24 +248,45 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                         sentence.getStatus().setLikeCount(currentLikes + 1);
                     }
 
-                    CategoryViewRecord record = new CategoryViewRecord();
-                    record.setMetadata(new Metadata());
-                    record.getMetadata().setGenerateName("cvr-");
-                    record.setSpec(new CategoryViewRecord.Spec());
-                    record.getSpec().setCategoryName(sentence.getSpec().getCategoryName());
-                    record.getSpec().setEventType(
-                        isUnlike ? CategoryViewRecord.EventType.UNLIKE
-                            : CategoryViewRecord.EventType.LIKE);
-
-
                     return client.update(sentence)
                         .flatMap(updated -> {
                             likeCache.put(checkKey, System.currentTimeMillis());
                             likeCache.remove(oppositeKey);
 
+                            if (isUnlike) {
+                                // 取消点赞：删除该 IP 对该句子对应的点赞记录
+                                return client.listAll(CategoryViewRecord.class,
+                                        ListOptions.builder().fieldQuery(Queries.and(
+                                            Queries.equal("spec.sentenceName", name),
+                                            Queries.equal("spec.ip", ip),
+                                            Queries.equal("spec.eventType",
+                                                CategoryViewRecord.EventType.LIKE.name())
+                                        )).build(),
+                                        Sort.by("metadata.creationTimestamp").descending())
+                                    .next()
+                                    .flatMap(client::delete)
+                                    .doOnNext(deleted -> log.info("删除点赞记录: {}",
+                                        deleted.getMetadata().getName()))
+                                    .onErrorResume(e -> {
+                                        log.warn("删除点赞记录失败", e);
+                                        return Mono.empty();
+                                    })
+                                    .thenReturn(buildLikeResponse(updated, true,
+                                        "取消点赞成功", "ok"));
+                            }
+
+                            // 点赞：创建点赞记录
+                            CategoryViewRecord record = new CategoryViewRecord();
+                            record.setMetadata(new Metadata());
+                            record.getMetadata().setGenerateName("cvr-");
+                            record.setSpec(new CategoryViewRecord.Spec());
+                            record.getSpec().setCategoryName(sentence.getSpec().getCategoryName());
+                            record.getSpec().setSentenceName(name);
+                            record.getSpec().setIp(ip);
+                            record.getSpec().setEventType(CategoryViewRecord.EventType.LIKE);
                             return client.create(record)
                                 .thenReturn(buildLikeResponse(updated, true,
-                                    isUnlike ? "取消点赞成功" : "点赞成功", "ok"));
+                                    "点赞成功", "ok"));
                         });
                 })
                 .defaultIfEmpty(buildErrorResponse())

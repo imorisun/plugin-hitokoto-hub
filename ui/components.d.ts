@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AiGenerateLogList: typeof import('./src/components/AiGenerateLogList.vue')['default']
     CategoryList: typeof import('./src/components/CategoryList.vue')['default']
     ElCard: typeof import('element-plus/es')['ElCard']
     ElEmpty: typeof import('element-plus/es')['ElEmpty']
@@ -24,6 +25,7 @@ declare module 'vue' {
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTag: typeof import('element-plus/es')['ElTag']
+    ElTooltip: typeof import('element-plus/es')['ElTooltip']
     Overview: typeof import('./src/components/Overview.vue')['default']
     SentenceList: typeof import('./src/components/SentenceList.vue')['default']
   }

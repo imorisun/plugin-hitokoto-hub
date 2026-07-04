@@ -48,5 +48,9 @@ public interface SettingConfig {
         private Boolean aiSentenceAutoPublish;
         @Schema(description = "AI 生成句子的系统提示词")
         private String aiSystemPrompt;
+        @Schema(description = "AI日志最大保留条数")
+        private Integer aiLogMaxKeep;
+        @Schema(description = "AI日志保留天数")
+        private Integer aiLogRetentionDays;
     }
 }

@@ -2,7 +2,7 @@
   <VCard>
     <div class="space-y-6">
       <!-- 概览卡片 -->
-      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
+      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         <el-card class="custom-card">
           <div class="flex items-center justify-between">
             <div>
@@ -98,6 +98,36 @@
             </div>
           </div>
         </el-card>
+
+        <el-card class="custom-card">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-slate-500">总点赞量</p>
+              <p class="mt-1 text-3xl font-bold text-rose-500">
+                {{ likeStatsData.totalLikeCount?.toLocaleString() || 0 }}
+              </p>
+            </div>
+            <div class="flex items-center justify-center w-12 h-12 bg-rose-100 rounded-full">
+              <el-icon :size="24" color="#f43f5e">
+                <Star/>
+              </el-icon>
+            </div>
+          </div>
+        </el-card>
+
+        <el-card class="custom-card">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-slate-500">今日点赞量</p>
+              <p class="mt-1 text-3xl font-bold text-pink-600">
+                {{ likeStatsData.todayLikeCount?.toLocaleString() || 0 }}
+              </p>
+            </div>
+            <div class="flex items-center justify-center w-12 h-12 bg-pink-100 rounded-full">
+              <IconLike class="w-6 h-6 text-pink-600"/>
+            </div>
+          </div>
+        </el-card>
       </div>
 
       <!-- 图表区域 -->
@@ -134,7 +164,6 @@
               <el-select v-model="eventType" size="small" @change="fetchViewStats" style="width: 100px;">
                 <el-option label="浏览量" value="VIEW" />
                 <el-option label="点赞数" value="LIKE" />
-                <el-option label="取消点赞" value="UNLIKE" />
               </el-select>
               <el-radio-group v-model="viewStatsDays" size="small" @change="fetchViewStats">
                 <el-radio-button :value="7">7天</el-radio-button>
@@ -187,6 +216,11 @@
               <span class="font-medium text-green-600">{{ row.viewCount }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="点赞量">
+            <template #default="{ row }">
+              <span class="font-medium text-rose-500">{{ row.likeCount || 0 }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="已发布">
             <template #default="{ row }">
               <span class="font-medium text-green-600">{{ row.publishedCount }}</span>
@@ -220,7 +254,7 @@
 
 <script setup lang="ts">
 import {computed, onMounted, ref} from 'vue'
-import {CircleCheck, CircleClose, Clock, Document, PriceTag, View} from '@element-plus/icons-vue'
+import {CircleCheck, CircleClose, Clock, Document, PriceTag, Star, View} from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import {use} from 'echarts/core'
 import {BarChart, LineChart, PieChart} from 'echarts/charts'
@@ -228,6 +262,7 @@ import {GridComponent, LegendComponent, TitleComponent, TooltipComponent} from '
 import {CanvasRenderer} from 'echarts/renderers'
 import {Toast, VCard} from "@halo-dev/components"
 import {overviewV1alpha1ApiClient} from "@/api"
+import IconLike from '~icons/my-icons/like';
 
 // 注册 ECharts 组件
 use([PieChart, BarChart, LineChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
@@ -258,6 +293,12 @@ const viewStatsData = ref({
     xAxis: [],
     series: []
   }
+})
+
+// 点赞量统计数据
+const likeStatsData = ref({
+  totalLikeCount: 0,
+  todayLikeCount: 0
 })
 
 const viewStatsLoading = ref(false)
@@ -458,7 +499,28 @@ onMounted(() => {
     statsData.value = response.data as any
   })
   fetchViewStats()
+  fetchLikeStats()
 })
+
+// 获取点赞量统计（总点赞量、今日点赞量）
+const fetchLikeStats = async () => {
+  try {
+    const response = await overviewV1alpha1ApiClient.overview.getViewStatistics({
+      params: {
+        days: 1,
+        granularity: 'day',
+        eventType: 'LIKE'
+      }
+    })
+    const data = response.data as any
+    likeStatsData.value = {
+      totalLikeCount: data.totalViewCount || 0,
+      todayLikeCount: data.todayViewCount || 0
+    }
+  } catch (error) {
+    console.error('获取点赞量统计数据失败:', error)
+  }
+}
 
 // 获取浏览量统计数据
 const fetchViewStats = async () => {

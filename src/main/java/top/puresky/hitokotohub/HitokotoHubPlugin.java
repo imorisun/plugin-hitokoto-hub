@@ -6,6 +6,7 @@ import run.halo.app.extension.SchemeManager;
 import run.halo.app.extension.index.IndexSpecs;
 import run.halo.app.plugin.BasePlugin;
 import run.halo.app.plugin.PluginContext;
+import top.puresky.hitokotohub.extension.AiGenerateLog;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.extension.Sentence;
@@ -81,6 +82,31 @@ public class HitokotoHubPlugin extends BasePlugin {
                         .nullable(false)
                         .build()
                 );
+                categoryViewRecordIndexSpecs.add(
+                    IndexSpecs.<CategoryViewRecord, String>single("spec.sentenceName", String.class)
+                        .indexFunc(
+                            categoryViewRecord -> categoryViewRecord.getSpec().getSentenceName())
+                        .nullable(true)
+                        .build()
+                );
+                categoryViewRecordIndexSpecs.add(
+                    IndexSpecs.<CategoryViewRecord, String>single("spec.ip", String.class)
+                        .indexFunc(
+                            categoryViewRecord -> categoryViewRecord.getSpec().getIp())
+                        .nullable(true)
+                        .build()
+                );
+            });
+
+        schemeManager.register(AiGenerateLog.class,
+            aiGenerateLogIndexSpecs -> {
+                aiGenerateLogIndexSpecs.add(
+                    IndexSpecs.<AiGenerateLog, String>single("spec.status", String.class)
+                        .indexFunc(
+                            aiGenerateLog -> aiGenerateLog.getSpec().getStatus().name())
+                        .nullable(false)
+                        .build()
+                );
             });
 
         System.out.println("✅ 一言数据中心插件启动成功！");
@@ -92,10 +118,12 @@ public class HitokotoHubPlugin extends BasePlugin {
         Scheme sentenceScheme = schemeManager.get(Sentence.class);
         Scheme categoryScheme = schemeManager.get(Category.class);
         Scheme categoryViewRecordScheme = schemeManager.get(CategoryViewRecord.class);
+        Scheme aiGenerateLogScheme = schemeManager.get(AiGenerateLog.class);
 
         schemeManager.unregister(sentenceScheme);
         schemeManager.unregister(categoryScheme);
         schemeManager.unregister(categoryViewRecordScheme);
+        schemeManager.unregister(aiGenerateLogScheme);
         System.out.println("✅ 一言数据中心插件已停止！");
     }
 }

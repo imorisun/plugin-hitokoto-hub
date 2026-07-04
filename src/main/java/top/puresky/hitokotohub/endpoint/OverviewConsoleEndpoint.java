@@ -93,10 +93,26 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
                             dist.setPublishedCount(count);
                             dist.setNotPublishedCount(totalCount - count);
 
-                            return client.countBy(CategoryViewRecord.class, ListOptions.builder()
-                                    .fieldQuery(Queries.equal("spec.categoryName", categoryName))
-                                    .build())
-                                .doOnNext(dist::setViewCount)
+                            Mono<Long> viewCountMono = client.countBy(
+                                    CategoryViewRecord.class, ListOptions.builder()
+                                        .fieldQuery(Queries.equal("spec.categoryName",
+                                            categoryName))
+                                        .build())
+                                .defaultIfEmpty(0L);
+
+                            Mono<Long> likeCountMono = client.countBy(
+                                    CategoryViewRecord.class, ListOptions.builder()
+                                        .fieldQuery(Queries.and(
+                                            Queries.equal("spec.categoryName", categoryName),
+                                            Queries.equal("spec.eventType", "LIKE")))
+                                        .build())
+                                .defaultIfEmpty(0L);
+
+                            return Mono.zip(viewCountMono, likeCountMono)
+                                .doOnNext(tuple -> {
+                                    dist.setViewCount(tuple.getT1());
+                                    dist.setLikeCount(tuple.getT2());
+                                })
                                 .thenReturn(dist);
                         });
                 })
@@ -315,6 +331,8 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
             private long notPublishedCount;
             @Schema(description = "浏览量")
             private long viewCount;
+            @Schema(description = "点赞量")
+            private long likeCount;
         }
     }
 

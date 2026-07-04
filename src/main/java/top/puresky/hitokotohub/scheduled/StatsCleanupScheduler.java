@@ -25,6 +25,7 @@ import run.halo.app.extension.index.query.Queries;
 import run.halo.app.plugin.PluginConfigUpdatedEvent;
 import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.endpoint.SentencePublicEndpoint;
+import top.puresky.hitokotohub.extension.AiGenerateLog;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.service.AiGenerateService;
 
@@ -141,6 +142,56 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
                 return byDays.then(byCount);
             })
             .doOnError(e -> log.error("统计数据清理失败", e))
+            .subscribe();
+    }
+
+    // 每天凌晨 3 点 30 分清理一次过期的 AI 生成日志
+    @Scheduled(cron = "0 30 3 * * *")
+    public void cleanOldAiGenerateLogs() {
+        settingConfig.getAiConfig()
+            .flatMap(config -> {
+                int maxKeep = config.getAiLogMaxKeep() != null ? config.getAiLogMaxKeep() : 500;
+                int retentionDays =
+                    config.getAiLogRetentionDays() != null ? config.getAiLogRetentionDays() : 30;
+                Instant cutoffTime = Instant.now().minus(Duration.ofDays(retentionDays));
+
+                Mono<Long> byDays = client.listAll(AiGenerateLog.class,
+                        ListOptions.builder()
+                            .fieldQuery(
+                                Queries.lessThan("metadata.creationTimestamp",
+                                    cutoffTime.toString()))
+                            .build(),
+                        Sort.unsorted())
+                    .flatMap(client::delete)
+                    .count()
+                    .doOnNext(count -> {
+                        if (count > 0) {
+                            log.info("按天数清理了 {} 条AI生成日志", count);
+                        }
+                    });
+
+                Mono<Long> byCount = client.listAll(AiGenerateLog.class,
+                        ListOptions.builder().build(),
+                        Sort.by("metadata.creationTimestamp").ascending())
+                    .collectList()
+                    .flatMap(logs -> {
+                        if (logs.size() <= maxKeep) {
+                            return Mono.empty();
+                        }
+                        int deleteCount = logs.size() - maxKeep;
+                        return Flux.fromIterable(logs.subList(0, deleteCount))
+                            .flatMap(client::delete)
+                            .count()
+                            .doOnNext(count -> {
+                                if (count > 0) {
+                                    log.info("按条数清理了 {} 条AI生成日志", count);
+                                }
+                            });
+                    });
+
+                return byDays.then(byCount);
+            })
+            .doOnError(e -> log.error("AI生成日志清理失败", e))
             .subscribe();
     }
 
