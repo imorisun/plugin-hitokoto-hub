@@ -62,14 +62,14 @@
                 :stripe="true"
                 table-layout="auto"
         >
-          <el-table-column label="时间" min-width="160">
+          <el-table-column label="时间">
             <template #default="{ row }">
               <span class="text-sm text-gray-600">
                 {{ formatTime(row.metadata.creationTimestamp) }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="主题" min-width="200">
+          <el-table-column label="主题">
             <template #default="{ row }">
               <el-tooltip
                       :content="row.spec.topic || '-'"
@@ -84,7 +84,7 @@
               </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column label="模型" min-width="80">
+          <el-table-column label="模型" >
             <template #default="{ row }">
               <el-tooltip
                       :content="row.spec.modelName || '-'"
@@ -97,7 +97,7 @@
               </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column label="分类" min-width="100">
+          <el-table-column label="分类">
             <template #default="{ row }">
               <el-tooltip
                       :content="row.spec.categoryName || '-'"
@@ -110,7 +110,7 @@
               </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column label="请求/成功/失败" min-width="140">
+          <el-table-column label="请求/成功/失败">
             <template #default="{ row }">
               <div class="flex items-center gap-1.5 text-sm">
                 <span class="text-gray-500">{{ row.spec.requestCount }}</span>
@@ -121,26 +121,26 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="耗时" min-width="90">
+          <el-table-column label="耗时">
             <template #default="{ row }">
               <span class="text-sm text-gray-600">{{ formatDuration(row.spec.durationMs) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="自动发布" min-width="90">
+          <el-table-column label="自动发布">
             <template #default="{ row }">
               <el-tag :type="row.spec.autoPublish ? 'success' : 'info'" size="small">
                 {{ row.spec.autoPublish ? '是' : '否' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="状态" min-width="110">
+          <el-table-column label="状态">
             <template #default="{ row }">
               <el-tag :type="getStatusType(row.spec.status)" size="small">
                 {{ getStatusLabel(row.spec.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="错误信息" min-width="200">
+          <el-table-column label="错误信息">
             <template #default="{ row }">
               <el-tooltip
                       v-if="row.spec.errorMessage"
