@@ -62,6 +62,13 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
                     .summary("手动触发AI生成句子")
                     .tag(TAG)
                     .response(responseBuilder().implementation(Object.class)))
+            .DELETE("ai-generate-logs/{name}", this::deleteLog,
+                builder -> builder.operationId("deleteAiGenerateLog")
+                    .summary("删除AI生成日志")
+                    .tag(TAG)
+                    .parameter(parameterBuilder().in(ParameterIn.PATH).name("name")
+                        .description("日志名称").implementation(String.class).required(true))
+                    .response(responseBuilder().implementation(Object.class)))
             .build();
     }
 
@@ -85,6 +92,17 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
 
         return client.listBy(AiGenerateLog.class, optionsBuilder.build(), pageRequest)
             .flatMap(logs -> ServerResponse.ok().bodyValue(logs));
+    }
+
+    private @NonNull Mono<ServerResponse> deleteLog(@NonNull ServerRequest request) {
+        String name = request.pathVariable("name");
+        return client.fetch(AiGenerateLog.class, name)
+            .switchIfEmpty(Mono.error(new IllegalArgumentException("日志不存在")))
+            .flatMap(log -> client.delete(log))
+            .then(ServerResponse.ok().bodyValue(Map.of("message", "删除成功")))
+            .onErrorResume(IllegalArgumentException.class,
+                e -> ServerResponse.status(HttpStatus.NOT_FOUND)
+                    .bodyValue(Map.of("message", e.getMessage())));
     }
 
     private @NonNull Mono<ServerResponse> triggerGenerate(@NonNull ServerRequest request) {

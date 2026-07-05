@@ -80,7 +80,17 @@
               </VEntityField>
               <VEntityField>
                 <template #description>
-                  <el-tag :type="getStatusType(submission.spec.status)" size="small">
+                  <VStatusDot
+                          v-if="isDeleting(submission)"
+                          animate
+                          state="warning"
+                          text="删除中"
+                  />
+                  <el-tag
+                          v-else
+                          :type="getStatusType(submission.spec.status)"
+                          size="small"
+                  >
                     {{ getStatusLabel(submission.spec.status) }}
                   </el-tag>
                 </template>
@@ -99,6 +109,7 @@
                 <VDropdownItem @click="handleApprove(submission)">通过并加入句子库</VDropdownItem>
                 <VDropdownItem type="danger" @click="handleReject(submission)">拒绝</VDropdownItem>
               </template>
+              <VDropdownItem v-if="canManage" type="danger" @click="handleDelete(submission)">删除</VDropdownItem>
             </template>
           </VEntity>
         </VEntityContainer>
@@ -331,6 +342,7 @@
 
 <script setup lang="ts">
 import {
+  Dialog,
   IconRefreshLine,
   Toast,
   VButton,
@@ -343,10 +355,11 @@ import {
   VLoading,
   VModal,
   VPagination,
+  VStatusDot,
   VTag,
 } from '@halo-dev/components'
 import {utils} from '@halo-dev/ui-shared'
-import {computed, onMounted, ref, watch} from 'vue'
+import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import {axiosInstance} from '@halo-dev/api-client'
 import {categoryCoreApiClient} from '@/api'
 
@@ -356,6 +369,7 @@ interface SentenceSubmission {
   metadata: {
     name: string
     creationTimestamp: string
+    deletionTimestamp?: string
   }
   spec: {
     content: string
@@ -387,6 +401,17 @@ const submissions = ref<SentenceSubmission[]>([])
 const statusFilter = ref('')
 const categories = ref<any[]>([])
 const canManage = computed(() => utils.permission.has(['plugin:hitokoto-hub:manage']))
+
+// 删除轮询
+let deletionRefetchTimer: ReturnType<typeof setInterval> | null = null
+
+const isDeleting = (submission: SentenceSubmission): boolean => {
+  return !!submission.metadata?.deletionTimestamp
+}
+
+const hasDeletingSubmissions = computed(() =>
+  submissions.value.some((s) => isDeleting(s)),
+)
 
 // 通过审核弹窗状态
 const showApproveModal = ref(false)
@@ -454,6 +479,44 @@ const fetchSubmissions = async () => {
     Toast.error('加载访客提交列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+const fetchSubmissionsSilently = async () => {
+  try {
+    const params: any = {page: page.value, size: size.value}
+    if (statusFilter.value) {
+      params.status = statusFilter.value
+    }
+    const {data} = await axiosInstance.get<SubmissionList>(
+      '/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence-submissions',
+      {params},
+    )
+    submissions.value = data.items || []
+    total.value = data.total || 0
+  } catch (e) {
+    console.error('Silent fetch failed', e)
+  }
+}
+
+const startDeletionRefetch = () => {
+  if (deletionRefetchTimer) {
+    clearInterval(deletionRefetchTimer)
+  }
+  deletionRefetchTimer = setInterval(async () => {
+    if (hasDeletingSubmissions.value) {
+      await fetchSubmissionsSilently()
+    } else {
+      stopDeletionRefetch()
+      await fetchSubmissionsSilently()
+    }
+  }, 1000)
+}
+
+const stopDeletionRefetch = () => {
+  if (deletionRefetchTimer) {
+    clearInterval(deletionRefetchTimer)
+    deletionRefetchTimer = null
   }
 }
 
@@ -566,6 +629,29 @@ const handleSubmitReject = async () => {
   }
 }
 
+const handleDelete = (submission: SentenceSubmission) => {
+  Dialog.warning({
+    title: '删除确认',
+    description: `确定要删除该提交记录吗？该操作不可撤销。`,
+    confirmType: 'danger',
+    confirmText: '删除',
+    cancelText: '取消',
+    onConfirm: async () => {
+      try {
+        await axiosInstance.delete(
+          `/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence-submissions/${submission.metadata.name}`,
+        )
+        Toast.success('删除成功')
+        await fetchSubmissionsSilently()
+        startDeletionRefetch()
+      } catch (e: any) {
+        const msg = e?.response?.data?.message || '删除失败'
+        Toast.error(msg)
+      }
+    },
+  })
+}
+
 const formatTime = (timestamp?: string): string => {
   if (!timestamp) return '-'
   try {
@@ -618,6 +704,10 @@ watch(size, () => {
 onMounted(() => {
   initCategories()
   fetchSubmissions()
+})
+
+onUnmounted(() => {
+  stopDeletionRefetch()
 })
 </script>
 

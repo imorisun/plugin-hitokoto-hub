@@ -76,15 +76,13 @@
                       placement="top"
                       :disabled="!row.spec.topic"
               >
-                <span
-                        class="log-cell-ellipsis text-sm font-medium text-gray-900"
-                >
+                <span class="log-cell-ellipsis text-sm font-medium text-gray-900">
                   {{ row.spec.topic || '-' }}
                 </span>
               </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column label="模型" >
+          <el-table-column label="模型">
             <template #default="{ row }">
               <el-tooltip
                       :content="row.spec.modelName || '-'"
@@ -135,23 +133,36 @@
           </el-table-column>
           <el-table-column label="状态">
             <template #default="{ row }">
-              <el-tag :type="getStatusType(row.spec.status)" size="small">
+              <VStatusDot
+                      v-if="isDeleting(row)"
+                      animate
+                      state="warning"
+                      text="删除中"
+              />
+              <el-tag
+                      v-else
+                      :type="getStatusType(row.spec.status)"
+                      size="small"
+              >
                 {{ getStatusLabel(row.spec.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="错误信息">
+          <el-table-column label="操作" width="80" fixed="right">
             <template #default="{ row }">
-              <el-tooltip
-                      v-if="row.spec.errorMessage"
-                      :content="row.spec.errorMessage"
-                      placement="top"
-              >
-                <span class="block truncate text-sm text-red-500" style="max-width: 200px">
-                  {{ row.spec.errorMessage }}
-                </span>
-              </el-tooltip>
-              <span v-else class="text-sm text-gray-400">-</span>
+              <el-dropdown trigger="click" @command="(cmd: string) => handleRowAction(cmd, row)">
+                <button class="flex items-center justify-center rounded p-1 hover:bg-gray-100" type="button">
+                  <IconMore class="h-4 w-4 text-gray-600"/>
+                </button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="detail">查看详情</el-dropdown-item>
+                    <el-dropdown-item command="delete" divided>
+                      <span class="text-red-500">删除</span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </template>
           </el-table-column>
         </el-table>
@@ -168,13 +179,105 @@
               :size-options="[20, 30, 50, 100]"
       />
     </div>
+
+    <!-- 日志详情弹窗 -->
+    <VModal
+            v-model:visible="showDetailModal"
+            title="AI 生成日志详情"
+            :width="640"
+    >
+      <div v-if="detailLog" class="form-modal-body">
+        <div class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <span class="text-gray-500">时间：</span>
+              <span class="text-gray-900">{{ formatTime(detailLog.metadata.creationTimestamp) }}</span>
+            </div>
+            <div>
+              <span class="text-gray-500">状态：</span>
+              <el-tag :type="getStatusType(detailLog.spec.status)" size="small">
+                {{ getStatusLabel(detailLog.spec.status) }}
+              </el-tag>
+            </div>
+            <div>
+              <span class="text-gray-500">主题：</span>
+              <span class="text-gray-900">{{ detailLog.spec.topic || '-' }}</span>
+            </div>
+            <div>
+              <span class="text-gray-500">模型：</span>
+              <span class="text-gray-900">{{ detailLog.spec.modelName || '-' }}</span>
+            </div>
+            <div>
+              <span class="text-gray-500">分类：</span>
+              <span class="text-gray-900">{{ getCategoryName(detailLog.spec.categoryName) }}</span>
+            </div>
+            <div>
+              <span class="text-gray-500">耗时：</span>
+              <span class="text-gray-900">{{ formatDuration(detailLog.spec.durationMs) }}</span>
+            </div>
+            <div>
+              <span class="text-gray-500">请求/成功/失败：</span>
+              <span class="text-gray-900">
+                {{ detailLog.spec.requestCount }} /
+                <span class="text-green-600">{{ detailLog.spec.successCount }}</span> /
+                <span class="text-red-600">{{ detailLog.spec.failedCount }}</span>
+              </span>
+            </div>
+            <div>
+              <span class="text-gray-500">自动发布：</span>
+              <span class="text-gray-900">{{ detailLog.spec.autoPublish ? '是' : '否' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="detailLog.spec.errorMessage" class="mb-3 rounded-lg border border-red-200 bg-red-50 p-3">
+          <div class="mb-1 text-xs text-red-500">错误信息</div>
+          <div class="text-sm text-red-700">{{ detailLog.spec.errorMessage }}</div>
+        </div>
+
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <div class="mb-2 text-xs text-gray-500">AI 生成的源数据</div>
+          <div v-if="parsedGeneratedData.length > 0" class="space-y-2">
+            <div
+                    v-for="(item, index) in parsedGeneratedData"
+                    :key="index"
+                    class="rounded-md border border-gray-200 bg-white p-2.5"
+            >
+              <div class="text-sm text-gray-900">{{ item.content || '-' }}</div>
+              <div class="mt-1 flex items-center gap-3 text-xs text-gray-500">
+                <span>作者：{{ item.author || '匿名' }}</span>
+                <span>来源：{{ item.source || '未知' }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-else class="py-4 text-center text-sm text-gray-400">
+            无源数据（该日志可能生成失败或未保存源数据）
+          </div>
+        </div>
+      </div>
+      <template #footer>
+
+      </template>
+    </VModal>
   </VCard>
 </template>
 
 <script setup lang="ts">
-import {IconRefreshLine, Toast, VButton, VCard, VEmpty, VLoading, VPagination} from '@halo-dev/components'
+import {
+  Dialog,
+  IconMore,
+  IconRefreshLine,
+  Toast,
+  VButton,
+  VCard,
+  VEmpty,
+  VLoading,
+  VModal,
+  VPagination,
+  VStatusDot,
+} from '@halo-dev/components'
 import {MagicStick} from '@element-plus/icons-vue'
-import {onMounted, ref, watch} from 'vue'
+import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import {axiosInstance} from '@halo-dev/api-client'
 import {categoryCoreApiClient} from '@/api'
 
@@ -184,6 +287,7 @@ interface AiGenerateLog {
   metadata: {
     name: string
     creationTimestamp: string
+    deletionTimestamp?: string
   }
   spec: {
     modelName?: string
@@ -196,6 +300,7 @@ interface AiGenerateLog {
     status: 'RUNNING' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED'
     errorMessage?: string
     durationMs: number
+    generatedData?: string
   }
 }
 
@@ -214,6 +319,28 @@ const logs = ref<AiGenerateLog[]>([])
 const statusFilter = ref('')
 const triggering = ref(false)
 const categories = ref<any[]>([])
+
+// 详情弹窗状态
+const showDetailModal = ref(false)
+const detailLog = ref<AiGenerateLog | null>(null)
+
+// 删除轮询
+let deletionRefetchTimer: ReturnType<typeof setInterval> | null = null
+
+const isDeleting = (log: AiGenerateLog): boolean => {
+  return !!log.metadata?.deletionTimestamp
+}
+
+const hasDeletingLogs = computed(() => logs.value.some((log) => isDeleting(log)))
+
+const parsedGeneratedData = computed<Array<{ content?: string; author?: string; source?: string }>>(() => {
+  if (!detailLog.value?.spec?.generatedData) return []
+  try {
+    return JSON.parse(detailLog.value.spec.generatedData)
+  } catch {
+    return []
+  }
+})
 
 const getCategoryName = (categoryName?: string): string => {
   if (!categoryName) return '-'
@@ -251,6 +378,44 @@ const fetchLogs = async () => {
   }
 }
 
+const fetchLogsSilently = async () => {
+  try {
+    const params: any = {page: page.value, size: size.value}
+    if (statusFilter.value) {
+      params.status = statusFilter.value
+    }
+    const {data} = await axiosInstance.get<AiGenerateLogList>(
+            '/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs',
+            {params}
+    )
+    logs.value = data.items || []
+    total.value = data.total || 0
+  } catch (e) {
+    console.error('Silent fetch failed', e)
+  }
+}
+
+const startDeletionRefetch = () => {
+  if (deletionRefetchTimer) {
+    clearInterval(deletionRefetchTimer)
+  }
+  deletionRefetchTimer = setInterval(async () => {
+    if (hasDeletingLogs.value) {
+      await fetchLogsSilently()
+    } else {
+      stopDeletionRefetch()
+      await fetchLogsSilently()
+    }
+  }, 1000)
+}
+
+const stopDeletionRefetch = () => {
+  if (deletionRefetchTimer) {
+    clearInterval(deletionRefetchTimer)
+    deletionRefetchTimer = null
+  }
+}
+
 const handleStatusChange = () => {
   page.value = 1
   fetchLogs()
@@ -263,7 +428,6 @@ const handleTriggerGenerate = async () => {
       '/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs/-/trigger'
     )
     Toast.success('AI生成任务已触发，请稍后查看日志')
-    // 短暂延迟后刷新列表，便于看到 RUNNING 记录
     setTimeout(() => {
       page.value = 1
       fetchLogs()
@@ -274,6 +438,49 @@ const handleTriggerGenerate = async () => {
   } finally {
     triggering.value = false
   }
+}
+
+const handleDetail = (log: AiGenerateLog) => {
+  detailLog.value = log
+  showDetailModal.value = true
+}
+
+const handleRowAction = (command: string, log: AiGenerateLog) => {
+  if (command === 'detail') {
+    handleDetail(log)
+  } else if (command === 'delete') {
+    handleDelete(log)
+  }
+}
+
+const handleDelete = (log: AiGenerateLog) => {
+  Dialog.warning({
+    title: '删除确认',
+    description: `确定要删除该AI生成日志吗？该操作不可撤销。`,
+    confirmType: 'danger',
+    confirmText: '删除',
+    cancelText: '取消',
+    onConfirm: async () => {
+      try {
+        await axiosInstance.delete(
+          `/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs/${log.metadata.name}`,
+        )
+        Toast.success('删除成功')
+        await fetchLogsSilently()
+        startDeletionRefetch()
+      } catch (e: any) {
+        const msg = e?.response?.data?.message || '删除失败'
+        Toast.error(msg)
+      }
+    },
+  })
+}
+
+const handleDetailDelete = () => {
+  if (!detailLog.value) return
+  const log = detailLog.value
+  showDetailModal.value = false
+  handleDelete(log)
 }
 
 const formatTime = (timestamp: string): string => {
@@ -336,6 +543,10 @@ watch(size, () => {
 onMounted(() => {
   initCategories()
   fetchLogs()
+})
+
+onUnmounted(() => {
+  stopDeletionRefetch()
 })
 </script>
 

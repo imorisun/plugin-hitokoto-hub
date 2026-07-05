@@ -59,5 +59,8 @@ public class AiGenerateLog extends AbstractExtension {
 
         @Schema(description = "耗时（毫秒）")
         private long durationMs;
+
+        @Schema(description = "AI生成的源数据（JSON字符串，包含生成的句子列表）")
+        private String generatedData;
     }
 }

@@ -13,8 +13,8 @@ metadata:
       ["plugin:hitokoto-hub:manage"]
 rules:
   - apiGroups: [ "hitokotohub.puresky.top" ]
-    resources: [ "sentences", "categories", "sentencesubmissions" ]
+    resources: [ "sentences", "categories", "sentencesubmissions", "aigeneratelogs" ]
     verbs: [ "create", "delete", "deletecollection", "get", "list", "patch", "update", "watch" ]
   - apiGroups: [ "console.api.hitokotohub.puresky.top" ]
-    resources: [ "sentence/batch", "sentence/import-excel", "sentence-submissions", "sentence-submissions/approve", "sentence-submissions/reject" ]
-    verbs: [ "create", "get", "list" ]
+    resources: [ "sentence/batch", "sentence/import-excel", "sentence-submissions", "sentence-submissions/approve", "sentence-submissions/reject", "ai-generate-logs", "ai-generate-logs/-/trigger" ]
+    verbs: [ "create", "delete", "get", "list" ]

@@ -108,6 +108,12 @@ public class AiGenerateServiceImpl implements AiGenerateService {
                 .flatMap(json -> {
                     try {
                         List<Map<String, Object>> sentenceList = objectMapper.readValue(json, new TypeReference<>() {});
+                        // AI可能返回超过设置数量的句子，只取设置的数量
+                        if (sentenceList.size() > count) {
+                            sentenceList = sentenceList.subList(0, count);
+                        }
+                        // 保存AI生成的源数据，供管理员查看
+                        createdLog.getSpec().setGeneratedData(objectMapper.writeValueAsString(sentenceList));
                         return Mono.just(sentenceList);
                     } catch (Exception e) {
                         log.error("解析AI返回的JSON失败", e);

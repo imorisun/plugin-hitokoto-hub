@@ -83,6 +83,13 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
                         contentBuilder().schema(schemaBuilder().implementation(
                             RejectRequest.class))))
                     .response(responseBuilder().implementation(SentenceSubmission.class)))
+            .DELETE("sentence-submissions/{name}", this::deleteSubmission,
+                builder -> builder.operationId("deleteSentenceSubmission")
+                    .summary("删除访客提交记录")
+                    .tag(TAG)
+                    .parameter(parameterBuilder().in(ParameterIn.PATH).name("name")
+                        .description("提交记录名称").implementation(String.class).required(true))
+                    .response(responseBuilder().implementation(Object.class)))
             .build();
     }
 
@@ -179,6 +186,17 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
                     .bodyValue(Map.of("message", e.getMessage())))
             .onErrorResume(IllegalStateException.class,
                 e -> ServerResponse.status(HttpStatus.CONFLICT)
+                    .bodyValue(Map.of("message", e.getMessage())));
+    }
+
+    private @NonNull Mono<ServerResponse> deleteSubmission(@NonNull ServerRequest request) {
+        String name = request.pathVariable("name");
+        return client.fetch(SentenceSubmission.class, name)
+            .switchIfEmpty(Mono.error(new IllegalArgumentException("提交记录不存在")))
+            .flatMap(submission -> client.delete(submission))
+            .then(ServerResponse.ok().bodyValue(Map.of("message", "删除成功")))
+            .onErrorResume(IllegalArgumentException.class,
+                e -> ServerResponse.status(HttpStatus.NOT_FOUND)
                     .bodyValue(Map.of("message", e.getMessage())));
     }
 
