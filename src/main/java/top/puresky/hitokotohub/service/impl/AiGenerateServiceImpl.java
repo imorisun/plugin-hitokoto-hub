@@ -1,8 +1,9 @@
 package top.puresky.hitokotohub.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -18,7 +19,6 @@ import run.halo.aifoundation.schema.OutputSpec;
 import run.halo.app.extension.Metadata;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.plugin.extensionpoint.ExtensionGetter;
-import com.fasterxml.jackson.core.type.TypeReference;
 import top.puresky.hitokotohub.extension.AiGenerateLog;
 import top.puresky.hitokotohub.extension.Sentence;
 import top.puresky.hitokotohub.service.AiGenerateService;

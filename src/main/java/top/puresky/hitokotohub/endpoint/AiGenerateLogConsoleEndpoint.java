@@ -98,7 +98,7 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
         String name = request.pathVariable("name");
         return client.fetch(AiGenerateLog.class, name)
             .switchIfEmpty(Mono.error(new IllegalArgumentException("日志不存在")))
-            .flatMap(log -> client.delete(log))
+            .flatMap(client::delete)
             .then(ServerResponse.ok().bodyValue(Map.of("message", "删除成功")))
             .onErrorResume(IllegalArgumentException.class,
                 e -> ServerResponse.status(HttpStatus.NOT_FOUND)

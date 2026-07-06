@@ -254,7 +254,15 @@
 
 <script setup lang="ts">
 import {computed, onMounted, ref} from 'vue'
-import {CircleCheck, CircleClose, Clock, Document, PriceTag, Star, View} from '@element-plus/icons-vue'
+import {
+  CircleCheck,
+  CircleClose,
+  Clock,
+  Document,
+  PriceTag,
+  Star,
+  View
+} from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import {use} from 'echarts/core'
 import {BarChart, LineChart, PieChart} from 'echarts/charts'

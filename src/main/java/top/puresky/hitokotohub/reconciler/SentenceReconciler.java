@@ -1,5 +1,6 @@
 package top.puresky.hitokotohub.reconciler;
 
+import java.util.Collections;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import run.halo.app.extension.ExtensionClient;
@@ -11,9 +12,6 @@ import run.halo.app.extension.controller.Reconciler;
 import run.halo.app.extension.index.query.Queries;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.Sentence;
-import javax.swing.text.html.Option;
-import java.util.Collections;
-import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor

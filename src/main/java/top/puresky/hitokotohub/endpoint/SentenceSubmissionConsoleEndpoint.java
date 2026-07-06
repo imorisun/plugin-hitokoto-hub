@@ -1,9 +1,9 @@
 package top.puresky.hitokotohub.endpoint;
 
 import static org.springdoc.core.fn.builders.apiresponse.Builder.responseBuilder;
+import static org.springdoc.core.fn.builders.content.Builder.contentBuilder;
 import static org.springdoc.core.fn.builders.parameter.Builder.parameterBuilder;
 import static org.springdoc.core.fn.builders.requestbody.Builder.requestBodyBuilder;
-import static org.springdoc.core.fn.builders.content.Builder.contentBuilder;
 import static org.springdoc.core.fn.builders.schema.Builder.schemaBuilder;
 import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 
@@ -126,7 +126,7 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
                     .switchIfEmpty(Mono.error(new IllegalArgumentException("提交记录不存在")))
                     .flatMap(submission -> {
                         if (submission.getSpec().getStatus() != SentenceSubmission.Status.PENDING) {
-                            return Mono.<SentenceSubmission>error(
+                            return Mono.error(
                                 new IllegalStateException("该提交已被处理，无法重复审核"));
                         }
                         // 使用管理员可能编辑后的字段创建 Sentence
@@ -168,7 +168,7 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
                     .switchIfEmpty(Mono.error(new IllegalArgumentException("提交记录不存在")))
                     .flatMap(submission -> {
                         if (submission.getSpec().getStatus() != SentenceSubmission.Status.PENDING) {
-                            return Mono.<SentenceSubmission>error(
+                            return Mono.error(
                                 new IllegalStateException("该提交已被处理，无法重复审核"));
                         }
                         submission.getSpec().setStatus(SentenceSubmission.Status.REJECTED);
@@ -193,7 +193,7 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
         String name = request.pathVariable("name");
         return client.fetch(SentenceSubmission.class, name)
             .switchIfEmpty(Mono.error(new IllegalArgumentException("提交记录不存在")))
-            .flatMap(submission -> client.delete(submission))
+            .flatMap(client::delete)
             .then(ServerResponse.ok().bodyValue(Map.of("message", "删除成功")))
             .onErrorResume(IllegalArgumentException.class,
                 e -> ServerResponse.status(HttpStatus.NOT_FOUND)
