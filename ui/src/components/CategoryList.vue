@@ -320,10 +320,14 @@ async function handleSave() {
   saving.value = true
   try {
     if (isEditing.value && formCategory.value) {
+      // 重新获取最新数据，防止多次修改导致版本冲突
+      const { data: latestCategory } = await categoryCoreApiClient.category.getCategory({
+        name: formCategory.value.metadata.name,
+      })
       const updated: Category = {
-        ...formCategory.value,
+        ...latestCategory,
         spec: {
-          ...formCategory.value.spec,
+          ...latestCategory.spec,
           name: formData.value.specName.trim(),
           description: formData.value.description.trim() || undefined,
         },

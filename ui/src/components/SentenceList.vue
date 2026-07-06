@@ -1013,10 +1013,14 @@ const handleSaveCategory = async () => {
   savingCategory.value = true
   try {
     if (isEditingCategory.value && editingCategory.value) {
+      // 重新获取最新数据，防止多次修改导致版本冲突
+      const { data: latestCategory } = await categoryCoreApiClient.category.getCategory({
+        name: editingCategory.value.metadata.name,
+      })
       const updated: Category = {
-        ...editingCategory.value,
+        ...latestCategory,
         spec: {
-          ...editingCategory.value.spec,
+          ...latestCategory.spec,
           name: specName,
           description: description || undefined,
         },
@@ -1132,16 +1136,20 @@ const handleSave = async () => {
   saving.value = true
   try {
     if (isEditing.value && editingOriginalSentence.value) {
+      // 重新获取最新数据，防止多次修改导致版本冲突
+      const { data: latestSentence } = await sentenceCoreApiClient.sentence.getSentence({
+        name: editingSentenceName.value,
+      })
       const updated: Sentence = {
-        ...editingOriginalSentence.value,
+        ...latestSentence,
         spec: {
-          ...editingOriginalSentence.value.spec,
+          ...latestSentence.spec,
           content: formData.value.content,
           categoryName: formData.value.categoryName,
           author: formData.value.author,
           source: formData.value.source,
         },
-        status: {...editingOriginalSentence.value.status, published: formData.value.published},
+        status: {...latestSentence.status, published: formData.value.published},
       }
       await sentenceCoreApiClient.sentence.updateSentence({
         name: editingSentenceName.value,

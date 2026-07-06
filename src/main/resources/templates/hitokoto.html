@@ -1059,7 +1059,7 @@
         <h1 class="quote-text" id="quoteText" th:text="${s.content}">加载中...</h1>
         <p class="quote-author" id="quoteAuthor"
            th:attr="data-author=${s.author}, data-source=${s.source}"
-           th:text="${s.author} ? ${s.author} + (${s.source} ? ' · 《' + ${s.source} + '》' : '') : '佚名'">
+           th:text="${s.author} ? ${s.author} + (${s.source} ? ' · ' + ${s.source} : '') : '佚名'">
         </p>
     </div>
 </main>
@@ -1258,6 +1258,16 @@
 
         if (cutIndex < 1) cutIndex = 1;
         return text.substring(0, cutIndex) + '...';
+    }
+
+    /**
+     * 格式化来源：统一用《》包裹，先去除源数据中已有的不完整书名号
+     */
+    function formatSource(source) {
+        if (!source) return '';
+        // 去除已有书名号，统一重新包裹
+        const cleaned = source.replace(/[《》]/g, '');
+        return ' · 《' + cleaned + '》';
     }
 
     /**
@@ -1484,7 +1494,7 @@
             authorEl.setAttribute('data-author', author);
             authorEl.setAttribute('data-source', source);
             authorEl.innerText = author
-                ? author + (source ? ' · 《' + source + '》' : '')
+                ? author + formatSource(source)
                 : '佚名';
 
             state.name = s.metaName || s.name || '';
@@ -1516,6 +1526,17 @@
         originalQuoteText = textEl.innerText.trim();
         const truncated = truncateText(originalQuoteText);
         textEl.innerText = truncated;
+
+        /* 修正作者行：统一用《》包裹来源 */
+        const authorEl = document.getElementById('quoteAuthor');
+        const raw = authorEl.innerText.trim();
+        const sep = ' · ';
+        const idx = raw.indexOf(sep);
+        if (idx > 0) {
+            const authorPart = raw.substring(0, idx);
+            const sourcePart = raw.substring(idx + sep.length);
+            authorEl.innerText = authorPart + formatSource(sourcePart);
+        }
 
         animateText('quoteText');
         animateAuthor();
