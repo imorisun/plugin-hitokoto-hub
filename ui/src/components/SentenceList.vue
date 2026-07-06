@@ -1159,7 +1159,8 @@ const handleSave = async () => {
       Toast.success('创建成功')
     }
     showFormModal.value = false
-    await fetchSentences()
+    await fetchSentencesSilently()
+    await initCategories()
   } catch (e) {
     console.error('保存失败', e)
     Toast.error(isEditing.value ? '更新失败' : '创建失败')
@@ -1300,10 +1301,10 @@ onUnmounted(() => {
   border-radius: 4px;
   color: #4b5563;
   text-align: left;
-  transition: background-color 0.15s ease,
-  border-color 0.15s ease,
-  box-shadow 0.15s ease,
-  color 0.15s ease;
+  transition: background-color 0.12s ease,
+  border-color 0.12s ease,
+  box-shadow 0.12s ease,
+  color 0.12s ease;
 }
 
 .category-nav__item:hover {
@@ -1439,7 +1440,7 @@ onUnmounted(() => {
   background: #f3f4f6;
   border: 1px solid #e5e7eb;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .batch-mode-button:hover {

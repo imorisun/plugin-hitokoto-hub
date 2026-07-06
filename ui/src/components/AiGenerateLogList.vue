@@ -326,12 +326,20 @@ const detailLog = ref<AiGenerateLog | null>(null)
 
 // 删除轮询
 let deletionRefetchTimer: ReturnType<typeof setInterval> | null = null
+// 生成轮询
+let generatePollTimer: ReturnType<typeof setInterval> | null = null
+// 跳过下一次加载态（用于无感刷新时切换页码）
+let skipLoadingFetch = false
 
 const isDeleting = (log: AiGenerateLog): boolean => {
   return !!log.metadata?.deletionTimestamp
 }
 
 const hasDeletingLogs = computed(() => logs.value.some((log) => isDeleting(log)))
+
+const hasRunningLogs = computed(() =>
+  logs.value.some((log) => log.spec.status === 'RUNNING'),
+)
 
 const parsedGeneratedData = computed<Array<{ content?: string; author?: string; source?: string }>>(() => {
   if (!detailLog.value?.spec?.generatedData) return []
@@ -416,6 +424,33 @@ const stopDeletionRefetch = () => {
   }
 }
 
+/* AI 生成轮询：静默刷新日志直到没有 RUNNING 状态的记录 */
+const startGeneratePolling = () => {
+  if (generatePollTimer) {
+    clearInterval(generatePollTimer)
+  }
+  let pollCount = 0
+  const maxPollCount = 150 /* 最多轮询 5 分钟（每 2 秒一次） */
+  generatePollTimer = setInterval(async () => {
+    pollCount++
+    if (pollCount > maxPollCount) {
+      stopGeneratePolling()
+      return
+    }
+    await fetchLogsSilently()
+    if (!hasRunningLogs.value) {
+      stopGeneratePolling()
+    }
+  }, 2000)
+}
+
+const stopGeneratePolling = () => {
+  if (generatePollTimer) {
+    clearInterval(generatePollTimer)
+    generatePollTimer = null
+  }
+}
+
 const handleStatusChange = () => {
   page.value = 1
   fetchLogs()
@@ -428,10 +463,14 @@ const handleTriggerGenerate = async () => {
       '/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs/-/trigger'
     )
     Toast.success('AI生成任务已触发，请稍后查看日志')
-    setTimeout(() => {
+    /* 无感刷新：回到第一页静默拉取，然后轮询直到生成完成 */
+    if (page.value !== 1) {
+      skipLoadingFetch = true
       page.value = 1
-      fetchLogs()
-    }, 1000)
+    } else {
+      await fetchLogsSilently()
+    }
+    startGeneratePolling()
   } catch (e: any) {
     const msg = e?.response?.data?.message || '触发AI生成失败'
     Toast.error(msg)
@@ -534,7 +573,14 @@ const getStatusLabel = (status: string): string => {
   }
 }
 
-watch(page, () => fetchLogs())
+watch(page, () => {
+  if (skipLoadingFetch) {
+    skipLoadingFetch = false
+    fetchLogsSilently()
+  } else {
+    fetchLogs()
+  }
+})
 watch(size, () => {
   page.value = 1
   fetchLogs()
@@ -547,6 +593,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopDeletionRefetch()
+  stopGeneratePolling()
 })
 </script>
 

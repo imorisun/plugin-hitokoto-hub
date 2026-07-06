@@ -29,50 +29,60 @@
             --muted: #52525b;
             --line: rgba(251, 113, 133, 0.35);
             --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            /* 统一缓动曲线 */
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+            --ease-out-sine: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            --ease-in-sine: cubic-bezier(0.39, 0.575, 0.565, 1);
+            --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+            /* 动画时长 token */
+            --dur-char: 0.55s;
+            --dur-author: 0.65s;
+            --dur-heart: 0.6s;
+            --dur-burst: 0.85s;
+            --dur-toast: 0.35s;
+            --dur-field: 0.4s;
+            --dur-modal: 0.35s;
         }
 
         @keyframes charFadeIn {
             from {
                 opacity: 0;
-                transform: translateY(20px);
-                filter: blur(2px);
+                transform: translate3d(0, 24px, 0);
             }
             to {
                 opacity: 1;
-                transform: translateY(0);
-                filter: blur(0);
+                transform: translate3d(0, 0, 0);
             }
         }
 
         @keyframes authorFadeIn {
             from {
                 opacity: 0;
-                transform: translateY(16px);
-                filter: blur(1px);
+                transform: translate3d(0, 18px, 0);
             }
             to {
                 opacity: 1;
-                transform: translateY(0);
-                filter: blur(0);
+                transform: translate3d(0, 0, 0);
             }
         }
 
         @keyframes heartBeat {
-            0% { transform: scale(1); }
-            25% { transform: scale(1.35); }
-            50% { transform: scale(0.92); }
-            75% { transform: scale(1.12); }
-            100% { transform: scale(1); }
+            0% { transform: scale3d(1, 1, 1); }
+            20% { transform: scale3d(1.3, 1.3, 1); }
+            40% { transform: scale3d(0.9, 0.9, 1); }
+            60% { transform: scale3d(1.1, 1.1, 1); }
+            80% { transform: scale3d(0.95, 0.95, 1); }
+            100% { transform: scale3d(1, 1, 1); }
         }
 
         @keyframes heartBurst {
             0% {
-                transform: translate(-50%, -50%) scale(0) rotate(0deg);
+                transform: translate3d(-50%, -50%, 0) scale3d(0, 0, 1) rotate(0deg);
                 opacity: 1;
             }
-            60% { opacity: 1; }
+            55% { opacity: 0.9; }
             100% {
-                transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.1) rotate(var(--rot));
+                transform: translate3d(calc(-50% + var(--dx)), calc(-50% + var(--dy)), 0) scale3d(1.2, 1.2, 1) rotate(var(--rot));
                 opacity: 0;
             }
         }
@@ -80,11 +90,22 @@
         @keyframes toastIn {
             from {
                 opacity: 0;
-                transform: translateX(-50%) translateY(16px);
+                transform: translateX(-50%) translate3d(0, 18px, 0);
             }
             to {
                 opacity: 1;
-                transform: translateX(-50%) translateY(0);
+                transform: translateX(-50%) translate3d(0, 0, 0);
+            }
+        }
+
+        /* 尊重用户减少动画偏好 */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.001ms !important;
             }
         }
 
@@ -132,6 +153,7 @@
             pointer-events: none;
             z-index: 10;
             will-change: transform;
+            backface-visibility: hidden;
         }
 
         .sakura span {
@@ -171,7 +193,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0 1.25rem;
+            padding: 5rem 1.25rem;
             position: relative;
             z-index: 20;
         }
@@ -188,7 +210,7 @@
             font-weight: 500;
             letter-spacing: 0.06em;
             color: var(--text);
-            -webkit-line-clamp: 6;
+            max-height: 12rem;
             overflow: hidden;
             transition: opacity 0.3s ease;
             cursor: pointer;
@@ -198,7 +220,8 @@
         .quote-text .char {
             display: inline-block;
             opacity: 0;
-            animation: charFadeIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            animation: charFadeIn var(--dur-char) var(--ease-out-sine) forwards;
+            will-change: transform, opacity;
         }
 
         .quote-author {
@@ -241,7 +264,7 @@
             border-radius: 999px;
             transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
             opacity: 0;
-            animation: authorFadeIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            animation: authorFadeIn var(--dur-author) var(--ease-out-sine) forwards;
             animation-delay: 1s;
         }
 
@@ -276,7 +299,7 @@
             fill: var(--accent);
             stroke: var(--accent);
             filter: drop-shadow(0 0 8px var(--accent-glow));
-            animation: heartBeat 0.6s ease;
+            animation: heartBeat var(--dur-heart) var(--ease-out-sine);
         }
 
         .like-count {
@@ -326,8 +349,8 @@
             width: 100%;
             height: 100%;
             background-color: var(--accent);
-            transform: translateY(-100%);
-            transition: transform 0.5s ease;
+            transform: translate3d(0, -100%, 0);
+            transition: transform 0.45s var(--ease-out-sine);
         }
 
         .next-btn:hover {
@@ -339,7 +362,7 @@
         }
 
         .next-btn:hover .line::after {
-            transform: translateY(0);
+            transform: translate3d(0, 0, 0);
         }
 
         /* 双击点赞飞出的心形粒子 */
@@ -349,8 +372,9 @@
             pointer-events: none;
             color: var(--accent);
             font-size: 14px;
-            animation: heartBurst 0.9s ease-out forwards;
+            animation: heartBurst var(--dur-burst) ease-out forwards;
             text-shadow: 0 0 8px var(--accent-glow);
+            will-change: transform, opacity;
         }
 
         /* 轻提示 */
@@ -379,7 +403,7 @@
         }
 
         .toast.show {
-            animation: toastIn 0.35s ease forwards;
+            animation: toastIn var(--dur-toast) var(--ease-out-sine) forwards;
         }
 
         ::selection {
@@ -393,7 +417,7 @@
             }
 
             main {
-                padding: 0 1.5rem;
+                padding: 5rem 1.5rem;
             }
 
             .music-btn {
@@ -404,7 +428,7 @@
             .quote-text {
                 font-size: 1.15rem;
                 line-height: 2.1;
-                -webkit-line-clamp: 5;
+                max-height: 12.1rem;
             }
 
             .quote-author {
@@ -448,7 +472,7 @@
             }
 
             main {
-                padding: 0 2rem;
+                padding: 6rem 2rem;
             }
 
             .music-btn {
@@ -459,6 +483,7 @@
             .quote-text {
                 font-size: 1.875rem;
                 line-height: 2.4;
+                max-height: 18rem;
             }
 
             .quote-author {
@@ -506,6 +531,7 @@
             .quote-text {
                 font-size: 2.65rem;
                 line-height: 2.5;
+                max-height: 26.5rem;
             }
         }
 
@@ -527,7 +553,7 @@
             border-radius: 999px;
             transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
             opacity: 0;
-            animation: authorFadeIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            animation: authorFadeIn var(--dur-author) var(--ease-out-sine) forwards;
             animation-delay: 1s;
         }
 
@@ -560,11 +586,11 @@
         @keyframes fieldSlideIn {
             from {
                 opacity: 0;
-                transform: translateY(12px);
+                transform: translate3d(0, 14px, 0);
             }
             to {
                 opacity: 1;
-                transform: translateY(0);
+                transform: translate3d(0, 0, 0);
             }
         }
 
@@ -612,21 +638,22 @@
             padding: 1.75rem 1.5rem;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
                         0 0 0 1px rgba(251, 113, 133, 0.05);
-            transform: translateY(20px) scale(0.98);
+            transform: translate3d(0, 20px, 0) scale3d(0.98, 0.98, 1);
             opacity: 0;
-            transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                        opacity 0.35s ease;
+            transition: transform var(--dur-modal) var(--ease-out-sine),
+                        opacity var(--dur-modal) ease;
+            will-change: transform, opacity;
         }
 
         .submit-modal.open .submit-modal__card {
-            transform: translateY(0) scale(1);
+            transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
             opacity: 1;
         }
 
         .submit-modal.closing .submit-modal__card {
-            transform: translateY(10px) scale(0.98);
+            transform: translate3d(0, 10px, 0) scale3d(0.98, 0.98, 1);
             opacity: 0;
-            transition: transform 0.25s cubic-bezier(0.55, 0.06, 0.68, 0.19),
+            transition: transform 0.25s var(--ease-in-sine),
                         opacity 0.25s ease;
         }
 
@@ -643,7 +670,7 @@
         }
 
         .submit-modal.open .submit-modal__header {
-            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.15s both;
+            animation: fieldSlideIn var(--dur-field) var(--ease-out-sine) 0.15s both;
         }
 
         .submit-modal__title {
@@ -687,19 +714,19 @@
         }
 
         .submit-modal.open .submit-field:nth-child(1) {
-            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.22s both;
+            animation: fieldSlideIn var(--dur-field) var(--ease-out-sine) 0.22s both;
         }
         .submit-modal.open .submit-field:nth-child(2) {
-            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.30s both;
+            animation: fieldSlideIn var(--dur-field) var(--ease-out-sine) 0.30s both;
         }
         .submit-modal.open .submit-field:nth-child(3) {
-            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.38s both;
+            animation: fieldSlideIn var(--dur-field) var(--ease-out-sine) 0.38s both;
         }
         .submit-modal.open .submit-field:nth-child(4) {
-            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.46s both;
+            animation: fieldSlideIn var(--dur-field) var(--ease-out-sine) 0.46s both;
         }
         .submit-modal.open .submit-field:nth-child(5) {
-            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.54s both;
+            animation: fieldSlideIn var(--dur-field) var(--ease-out-sine) 0.54s both;
         }
 
         .submit-field__label {
@@ -863,7 +890,7 @@
             stroke-width: 2;
             stroke-linecap: round;
             stroke-linejoin: round;
-            transition: transform 0.3s ease, stroke 0.3s ease;
+            transition: transform 0.28s var(--ease-out-sine), stroke 0.28s ease;
             flex-shrink: 0;
             margin-left: 0.5rem;
         }
@@ -885,14 +912,14 @@
             padding: 4px;
             z-index: 400;
             opacity: 0;
-            transform: translateY(-8px);
+            transform: translate3d(0, -8px, 0);
             pointer-events: none;
-            transition: opacity 0.25s ease, transform 0.25s ease;
+            transition: opacity 0.22s ease, transform 0.22s var(--ease-out-sine);
         }
 
         .custom-select__dropdown--open {
             opacity: 1;
-            transform: translateY(0);
+            transform: translate3d(0, 0, 0);
             pointer-events: auto;
         }
 
@@ -903,7 +930,7 @@
             font-family: var(--ui-font);
             font-size: 0.78rem;
             color: var(--text-dim);
-            transition: background-color 0.2s, color 0.2s;
+            transition: background-color 0.18s, color 0.18s;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -970,7 +997,7 @@
         }
 
         .submit-modal.open .submit-modal__footer {
-            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.62s both;
+            animation: fieldSlideIn var(--dur-field) var(--ease-out-sine) 0.62s both;
         }
 
         .submit-modal__btn {
@@ -1056,11 +1083,12 @@
 <main>
     <div class="quote-container" id="quoteContainer"
          th:each="s : ${hitokotoFinder.randomSentences(1, null)}"
-         th:attr="data-name=${s.name}, data-likes=${s.likeCount}">
+         th:attr="data-name=${s.name}, data-likes=${s.likeCount}"
+         th:with="cleanSource=${#strings.replace(#strings.replace(s.source ?: '', '《', ''), '》', '')}">
         <h1 class="quote-text" id="quoteText" th:text="${s.content}">加载中...</h1>
         <p class="quote-author" id="quoteAuthor"
            th:attr="data-author=${s.author}, data-source=${s.source}"
-           th:text="${s.author} ? ${s.author} + (${s.source} ? ' · 《' + ${s.source} + '》' : '') : '佚名'">
+           th:text="${s.author} ? ${s.author} + (${cleanSource} ? ' · 《' + ${cleanSource} + '》' : '') : '佚名'">
         </p>
     </div>
 </main>
@@ -1172,22 +1200,171 @@
     const CATEGORY_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/category/list';
     const SUBMIT_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence-submission/submit';
 
+    /* 缓存当前句子原文，用于窗口大小变化时重新计算截断 */
+    let _currentSentenceText = '';
+
+    /* applySentence 延迟定时器 ID，用于快速连续切换时取消旧任务 */
+    let _applySentenceTimer = null;
+
+    /* 动画调用代数计数器，用于取消过期的 rAF 回调 */
+    let _animateTextGeneration = 0;
+
+    /* ==================== 截断引擎 ==================== */
+
+    /* 溢出判定容差（px）：消除亚像素舍入和 inline-block 盒模型带来的微小高度偏差 */
+    var OVERFLOW_PX = 2;
+
+    function isOverflowing(el) {
+        return el.scrollHeight - el.clientHeight > OVERFLOW_PX;
+    }
+
+    /**
+     * 二分查找：在已创建 char span 的容器中，找出不溢出的最大字符数。
+     * 通过 toggle display 而非删除 DOM 来测量，性能 O(log n)。
+     * @returns {number} 0 ~ charSpans.length 之间的可容纳字符数
+     */
+    function findMaxFit(element, charSpans) {
+        /* 先展示全部字符，测基准 */
+        for (var i = 0; i < charSpans.length; i++) charSpans[i].style.display = '';
+        if (!isOverflowing(element)) return charSpans.length;
+
+        /* 极端情况：连 1 个字符都溢出（容器极小或异常） */
+        for (var i = 1; i < charSpans.length; i++) charSpans[i].style.display = 'none';
+        if (isOverflowing(element)) return 0;
+
+        /* 二分查找首个溢出的数量 */
+        var lo = 1;
+        var hi = charSpans.length;
+        while (lo < hi) {
+            var mid = Math.floor((lo + hi) / 2);
+            for (var i = 0; i < charSpans.length; i++) {
+                charSpans[i].style.display = i < mid ? '' : 'none';
+            }
+            if (isOverflowing(element)) {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        /* lo 是首个溢出的数量，lo - 1 是最大可容纳数 */
+        return lo - 1;
+    }
+
+    /**
+     * 为省略号留出空间：从 fitCount 开始递减，直到 fitCount 个字符 + 省略号不溢出。
+     * @returns {number} 最终可显示的原文字符数（不含省略号）
+     */
+    function fitWithEllipsis(element, charSpans, fitCount) {
+        if (fitCount === 0) return 0;
+
+        var ellipsis = document.createElement('span');
+        ellipsis.className = 'char char--ellipsis';
+        ellipsis.textContent = '\u2026';
+        ellipsis.style.display = 'inline-block';
+        element.appendChild(ellipsis);
+
+        var count = fitCount;
+        while (count > 0 && isOverflowing(element)) {
+            count--;
+            charSpans[count].style.display = 'none';
+        }
+
+        ellipsis.remove();
+        return count;
+    }
+
+    /**
+     * 对已动画化的 char span 执行截断：
+     * 1. 移除旧省略号
+     * 2. 二分查找可容纳字符数
+     * 3. 为省略号留空间并插入
+     * 失败时回退为无截断纯文本展示。
+     */
+    function applyTruncation(element, charSpans, originalText, charDelay) {
+        /* 移除上次截断遗留的省略号 */
+        var oldEllipsis = element.querySelector('.char--ellipsis');
+        if (oldEllipsis) oldEllipsis.remove();
+
+        /* 恢复全部 span 可见 */
+        for (var i = 0; i < charSpans.length; i++) charSpans[i].style.display = '';
+
+        if (!isOverflowing(element)) return; /* 无需截断 */
+
+        var fitCount = findMaxFit(element, charSpans);
+        if (fitCount === 0) {
+            fallbackToPlainText(element, originalText);
+            return;
+        }
+
+        /* 为省略号留空间 */
+        var finalCount = fitWithEllipsis(element, charSpans, fitCount);
+        if (finalCount === 0) {
+            fallbackToPlainText(element, originalText);
+            return;
+        }
+
+        /* 隐藏超出部分，插入省略号 */
+        for (var i = finalCount; i < charSpans.length; i++) {
+            charSpans[i].style.display = 'none';
+        }
+
+        var ellipsisSpan = document.createElement('span');
+        ellipsisSpan.className = 'char char--ellipsis';
+        ellipsisSpan.textContent = '\u2026';
+        ellipsisSpan.style.display = 'inline-block';
+        ellipsisSpan.style.animationDelay = (
+            (parseFloat(charSpans[finalCount - 1].style.animationDelay) || 0) + charDelay
+        ) + 's';
+        element.appendChild(ellipsisSpan);
+    }
+
+    /** 截断彻底失败时的回退：内联纯文本，无动画，保证内容可见 */
+    function fallbackToPlainText(element, text) {
+        element.innerHTML = '';
+        element.innerText = text;
+        element.style.opacity = '1';
+    }
+
     /* ==================== 文字入场动画 ==================== */
     function animateText(elementId) {
-        const element = document.getElementById(elementId);
-        const text = element.innerText.trim();
+        var generation = ++_animateTextGeneration;
+        var element = document.getElementById(elementId);
+        if (!element) return;
+
+        var text = element.innerText.trim();
         element.innerHTML = '';
-        let delay = 0;
-        const charDelay = 0.035;
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            const span = document.createElement('span');
+
+        /* 文本为空时，回退到无动画的纯文本展示 */
+        if (!text) {
+            element.innerText = _currentSentenceText || '';
+            element.style.opacity = '1';
+            return;
+        }
+
+        var delay = 0;
+        var charDelay = 0.035;
+        var charSpans = [];
+
+        for (var i = 0; i < text.length; i++) {
+            var ch = text[i];
+            var span = document.createElement('span');
             span.className = 'char';
-            span.textContent = char === ' ' ? '\u00A0' : char;
-            span.style.animationDelay = `${delay}s`;
+            span.textContent = ch === ' ' ? '\u00A0' : ch;
+            span.style.animationDelay = delay + 's';
             element.appendChild(span);
+            charSpans.push(span);
             delay += charDelay;
         }
+
+        /* 将截断元数据挂载到 DOM 元素上，供 resize 时复用 */
+        element._charSpans = charSpans;
+        element._originalText = text;
+
+        /* 延迟到下一帧检测溢出（等待布局完成） */
+        requestAnimationFrame(function () {
+            if (generation !== _animateTextGeneration) return;
+            applyTruncation(element, charSpans, text, charDelay);
+        });
     }
 
     function animateAuthor(callback) {
@@ -1196,34 +1373,31 @@
         el.innerHTML = '';
         el.style.opacity = '1';
         let delay = 0;
-        const authorCharDelay = 0.05;
+        const authorCharDelay = 0.04;
         for (let i = 0; i < text.length; i++) {
             const char = text[i];
             const span = document.createElement('span');
             span.textContent = char === ' ' ? '\u00A0' : char;
-            span.style.cssText = `
-                display: inline-block;
-                opacity: 0;
-                animation: authorFadeIn 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-                animation-delay: ${delay}s;
-            `;
+            span.style.cssText =
+                'display:inline-block;opacity:0;' +
+                'animation:authorFadeIn var(--dur-author) var(--ease-out-sine) forwards;' +
+                'animation-delay:' + delay + 's;' +
+                'will-change:transform,opacity;';
             el.appendChild(span);
             delay += authorCharDelay;
         }
-        const lineDelay = delay - authorCharDelay + 0.4;
+        const lineDelay = delay - authorCharDelay + 0.35;
         const styleSheet = document.createElement('style');
         styleSheet.id = 'dynamic-line-delay';
-        styleSheet.textContent = `
-            #quoteAuthor::before,
-            #quoteAuthor::after {
-                animation: authorFadeIn 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-                animation-delay: ${lineDelay}s;
-            }
-        `;
+        styleSheet.textContent =
+            '#quoteAuthor::before,#quoteAuthor::after{' +
+            'animation:authorFadeIn var(--dur-author) var(--ease-out-sine) forwards;' +
+            'animation-delay:' + lineDelay + 's' +
+            '}';
         const oldStyle = document.getElementById('dynamic-line-delay');
         if (oldStyle) oldStyle.remove();
         document.head.appendChild(styleSheet);
-        const totalDuration = (lineDelay + 0.7) * 1000;
+        const totalDuration = (lineDelay + 0.65) * 1000;
         if (callback) setTimeout(callback, totalDuration);
     }
 
@@ -1277,23 +1451,27 @@
     /* ==================== 心形粒子动画 ==================== */
     function createHeartBurst(x, y) {
         const count = 7;
+        const fragment = document.createDocumentFragment();
         for (let i = 0; i < count; i++) {
             const heart = document.createElement('div');
             heart.className = 'heart-particle';
             heart.textContent = '\u2665';
             const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
             const distance = 55 + Math.random() * 50;
-            const dx = Math.cos(angle) * distance;
-            const dy = Math.sin(angle) * distance;
-            const rot = (Math.random() - 0.5) * 60;
-            heart.style.left = x + 'px';
-            heart.style.top = y + 'px';
-            heart.style.setProperty('--dx', dx + 'px');
-            heart.style.setProperty('--dy', dy + 'px');
-            heart.style.setProperty('--rot', rot + 'deg');
-            document.body.appendChild(heart);
-            setTimeout(() => heart.remove(), 900);
+            heart.style.cssText =
+                'left:' + x + 'px;' +
+                'top:' + y + 'px;' +
+                '--dx:' + (Math.cos(angle) * distance).toFixed(0) + 'px;' +
+                '--dy:' + (Math.sin(angle) * distance).toFixed(0) + 'px;' +
+                '--rot:' + ((Math.random() - 0.5) * 60).toFixed(0) + 'deg;';
+            fragment.appendChild(heart);
         }
+        document.body.appendChild(fragment);
+        /* 匹配 burst 动画时长后清理 */
+        setTimeout(function () {
+            var particles = document.querySelectorAll('.heart-particle');
+            for (var i = 0; i < particles.length; i++) particles[i].remove();
+        }, 900);
     }
 
     /* ==================== 轻提示 ==================== */
@@ -1355,20 +1533,32 @@
         const textEl = document.getElementById('quoteText');
         const authorEl = document.getElementById('quoteAuthor');
         const container = document.getElementById('quoteContainer');
+
+        /* 元素不存在时静默退出 */
+        if (!textEl || !authorEl || !container) return;
+
         const oldStyle = document.getElementById('dynamic-line-delay');
         if (oldStyle) oldStyle.remove();
 
         textEl.style.opacity = '0';
         authorEl.style.opacity = '0';
 
-        setTimeout(() => {
+        /* 取消前一个 applySentence 的延迟任务，避免快速切换时动画互相打断 */
+        if (_applySentenceTimer !== null) {
+            clearTimeout(_applySentenceTimer);
+            _applySentenceTimer = null;
+        }
+
+        _applySentenceTimer = setTimeout(() => {
             textEl.innerText = s.content || '';
+            _currentSentenceText = s.content || '';
             const author = s.author || '';
             const source = s.source || '';
+            const cleanSource = source.replace(/《/g, '').replace(/》/g, '');
             authorEl.setAttribute('data-author', author);
             authorEl.setAttribute('data-source', source);
             authorEl.innerText = author
-                ? author + (source ? ' · 《' + source + '》' : '')
+                ? author + (cleanSource ? ' · 《' + cleanSource + '》' : '')
                 : '佚名';
 
             state.name = s.metaName || s.name || '';
@@ -1381,11 +1571,12 @@
             textEl.style.opacity = '1';
             animateText('quoteText');
             animateAuthor();
+            _applySentenceTimer = null;
         }, 300);
     }
 
-    async function fetchNewSentence() {
-        const res = await fetch(RANDOM_API);
+    async function fetchNewSentence(signal) {
+        const res = await fetch(RANDOM_API, { signal });
         if (!res.ok) throw new Error('fetch failed');
         const data = await res.json();
         const list = data.sentences || [];
@@ -1395,6 +1586,16 @@
 
     /* ==================== 初始化 ==================== */
     document.addEventListener('DOMContentLoaded', () => {
+        /* 缓存初始句子原文 */
+        const textEl = document.getElementById('quoteText');
+        if (!textEl) return;
+        _currentSentenceText = textEl.innerText.trim();
+
+        /* 初始句子为空时保留占位文本，阻止后续空白渲染 */
+        if (!_currentSentenceText) {
+            _currentSentenceText = textEl.innerText = '加载中...';
+        }
+
         animateText('quoteText');
         animateAuthor();
         loadFromDOM();
@@ -1415,6 +1616,45 @@
                 }
             })
             .catch(() => {});
+
+        /* 响应式截断：用 ResizeObserver 精确监听 quoteText 尺寸变化，
+           仅重新计算截断位置，不重建 DOM、不重播动画。 */
+        var resizeTimer = null;
+        var CHAR_DELAY = 0.035;
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(function (entries) {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () {
+                    /* 若 applySentence 正在等待切换句子，跳过以免与即将到来的新文本冲突 */
+                    if (_applySentenceTimer !== null) return;
+
+                    var el = entries[0] && entries[0].target;
+                    if (!el) return;
+                    var charSpans = el._charSpans;
+                    var originalText = el._originalText;
+                    if (!charSpans || !originalText || !charSpans.length) return;
+
+                    /* 确保容器可见 */
+                    el.style.opacity = '1';
+                    applyTruncation(el, charSpans, originalText, CHAR_DELAY);
+                }, 200);
+            }).observe(textEl);
+        } else {
+            /* 不支持 ResizeObserver 的旧浏览器回退到 window resize */
+            window.addEventListener('resize', function () {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () {
+                    if (_applySentenceTimer !== null) return;
+                    var el = document.getElementById('quoteText');
+                    if (!el) return;
+                    var charSpans = el._charSpans;
+                    var originalText = el._originalText;
+                    if (!charSpans || !originalText || !charSpans.length) return;
+                    el.style.opacity = '1';
+                    applyTruncation(el, charSpans, originalText, CHAR_DELAY);
+                }, 200);
+            });
+        }
     });
 
     /* ==================== 访客提交句子 ==================== */
@@ -1637,13 +1877,26 @@
     /* 下一句 */
     document.getElementById('nextBtn').addEventListener('click', async () => {
         const btn = document.getElementById('nextBtn');
+        if (!btn) return;
         btn.disabled = true;
         try {
-            const s = await fetchNewSentence();
+            /* 设置 8 秒超时，防止网络挂起导致永久空白 */
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            const s = await fetchNewSentence(controller.signal);
+            clearTimeout(timeoutId);
             applySentence(s);
         } catch (e) {
             console.error('刷新失败', e);
             showToast('刷新失败，请稍后再试');
+            /* 异常时恢复句子可见性 */
+            const textEl = document.getElementById('quoteText');
+            if (textEl) {
+                textEl.style.opacity = '1';
+                if (!textEl.innerText.trim()) {
+                    textEl.innerText = _currentSentenceText || '';
+                }
+            }
         } finally {
             btn.disabled = false;
         }
@@ -1651,18 +1904,25 @@
 
     /* ==================== 樱花动画 ==================== */
     const sakuraList = [];
-    const container = document.getElementById('sakura-container');
+    const sakuraContainer = document.getElementById('sakura-container');
+    const SAKURA_MAX = 45;           /* 最大花瓣数，防止内存膨胀 */
+    const SAKURA_INTERVAL = 550;     /* 生成间隔 ms */
+    const MOUSE_RADIUS = 100;        /* 鼠标排斥半径 */
+    const MOUSE_RADIUS_SQ = MOUSE_RADIUS * MOUSE_RADIUS;
     let mouseX = -1000, mouseY = -1000;
+    let _lastSakuraSpawn = 0;
+
     document.addEventListener('mousemove', e => {
         mouseX = e.clientX;
         mouseY = e.clientY;
-    });
+    }, { passive: true });
     document.addEventListener('touchmove', e => {
         mouseX = e.touches[0].clientX;
         mouseY = e.touches[0].clientY;
-    });
+    }, { passive: true });
 
     function createSakura() {
+        if (sakuraList.length >= SAKURA_MAX) return;
         const sakura = document.createElement('div');
         sakura.className = 'sakura';
         const petal = document.createElement('span');
@@ -1671,44 +1931,52 @@
         petal.style.width = size + 'px';
         petal.style.height = size + 'px';
         const x = Math.random() * window.innerWidth;
-        const y = -30;
-        const speed = Math.random() * 0.8 + 0.4;
-        const wobbleSpeed = Math.random() * 0.02 + 0.01;
-        const wobbleAmount = Math.random() * 40 + 20;
-        const rotationSpeed = (Math.random() - 0.5) * 2;
         const sakuraData = {
-            element: sakura, x, y, baseX: x, speed, wobbleSpeed, wobbleAmount,
-            rotation: Math.random() * 360, rotationSpeed,
-            time: Math.random() * Math.PI * 2, size, vx: 0, vy: 0,
-            opacity: Math.random() * 0.4 + 0.4
+            element: sakura, x: x, y: -30, baseX: x,
+            speed: Math.random() * 0.7 + 0.35,
+            wobbleSpeed: Math.random() * 0.018 + 0.008,
+            wobbleAmount: Math.random() * 40 + 20,
+            rotation: Math.random() * 360,
+            rotationSpeed: (Math.random() - 0.5) * 1.8,
+            time: Math.random() * Math.PI * 2,
+            vx: 0, vy: 0,
+            opacity: Math.random() * 0.35 + 0.35
         };
         petal.style.opacity = sakuraData.opacity;
-        sakura.style.transform = `translate(${x}px, ${y}px) rotate(${sakuraData.rotation}deg)`;
-        container.appendChild(sakura);
+        sakura.style.transform = 'translate3d(' + x + 'px,-30px,0) rotate(' + sakuraData.rotation + 'deg)';
+        sakuraContainer.appendChild(sakura);
         sakuraList.push(sakuraData);
     }
 
-    function animateSakura() {
+    function animateSakura(timestamp) {
+        /* 基于时间的生成器，替代 setInterval */
+        if (timestamp - _lastSakuraSpawn > SAKURA_INTERVAL) {
+            _lastSakuraSpawn = timestamp;
+            createSakura();
+        }
+
         for (let i = sakuraList.length - 1; i >= 0; i--) {
             const s = sakuraList[i];
-            const dx = s.x - mouseX, dy = s.y - mouseY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance < 100) {
-                const force = (100 - distance) / 100;
-                const angle = Math.atan2(dy, dx);
-                s.vx += Math.cos(angle) * force * 3;
-                s.vy += Math.sin(angle) * force * 2;
-                s.rotation += force * 10;
+            /* 鼠标排斥力：使用平方距离避免 sqrt */
+            const dx = s.x - mouseX;
+            const dy = s.y - mouseY;
+            const distSq = dx * dx + dy * dy;
+            if (distSq < MOUSE_RADIUS_SQ) {
+                const force = 1 - Math.sqrt(distSq) / MOUSE_RADIUS;
+                s.vx += dx / Math.sqrt(distSq) * force * 2.8;
+                s.vy += dy / Math.sqrt(distSq) * force * 1.8;
+                s.rotation += force * 9;
             }
-            s.vx *= 0.98;
-            s.vy *= 0.98;
+            s.vx *= 0.975;
+            s.vy *= 0.975;
             s.time += s.wobbleSpeed;
             s.y += s.speed;
-            s.x = s.baseX + Math.sin(s.time) * s.wobbleAmount;
-            s.x += s.vx;
+            s.x = s.baseX + Math.sin(s.time) * s.wobbleAmount + s.vx;
             s.y += s.vy;
             s.rotation += s.rotationSpeed;
-            s.element.style.transform = `translate(${s.x}px, ${s.y}px) rotate(${s.rotation}deg)`;
+            /* 使用 translate3d 强制 GPU 合成层 */
+            s.element.style.transform =
+                'translate3d(' + s.x.toFixed(1) + 'px,' + s.y.toFixed(1) + 'px,0) rotate(' + s.rotation.toFixed(1) + 'deg)';
             if (s.y > window.innerHeight + 50) {
                 s.element.remove();
                 sakuraList.splice(i, 1);
@@ -1717,9 +1985,11 @@
         requestAnimationFrame(animateSakura);
     }
 
-    for (let i = 0; i < 15; i++) setTimeout(createSakura, i * 100);
-    setInterval(createSakura, 500);
-    animateSakura();
+    /* 初始部署花瓣，交错延迟避免布局抖动 */
+    for (let i = 0; i < 15; i++) {
+        setTimeout(createSakura, i * 80);
+    }
+    requestAnimationFrame(animateSakura);
 </script>
 </body>
 </html>

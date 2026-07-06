@@ -570,13 +570,14 @@ function copyToClipboard(text: string) {
   border-radius: 1rem;
   border: 1px solid #e5e7eb !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.3s, transform 0.3s;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  will-change: transform;
   margin-bottom: 0;
 }
 
 .custom-card:hover {
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+  transform: translate3d(0, -2px, 0);
 }
 
 :deep(.el-card__body) {
