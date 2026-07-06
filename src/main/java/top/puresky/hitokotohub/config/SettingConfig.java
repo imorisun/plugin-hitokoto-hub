@@ -65,6 +65,8 @@ public interface SettingConfig {
         private Boolean submissionAutoPublish;
         @Schema(description = "提交冷却时间（分钟）")
         private Integer submissionCooldown;
+        @Schema(description = "连续提交上限")
+        private Integer submissionBatchLimit;
         @Schema(description = "提交记录最大保留条数")
         private Integer submissionMaxKeep;
     }

@@ -44,11 +44,25 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
 
     private final SettingConfig settingConfig;
     private final ReactiveExtensionClient client;
-    private final Map<String, Long> submitCache = new ConcurrentHashMap<>();
+    private final Map<String, SubmissionCooldownState> submitCache = new ConcurrentHashMap<>();
+
+    private static class SubmissionCooldownState {
+        long firstSubmitTime;
+        int count;
+        SubmissionCooldownState(long firstSubmitTime) {
+            this.firstSubmitTime = firstSubmitTime;
+            this.count = 1;
+        }
+    }
 
     @Override
     public @NonNull RouterFunction<ServerResponse> endpoint() {
         return route()
+            .GET("sentence-submission/config", this::getSubmissionConfig,
+                builder -> builder.operationId("getSubmissionConfig")
+                    .summary("获取访客提交配置")
+                    .tag(TAG)
+                    .response(responseBuilder().implementation(Object.class)))
             .POST("sentence-submission/submit", this::submitSentence,
                 builder -> builder.operationId("submitSentence")
                     .summary("访客提交句子")
@@ -65,6 +79,18 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
         return GroupVersion.parseAPIVersion(GROUP_VERSION);
     }
 
+    private @NonNull Mono<ServerResponse> getSubmissionConfig(@NonNull ServerRequest request) {
+        return settingConfig.getSubmissionConfig()
+            .flatMap(config -> {
+                boolean enabled = Boolean.TRUE.equals(config.getEnableSubmission());
+                String defaultCategory = config.getSubmissionDefaultCategory();
+                return ServerResponse.ok().bodyValue(Map.of(
+                    "enableSubmission", enabled,
+                    "defaultCategory", defaultCategory != null ? defaultCategory : ""
+                ));
+            });
+    }
+
     private @NonNull Mono<ServerResponse> submitSentence(@NonNull ServerRequest request) {
         String ip = getClientIp(request.exchange().getRequest());
         return settingConfig.getSubmissionConfig()
@@ -74,19 +100,30 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
                         .bodyValue(buildResponse(false, "submitted_disabled",
                             "访客提交功能未开启"));
                 }
-                // 冷却时间检查
                 int cooldownMinutes = config.getSubmissionCooldown() == null
                     ? 0 : config.getSubmissionCooldown();
+                int batchLimit = config.getSubmissionBatchLimit() == null
+                    ? 1 : Math.max(1, config.getSubmissionBatchLimit());
+                long now = System.currentTimeMillis();
+                long cooldownMs = Duration.ofMinutes(cooldownMinutes).toMillis();
+
                 if (cooldownMinutes > 0) {
-                    Long lastTime = submitCache.get(ip);
-                    long now = System.currentTimeMillis();
-                    long cooldownMs = Duration.ofMinutes(cooldownMinutes).toMillis();
-                    if (lastTime != null && (now - lastTime) < cooldownMs) {
-                        long remainingSeconds =
-                            (cooldownMs - (now - lastTime)) / 1000;
+                    SubmissionCooldownState state = submitCache.get(ip);
+                    if (state != null) {
+                        long elapsed = now - state.firstSubmitTime;
+                        // 冷却周期已过，重置状态
+                        if (elapsed >= cooldownMs) {
+                            submitCache.remove(ip);
+                            state = null;
+                        }
+                    }
+                    if (state != null && state.count >= batchLimit) {
+                        // 已达连续提交上限，进入冷却
+                        long remainingMs = cooldownMs - (now - state.firstSubmitTime);
+                        long remainingSeconds = remainingMs / 1000;
                         return ServerResponse.status(HttpStatus.TOO_MANY_REQUESTS)
                             .bodyValue(buildResponse(false, "rate_limited",
-                                "提交过于频繁，请在 " + formatRemainingTime(remainingSeconds)
+                                "已达到连续提交上限，请在 " + formatRemainingTime(remainingSeconds)
                                     + " 后再试"));
                     }
                 }
@@ -94,7 +131,19 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
                     .flatMap(submitRequest -> validateAndCreate(submitRequest, config, ip))
                     .doOnSuccess(v -> {
                         if (cooldownMinutes > 0) {
-                            submitCache.put(ip, System.currentTimeMillis());
+                            SubmissionCooldownState state = submitCache.get(ip);
+                            long currentTime = System.currentTimeMillis();
+                            if (state == null) {
+                                submitCache.put(ip, new SubmissionCooldownState(currentTime));
+                            } else {
+                                long elapsed = currentTime - state.firstSubmitTime;
+                                if (elapsed >= cooldownMs) {
+                                    // 冷却周期已过，重置计数
+                                    submitCache.put(ip, new SubmissionCooldownState(currentTime));
+                                } else {
+                                    state.count++;
+                                }
+                            }
                         }
                     });
             })

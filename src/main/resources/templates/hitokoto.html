@@ -1405,6 +1405,16 @@
                 try { sessionStorage.setItem('hitokoto:hint-shown', '1'); } catch (e) {}
             }, 1200);
         }
+        /* 查询访客提交是否启用，未启用则隐藏提交按钮 */
+        fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence-submission/config')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.enableSubmission) {
+                    const submitBtn = document.getElementById('submitBtn');
+                    if (submitBtn) submitBtn.style.display = 'none';
+                }
+            })
+            .catch(() => {});
     });
 
     /* ==================== 访客提交句子 ==================== */
