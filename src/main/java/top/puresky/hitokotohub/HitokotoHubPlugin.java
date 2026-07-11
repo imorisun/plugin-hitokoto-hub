@@ -11,6 +11,7 @@ import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.extension.Sentence;
 import top.puresky.hitokotohub.extension.SentenceSubmission;
+import top.puresky.hitokotohub.extension.SimilarityCheckLog;
 
 /**
  * 一言库插件入口
@@ -135,6 +136,15 @@ public class HitokotoHubPlugin extends BasePlugin {
                 );
             });
 
+        schemeManager.register(SimilarityCheckLog.class,
+            similarityCheckLogIndexSpecs -> similarityCheckLogIndexSpecs.add(
+                IndexSpecs.<SimilarityCheckLog, String>single("spec.status", String.class)
+                    .indexFunc(
+                        similarityCheckLog -> similarityCheckLog.getSpec().getStatus().name())
+                    .nullable(false)
+                    .build()
+            ));
+
         System.out.println("✅ 一言数据中心插件启动成功！");
     }
 
@@ -146,12 +156,14 @@ public class HitokotoHubPlugin extends BasePlugin {
         Scheme categoryViewRecordScheme = schemeManager.get(CategoryViewRecord.class);
         Scheme aiGenerateLogScheme = schemeManager.get(AiGenerateLog.class);
         Scheme sentenceSubmissionScheme = schemeManager.get(SentenceSubmission.class);
+        Scheme similarityCheckLogScheme = schemeManager.get(SimilarityCheckLog.class);
 
         schemeManager.unregister(sentenceScheme);
         schemeManager.unregister(categoryScheme);
         schemeManager.unregister(categoryViewRecordScheme);
         schemeManager.unregister(aiGenerateLogScheme);
         schemeManager.unregister(sentenceSubmissionScheme);
+        schemeManager.unregister(similarityCheckLogScheme);
         System.out.println("✅ 一言数据中心插件已停止！");
     }
 }

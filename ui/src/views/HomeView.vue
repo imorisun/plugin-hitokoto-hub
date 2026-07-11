@@ -4,6 +4,7 @@ import SentenceList from '@/components/SentenceList.vue'
 import Overview from '@/components/Overview.vue'
 import AiGenerateLogList from '@/components/AiGenerateLogList.vue'
 import SubmissionList from '@/components/SubmissionList.vue'
+import SimilarityCheck from '@/components/SimilarityCheck.vue'
 import {useRouteQuery} from '@vueuse/router'
 import {VPageHeader, VTabbar} from '@halo-dev/components'
 import IconBob from '~icons/my-icons/bob';
@@ -28,6 +29,11 @@ const tabs = shallowRef([
     id: 'AiGenerateLog',
     label: 'AI 日志',
     component: markRaw(AiGenerateLogList),
+  },
+  {
+    id: 'SimilarityCheck',
+    label: '相似度检查',
+    component: markRaw(SimilarityCheck),
   },
 ])
 
@@ -64,5 +70,6 @@ watch(
     <SentenceList ref="sentenceList" v-if="activeIndex == 'SentenceList'"/>
     <SubmissionList v-if="activeIndex == 'SubmissionList'"/>
     <AiGenerateLogList v-if="activeIndex == 'AiGenerateLog'"/>
+    <SimilarityCheck v-if="activeIndex == 'SimilarityCheck'"/>
   </div>
 </template>

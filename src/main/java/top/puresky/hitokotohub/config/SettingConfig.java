@@ -9,6 +9,7 @@ public interface SettingConfig {
     Mono<BasicConfig> getBasicConfig();
     Mono<AiConfig> getAiConfig();
     Mono<SubmissionConfig> getSubmissionConfig();
+    Mono<SimilarityConfig> getSimilarityConfig();
 
     @Data
     class BasicConfig {
@@ -69,5 +70,18 @@ public interface SettingConfig {
         private Integer submissionBatchLimit;
         @Schema(description = "提交记录最大保留条数")
         private Integer submissionMaxKeep;
+    }
+
+    @Data
+    class SimilarityConfig {
+        public static final String GROUP = "similarity";
+        @Schema(description = "启用定时相似度检查")
+        private Boolean enableScheduledCheck;
+        @Schema(description = "相似度检查 Cron 表达式")
+        private String similarityCron;
+        @Schema(description = "相似度算法")
+        private String similarityAlgorithm;
+        @Schema(description = "相似度阈值")
+        private Double similarityThreshold;
     }
 }

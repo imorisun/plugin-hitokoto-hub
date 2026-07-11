@@ -255,3 +255,48 @@ spec:
           validation: required|number|min:100|max:10000
           if: "$get(enableSubmission).value === true"
           help: 超过此数量将自动删除最旧的已处理提交记录
+    - group: similarity
+      label: 相似度检查设置
+      formSchema:
+        - $formkit: switch
+          name: enableScheduledCheck
+          id: enableScheduledCheck
+          label: 启用定时检查
+          value: false
+          help: 开启后，系统将按设定周期自动对所有句子进行相似度比对
+        - $formkit: select
+          name: similarityCron
+          label: 定时检查时间
+          if: "$get(enableScheduledCheck).value === true"
+          value: "0 0 2 * * *"
+          searchable: true
+          allowCreate: true
+          clearable: false
+          options:
+            - label: 每天凌晨 2 点
+              value: "0 0 2 * * *"
+            - label: 每周一凌晨 2 点
+              value: "0 0 2 * * 1"
+            - label: 每月 1 号凌晨 2 点
+              value: "0 0 2 1 * *"
+          help: "相似度检查的执行时间，支持从预设中选择或手动输入 6 位 Cron 表达式（秒 分 时 日 月 周）"
+        - $formkit: select
+          name: similarityAlgorithm
+          label: 相似度算法
+          if: "$get(enableScheduledCheck).value === true"
+          value: COSINE
+          options:
+            - label: 余弦相似度（TF-IDF）
+              value: COSINE
+            - label: Jaccard 相似度
+              value: JACCARD
+          help: "余弦相似度基于 TF-IDF 加权的字符二元组向量，适合检测语义接近的句子；Jaccard 相似度基于字符二元组集合的重叠率，适合检测高度相似的句子"
+        - $formkit: number
+          name: similarityThreshold
+          label: 相似度阈值
+          if: "$get(enableScheduledCheck).value === true"
+          value: 0.8
+          min: 0.1
+          max: 1.0
+          step: 0.05
+          help: "超过此阈值的句子对将被标记为相似（0~1 之间，越大越严格）"

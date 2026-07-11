@@ -27,7 +27,9 @@ import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.endpoint.SentencePublicEndpoint;
 import top.puresky.hitokotohub.extension.AiGenerateLog;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
+import top.puresky.hitokotohub.extension.SimilarityCheckLog;
 import top.puresky.hitokotohub.service.AiGenerateService;
+import top.puresky.hitokotohub.service.SimilarityCheckService;
 
 @Slf4j
 @Component
@@ -36,28 +38,35 @@ import top.puresky.hitokotohub.service.AiGenerateService;
 public class StatsCleanupScheduler implements SchedulingConfigurer {
 
     private static final String DEFAULT_AI_CRON = "0 0 2 * * *";
+    private static final String DEFAULT_SIMILARITY_CRON = "0 0 2 * * *";
 
     private final ReactiveExtensionClient client;
     private final SettingConfig settingConfig;
     private final SentencePublicEndpoint sentencePublicEndpoint;
     private final ObjectProvider<AiGenerateService> aiServiceProvider;
+    private final ObjectProvider<SimilarityCheckService> similarityCheckServiceProvider;
 
     private ScheduledTaskRegistrar taskRegistrar;
     private volatile ScheduledTask aiGenerateTask;
+    private volatile ScheduledTask similarityCheckTask;
 
     @Override
     public void configureTasks(@NonNull ScheduledTaskRegistrar taskRegistrar) {
         this.taskRegistrar = taskRegistrar;
         scheduleAiGenerateTask();
+        scheduleSimilarityCheckTask();
     }
 
     /**
-     * 监听插件配置变更，重新注册 AI 生成定时任务
+     * 监听插件配置变更，重新注册定时任务
      */
     @EventListener
     public void onPluginConfigUpdated(PluginConfigUpdatedEvent event) {
         if (event.getNewSettingValues().containsKey(SettingConfig.AiConfig.GROUP)) {
             scheduleAiGenerateTask();
+        }
+        if (event.getNewSettingValues().containsKey(SettingConfig.SimilarityConfig.GROUP)) {
+            scheduleSimilarityCheckTask();
         }
     }
 
@@ -222,4 +231,74 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
             .doOnError(e -> log.error("AI 生成句子定时任务执行失败", e))
             .subscribe();
     }
+
+    // ===================== 相似度检查定时任务 =====================
+
+    private synchronized void scheduleSimilarityCheckTask() {
+        if (taskRegistrar == null) {
+            return;
+        }
+        // 取消已存在的任务
+        if (similarityCheckTask != null) {
+            similarityCheckTask.cancel();
+            similarityCheckTask = null;
+        }
+
+        settingConfig.getSimilarityConfig()
+            .flatMap(config -> {
+                if (Boolean.TRUE.equals(config.getEnableScheduledCheck())) {
+                    String cron = resolveSimilarityCron(config.getSimilarityCron());
+                    similarityCheckTask =
+                        taskRegistrar.scheduleCronTask(new CronTask(this::runScheduledSimilarityCheck, cron));
+                    log.info("相似度检查定时任务已注册，Cron 表达式: {}", cron);
+                } else {
+                    log.info("相似度检查定时任务未启用");
+                }
+                return Mono.empty();
+            })
+            .doOnError(e -> log.error("注册相似度检查定时任务失败", e))
+            .subscribe();
+    }
+
+    private String resolveSimilarityCron(String cron) {
+        if (StringUtils.hasText(cron)) {
+            try {
+                new CronTrigger(cron);
+                return cron;
+            } catch (Exception e) {
+                log.warn("相似度检查 Cron 表达式无效: {}，使用默认值: {}", cron, DEFAULT_SIMILARITY_CRON);
+            }
+        }
+        return DEFAULT_SIMILARITY_CRON;
+    }
+
+    public void runScheduledSimilarityCheck() {
+        SimilarityCheckService service = similarityCheckServiceProvider.getIfAvailable();
+        if (service == null) {
+            log.warn("相似度检查服务不可用，跳过定时任务");
+            return;
+        }
+
+        settingConfig.getSimilarityConfig()
+            .flatMap(config -> {
+                if (Boolean.TRUE.equals(config.getEnableScheduledCheck())) {
+                    String algorithm = config.getSimilarityAlgorithm() != null
+                        ? config.getSimilarityAlgorithm() : "COSINE";
+                    double threshold = config.getSimilarityThreshold() != null
+                        ? config.getSimilarityThreshold() : 0.8;
+                    return service.performCheck(
+                        SimilarityCheckLog.TriggerType.SCHEDULED,
+                        "system",
+                        algorithm,
+                        threshold
+                    );
+                } else {
+                    log.info("相似度检查未开启，跳过本次任务");
+                    return Mono.empty();
+                }
+            })
+            .doOnError(e -> log.error("相似度检查定时任务执行失败", e))
+            .subscribe();
+    }
+
 }

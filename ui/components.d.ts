@@ -25,12 +25,14 @@ declare module 'vue' {
     ElRadioGroup: typeof import('element-plus/es')['ElRadioGroup']
     ElScrollbar: typeof import('element-plus/es')['ElScrollbar']
     ElSelect: typeof import('element-plus/es')['ElSelect']
+    ElSlider: typeof import('element-plus/es')['ElSlider']
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     Overview: typeof import('./src/components/Overview.vue')['default']
     SentenceList: typeof import('./src/components/SentenceList.vue')['default']
+    SimilarityCheck: typeof import('./src/components/SimilarityCheck.vue')['default']
     SubmissionList: typeof import('./src/components/SubmissionList.vue')['default']
   }
   export interface GlobalDirectives {

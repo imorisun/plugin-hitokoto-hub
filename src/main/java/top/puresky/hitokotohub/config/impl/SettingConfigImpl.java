@@ -26,4 +26,9 @@ public class SettingConfigImpl implements SettingConfig {
         return settingFetcher.fetch(SubmissionConfig.GROUP,
             SubmissionConfig.class);
     }
+    @Override
+    public Mono<SimilarityConfig> getSimilarityConfig() {
+        return settingFetcher.fetch(SimilarityConfig.GROUP,
+            SimilarityConfig.class);
+    }
 }
