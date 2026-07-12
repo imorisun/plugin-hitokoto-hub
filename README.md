@@ -2,7 +2,7 @@
 
 > 轻拾人间辞藻，言说万千心绪
 
-轻言是一款 [Halo 2.x](https://halo.run) 插件，为你的网站注入"一句话"的灵动与温度。它支持创建、管理海量句子，按分类归档，提供随机获取、关键词搜索、点赞互动、访客投递、AI 生成、相似度检测等丰富的功能。无论是诗词名言、影视台词还是生活感悟，轻言让你的网站成为一个会说话的角落。
+轻言是一款 [Halo 2.x](https://halo.run) 插件，为你的网站注入“一句话”的灵动与温度。它支持创建、管理海量句子，按分类归档，提供随机获取、关键词搜索、点赞互动、访客投递、AI 生成、相似度检测等丰富的功能。无论是诗词名言、影视台词还是生活感悟，轻言让你的网站成为一个会说话的角落。
 
 **QQ 交流群**：
 
@@ -39,18 +39,19 @@
 ## 功能特性
 
 - **句子管理**：创建、编辑、删除句子，支持 JSON 批量导入与 Excel（.xlsx）导入，自动映射字段别名
-- **分类归档**：自定义分类，侧边栏导航，Reconciler 自动统计各分类下的句子数量
+- **分类归档**：自定义分类，侧边栏导航，Reconciler 自动统计各分类下的句子数量；插件启动时自动创建「未分类」并迁移孤儿句子
 - **随机获取**：基于索引分页的随机算法，海量数据依然秒级响应；支持多分类筛选、返回数量限制、JSON / 纯文本两种响应格式
 - **模糊搜索**：基于索引的 `spec.content` 关键词搜索，支持按分类过滤
-- **点赞互动**：开放点赞 / 取消点赞接口，基于 IP 的冷却机制防止刷赞，自动记录点赞事件
+- **点赞互动**：开放点赞 / 取消点赞接口，基于 IP 的冷却机制防止刷赞，点赞 / 取消点赞会自动创建 / 删除对应的 `CategoryViewRecord` 记录
 - **浏览统计**：随机获取句子时可自动累计浏览量，并生成 `CategoryViewRecord` 事件用于趋势分析
-- **数据看板**：后台概览页面展示句子总数、分类总数、发布状态分布；支持按天 / 周 / 月粒度的分类浏览趋势折线图（ECharts）
+- **数据看板**：后台概览页面展示句子总数、分类总数、发布状态分布、各分类浏览 / 点赞量；支持按天 / 周 / 月粒度的分类浏览趋势折线图（ECharts）
 - **主题集成**：提供 `hitokotoFinder` Finder API，可在 Halo 主题模板中直接调用；内置默认模板 `/hitokoto`，带樱花飘落动画与逐字淡入效果
 - **AI 生成**：可选依赖 [AI Foundation](https://www.halo.run/store/apps/app-acslk9nu)，支持定时按主题自动生成句子并可配置自动发布，每次任务写入完整的运行日志
-- **相似度检查**：基于余弦相似度（TF-IDF）与 Jaccard 算法自动检测库内重复或高度相似的句子，支持定时检查与手动触发，结果记录在 `SimilarityCheckLog` 中
-- **访客投递**：默认模板内置投递入口，访客可在前台提交句子；后台提供 PENDING / APPROVED / REJECTED 三态审核工作流，支持基于 IP 的提交冷却、连续提交上限控制与审核后自动发布
+- **相似度检查**：基于余弦相似度（TF-IDF）与 Jaccard 算法自动检测库内重复或高度相似的句子；通过并查集（Union-Find）将传递相似的句子归为一组，并按综合评分选出「最优句子」置顶展示；支持后端分页查看、单条删除（乐观 UI 更新）与一键批量删除所有非最优句子；结果记录在 `SimilarityCheckLog` 中
+- **访客投递**：默认模板内置投递入口，访客可在前台提交句子；后台提供 PENDING / APPROVED / REJECTED 三态审核工作流，审核通过时可覆写内容并支持自动发布，支持基于 IP 的提交冷却、连续提交上限控制
 - **权限控制**：基于 Halo RBAC 的三层角色模板（公共接口 / 查看 / 管理），公共接口自动授权给匿名用户
-- **数据自清理**：定时清理过期的点赞缓存、统计记录、AI 生成日志、访客提交记录，支持按条数和天数双重保留策略
+- **数据自清理**：定时清理过期的点赞缓存、统计记录、AI 生成日志，支持按条数和天数双重保留策略
+- **数据一致性**：句子增删改时 Reconciler 自动更新对应 `Category.status.sentenceCount`；删除句子时自动清理关联的相似度比对数据，避免脏数据残留
 
 ## 演示与交流
 
@@ -78,7 +79,8 @@
 | Java          | `21`        | 构建时需要 JDK 21                                                                                       |
 | Node.js       | `>= 18`     | 构建前端时需要，推荐使用 pnpm 作为包管理器                                                                           |
 | AI Foundation | 任意版本（可选）    | 若需使用 AI 自动生成功能，需在 Halo 应用市场安装并启用 [AI Foundation](https://www.halo.run/store/apps/app-acslk9nu)     |
-| AI Foundation | 任意版本（可选）    | 若需使用 AI 相似度检查功能（可选依赖，与 AI 生成使用同一插件），需安装 AI Foundation                                              |
+
+> AI Foundation 为可选依赖，未安装时 AI 生成与相似度检查的定时任务会自动跳过，不影响插件其他功能。
 
 ## 安装
 
@@ -101,6 +103,8 @@
 ### 1. 创建分类
 
 进入「轻言 → 数据管理」，在左侧分类面板点击 `+` 号，填写分类名称与描述。
+
+> 插件启动时会自动创建一个名为「未分类」的内置分类，并将分类为空或已失效的句子自动归入其中。
 
 ### 2. 新建句子
 
@@ -258,7 +262,7 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 }
 ```
 
-> 同一 IP 对同一句子的点赞 / 取消点赞操作受冷却时间限制（默认 12 小时，可在设置中调整），冷却期内再次操作返回 `code: "rate_limited"`。
+> 同一 IP 对同一句子的点赞 / 取消点赞操作受冷却时间限制（默认 12 小时，可在设置中调整），冷却期内再次操作返回 `code: "rate_limited"`。点赞会创建一条 `LIKE` 类型的 `CategoryViewRecord`，取消点赞会删除对应记录。
 
 ### 获取分类列表
 
@@ -313,35 +317,39 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 
 | 接口                          | 方法  | 说明                                                              |
 | --------------------------- | --- | --------------------------------------------------------------- |
-| `/overview`                 | GET | 获取概览：句子总数、分类总数、发布状态、各分类分布                                       |
-| `/overview/view-statistics` | GET | 获取分类浏览量时序数据，支持 `days`、`granularity`、`eventType` 参数，返回 ECharts 可直接使用的数据结构 |
+| `/overview`                 | GET | 获取概览：句子总数、分类总数、发布状态、各分类分布（含浏览 / 点赞量）                            |
+| `/overview/view-statistics` | GET | 获取分类浏览量时序数据，支持 `days`、`granularity`（`day`/`week`/`month`）、`eventType`（`VIEW`/`LIKE`）参数，返回 ECharts 可直接使用的数据结构 |
 
 ### 访客提交审核
 
 | 接口                                     | 方法     | 说明                                                                            |
 | -------------------------------------- | ------ | ----------------------------------------------------------------------------- |
 | `/sentence-submissions`                | GET    | 分页查询访客提交记录，支持 `status`（`PENDING` / `APPROVED` / `REJECTED`）、`page`、`size`    |
-| `/sentence-submissions/{name}/approve` | POST   | 审核通过访客提交，可覆写 `content` / `author` / `source` / `categoryName`，并生成对应 `Sentence` |
-| `/sentence-submissions/{name}/reject`  | POST   | 拒绝访客提交，请求体可携带 `rejectionReason`                                               |
+| `/sentence-submissions/{name}/approve` | POST   | 审核通过访客提交，可在请求体中覆写 `content` / `author` / `source` / `categoryName` / `reviewNote`，并生成对应 `Sentence` |
+| `/sentence-submissions/{name}/reject`  | POST   | 拒绝访客提交，请求体可携带 `rejectionReason`（记录为 `reviewNote`）                              |
 | `/sentence-submissions/{name}`         | DELETE | 删除访客提交记录                                                                      |
 
 审核接口的错误响应：找不到提交记录返回 `404`，重复审核（非 `PENDING` 状态）返回 `409 Conflict`。
 
 ### AI 生成日志
 
-| 接口                          | 方法     | 说明                                                              |
-| --------------------------- | ------ | --------------------------------------------------------------- |
-| `/ai-generate-logs`         | GET    | 分页查询 AI 生成日志，支持 `status`（`RUNNING` / `SUCCESS` / `PARTIAL_SUCCESS` / `FAILED`）、`page`、`size` |
-| `/ai-generate-logs/-/trigger` | POST | 手动触发一次 AI 生成任务（异步执行，结果写入日志）                                  |
-| `/ai-generate-logs/{name}`  | DELETE | 删除 AI 生成日志                                                       |
+| 接口                            | 方法     | 说明                                                              |
+| ----------------------------- | ------ | --------------------------------------------------------------- |
+| `/ai-generate-logs`           | GET    | 分页查询 AI 生成日志，支持 `status`（`RUNNING` / `SUCCESS` / `PARTIAL_SUCCESS` / `FAILED`）、`page`、`size` |
+| `/ai-generate-logs/-/trigger` | POST   | 手动触发一次 AI 生成任务（异步执行，结果写入日志）                                     |
+| `/ai-generate-logs/{name}`    | DELETE | 删除 AI 生成日志                                                      |
 
 ### 相似度检查
 
-| 接口                              | 方法     | 说明                            |
-| ------------------------------- | ------ | ----------------------------- |
-| `/similarity-check-logs`         | GET    | 分页查询相似度检查日志，支持 `page`、`size`  |
-| `/similarity-check-logs/-/trigger` | POST | 手动触发一次相似度检查（异步执行，结果写入日志）    |
-| `/similarity-check-logs/{name}`  | DELETE | 删除相似度检查日志                     |
+| 接口                                          | 方法     | 说明                                              |
+| ------------------------------------------- | ------ | ----------------------------------------------- |
+| `/similarity-check-logs`                    | GET    | 分页查询相似度检查日志，支持 `status`（`RUNNING` / `SUCCESS` / `FAILED`）、`page`、`size` |
+| `/similarity-check-logs/{name}`             | GET    | 获取某次检查日志详情                                      |
+| `/similarity-check-logs/-/trigger`          | POST   | 手动触发一次相似度检查（异步执行），支持 `algorithm`、`threshold` 查询参数覆盖设置值 |
+| `/similarity-check-config`                  | GET    | 获取当前相似度检查配置（启用状态、Cron、算法、阈值）                    |
+| `/similarity-check-groups`                  | GET    | 分页查询相似句子分组结果，支持 `page`、`size`                   |
+| `/similarity-check-groups/-/delete-nonoptimal` | POST | 一键批量删除所有相似组中的非最优句子                              |
+| `/similarity-check-logs/{name}`             | DELETE | 删除相似度检查日志                                       |
 
 此外，插件通过 Halo 扩展机制暴露了标准的 CRUD 接口：
 
@@ -357,7 +365,7 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 | `hitokotoFinder.randomSentences(int limit, String categoryName)` | 随机获取句子，`categoryName` 可为 `null` |
 | `hitokotoFinder.listCategories()`                                | 获取所有有句子的分类列表                    |
 
-> Finder 的随机算法与公开 API 一致：先按分类统计总数，随机选中一页，取回后再洗牌，确保返回结果随机且性能稳定。
+> Finder 的随机算法与公开 API 一致：先按分类统计总数，随机选中一页，取回后再洗牌，确保返回结果随机且性能稳定。若开启浏览量统计，Finder 调用同样会累计浏览量并记录事件。
 
 ## 数据模型
 
@@ -388,14 +396,18 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 | `spec.description`     | String | 分类描述，最长 200                 |
 | `status.sentenceCount` | Long   | 该分类下句子数量（由 Reconciler 自动维护） |
 
+> 插件启动时会自动确保名为 `uncategorized` 的「未分类」分类存在，并将 `categoryName` 为空或指向已删除分类的句子迁移至「未分类」。
+
 ### CategoryViewRecord
 
 分类事件记录，用于浏览 / 点赞趋势统计。
 
-| 字段路径                | 类型                               | 说明                           |
-| ------------------- | -------------------------------- | ---------------------------- |
-| `spec.categoryName` | String                           | 关联的分类 `metadata.name`（已建立索引） |
-| `spec.eventType`    | Enum: `VIEW` / `LIKE` / `UNLIKE` | 事件类型（已建立索引）                  |
+| 字段路径                | 类型                               | 说明                                       |
+| ------------------- | -------------------------------- | ---------------------------------------- |
+| `spec.categoryName` | String                           | 关联的分类 `metadata.name`（已建立索引）             |
+| `spec.eventType`    | Enum: `VIEW` / `LIKE`            | 事件类型（已建立索引）；`UNLIKE` 已废弃，取消点赞改为删除对应 `LIKE` 记录 |
+| `spec.sentenceName` | String                           | 句子 `metadata.name`，仅 `LIKE` 事件使用（已建立索引）  |
+| `spec.ip`           | String                           | 客户端 IP，仅 `LIKE` 事件使用，用于定位对应的点赞记录（已建立索引） |
 
 ### SentenceSubmission
 
@@ -441,17 +453,37 @@ AI 生成任务运行日志，由 `AiGenerateService` 在每次定时 / 手动�
 
 | 字段路径                    | 类型                          | 说明                       |
 | ----------------------- | --------------------------- | ------------------------ |
-| `spec.algorithm`        | Enum: `COSINE` / `JACCARD`  | 使用的相似度算法                 |
-| `spec.threshold`        | double                      | 相似度阈值（0~1）               |
+| `spec.triggerType`      | Enum: `MANUAL` / `SCHEDULED` | 触发类型                     |
+| `spec.triggeredBy`      | String                      | 触发者用户名                   |
+| `spec.algorithm`        | String                      | 使用的算法：`COSINE` / `JACCARD` |
+| `spec.threshold`        | double                      | 相似度阈值                    |
 | `spec.totalSentences`   | int                         | 检查的句子总数                  |
-| `spec.totalPairs`       | int                         | 比较的句子对数                  |
-| `spec.similarPairs`     | int                         | 超过阈值的相似句子对数              |
-| `spec.similarPairData`  | String                      | 相似句子对详情（JSON 字符串）        |
-| `spec.status`           | Enum: `RUNNING` / `SUCCESS` / `FAILED` | 任务状态（已建立索引） |
+| `spec.totalPairs`       | long                        | 比较的句子对总数                 |
+| `spec.similarPairCount` | int                         | 超过阈值的相似句子对数量             |
+| `spec.similarPairs`     | String                      | 相似句子对详情（JSON 字符串，含双方名称、内容、分类、作者、来源与相似度） |
+| `spec.status`           | Enum: `RUNNING` / `SUCCESS` / `FAILED` | 任务状态（已建立索引）    |
 | `spec.errorMessage`     | String                      | 错误信息                     |
 | `spec.durationMs`       | long                        | 耗时（毫秒）                   |
 
-> Reconciler 会在 `Sentence` 增删改时自动更新对应 `Category.status.sentenceCount`；若分类被删除，其下所有句子也会被级联删除。
+### SimilarityGroup（API 响应模型）
+
+相似句子分组结果，非扩展模型，仅用于 `GET /similarity-check-groups` 接口响应。
+
+| 字段                | 类型                    | 说明                          |
+| ----------------- | --------------------- | --------------------------- |
+| `groupId`         | String                | 分组标识（使用最优句子名称）              |
+| `bestSentence`    | SentenceInfo          | 组内最优句子（综合评分最高，置顶展示）         |
+| `bestSentenceScore` | double              | 最优句子评分                      |
+| `similarSentences` | List&lt;SentenceInfo&gt; | 组内其他相似句子                |
+| `similarCount`    | int                   | 相似句子数量                      |
+| `maxSimilarity`   | double                | 组内最高相似度                     |
+| `avgSimilarity`   | double                | 组内平均相似度                     |
+
+`SentenceInfo` 字段：`name`、`content`、`category`、`author`、`source`、`published`、`likeCount`、`viewCount`、`score`、`similarity`（仅相似句子列表中有值）。
+
+> 最优句子评分规则：已发布 +40，点赞数 × 2，浏览量 / 10，内容长度 15~80 字 +15（>80 字 +8），有作者 +10，有来源 +5。
+
+> Reconciler 会在 `Sentence` 增删改时自动更新对应 `Category.status.sentenceCount`；删除句子时还会自动清理关联的相似度比对数据；若分类被删除，其下所有句子也会被级联删除。
 
 ## 插件设置
 
@@ -485,7 +517,7 @@ AI 生成任务运行日志，由 `AiGenerateService` 在每次定时 / 手动�
 | AI 日志最大保留条数 | 500                     | 超过此数量将自动删除最旧的 `AiGenerateLog`（10-10000） |
 | AI 日志保留天数   | 30                      | 超过此天数的 AI 日志将被清理（1-365）                 |
 
-> 修改 AI 设置后，定时任务会自动重新注册，无需重启 Halo。AI 生成的句子 `createdBy` 字段标记为 `AI`。
+> 修改 AI 设置后，定时任务会自动重新注册，无需重启 Halo。AI 生成的句子 `createdBy` 字段标记为 `AI`。AI 日志相关设置项仅在启用 AI 生成时显示。
 
 ### 访客提交设置
 
@@ -498,16 +530,18 @@ AI 生成任务运行日志，由 `AiGenerateService` 在每次定时 / 手动�
 | 提交冷却时间（分钟）  | 10  | 达到连续提交上限后的冷却时间；未达上限时单次提交也受此时间限制，`0` 表示不限制（0-1440） |
 | 提交记录最大保留条数  | 1000 | `SentenceSubmission` 历史记录的上限（100-10000）              |
 
-> 注：IP 冷却基于内存缓存，插件重启后会重置。
+> 除「启用访客提交」「审核通过后自动发布」「提交记录最大保留条数」外，其余设置项仅在启用访客提交时显示。IP 冷却基于内存缓存，插件重启后会重置。
 
 ### 相似度检查设置
 
 | 设置项      | 默认值                     | 说明                                                     |
 | -------- | ----------------------- | ------------------------------------------------------ |
 | 启用定时检查   | false                   | 开启后，系统将按设定周期自动对所有句子进行相似度比对                            |
-| 定时检查时间   | `0 0 4 * * *`（每天 04:00） | 6 位 Cron 表达式（秒 分 时 日 月 周），支持预设或自定义                     |
+| 定时检查时间   | `0 0 2 * * *`（每天 02:00） | 6 位 Cron 表达式（秒 分 时 日 月 周），支持预设或自定义                     |
 | 相似度算法    | COSINE                  | `COSINE`（余弦相似度，基于 TF-IDF 加权，适合检测语义接近的句子）或 `JACCARD`（Jaccard 相似度，适合检测高度相似的句子） |
-| 相似度阈值    | 0.8                     | 超过此阈值的句子对将被标记为相似（0~1 之间，越大越严格）                        |
+| 相似度阈值    | 0.8                     | 超过此阈值的句子对将被标记为相似（0.1~1，步长 0.05，越大越严格）                  |
+
+> 除「启用定时检查」外，其余设置项仅在启用定时检查时显示。修改设置后定时任务会自动重新注册。
 
 ## 定时任务
 
@@ -519,7 +553,7 @@ AI 生成任务运行日志，由 `AiGenerateService` 在每次定时 / 手动�
 | 清理分类统计记录    | 每天 03:00（`0 0 3 * * *`）  | 按天数与条数双重策略清理过期的 `CategoryViewRecord`         |
 | 清理 AI 生成日志  | 每天 03:30（`0 30 3 * * *`） | 按天数与条数双重策略清理过期的 `AiGenerateLog`              |
 | AI 自动生成句子   | 由 AI 设置中的 Cron 表达式驱动     | 默认每天 02:00，配置变更后自动重新注册                       |
-| 定时相似度检查     | 由相似度检查设置中的 Cron 表达式驱动   | 默认每天 04:00，配置变更后自动重新注册                       |
+| 定时相似度检查     | 由相似度检查设置中的 Cron 表达式驱动   | 默认每天 02:00，配置变更后自动重新注册                       |
 
 ## AI 自动生成
 
@@ -559,6 +593,7 @@ AI 生成任务运行日志，由 `AiGenerateService` 在每次定时 / 手动�
 - 若要在自定义主题中接入，可直接调用公开接口 `POST /sentence-submission/submit`
 - 公共提交权限已自动聚合到匿名用户，无需额外授权
 - 审核操作需具备 `plugin:hitokoto-hub:manage` 权限
+- 审核通过时，管理员可在请求体中覆写句子的内容、作者、来源、分类，未提供的字段回退到原始提交值（作者默认「匿名」、来源默认「未知」）
 - 连续提交上限：同一 IP 在冷却周期内可连续提交 N 句，达到上限后进入冷却
 
 ## 相似度检查
@@ -574,16 +609,24 @@ AI 生成任务运行日志，由 `AiGenerateService` 在每次定时 / 手动�
 
 ### 检查流程
 
-1. 对所有已发布的句子两两配对比较
-2. 计算每对句子的相似度分数（0~1）
-3. 超过阈值（默认 0.8）的句子对写入 `SimilarityCheckLog.spec.similarPairData`
-4. 每次检查生成一条 `SimilarityCheckLog` 记录，包含算法、阈值、检查总数、相似对数、耗时等信息
+1. 对所有已发布的句子两两配对比较，计算相似度分数（0~1）
+2. 超过阈值（默认 0.8）的句子对记录为相似对
+3. 使用并查集（Union-Find）将传递相似的句子归并为一组（A 与 B 相似、B 与 C 相似，则三者同组）
+4. 对每个组内的句子按综合评分（发布状态、点赞、浏览、内容长度、作者、来源）选出「最优句子」置顶展示
+5. 每次检查生成一条 `SimilarityCheckLog` 记录，包含触发类型、算法、阈值、检查总数、相似对数、耗时等信息
+
+### 结果处理
+
+- **分页查看**：相似句子分组结果通过后端分页返回，每组展示最优句子与相似句子列表
+- **单条删除**：相似句子仅支持删除，不支持编辑；删除时前端采用乐观 UI 更新，直接操作本地分组数据，保持排序稳定，不触发重新检测。若删除的是当前最优句子，会自动将剩余句子中评分最高的提升为新的最优句子；若组内剩余句子不足 2 条，整个分组自动移除
+- **批量清理**：提供「批量删除非最优句子」功能，一次性删除所有相似组中的非最优句子（作用于全部分组数据，非仅当前页）；删除采用串行方式避免分类计数冲突，单条删除失败会跳过而不中断整体流程
+- **数据一致性**：删除句子时 Reconciler 会自动清理该句子参与的相似度比对数据，避免脏数据残留
 
 ### 使用方式
 
 - **定时自动检查**：在「轻言 → 设置 → 相似度检查设置」中开启「启用定时检查」并配置 Cron 表达式
-- **手动触发**：在后台「轻言 → 相似度检查」页面点击「立即检查」按钮
-- **结果查看**：在「轻言 → 相似度检查」页面查看历史检查记录与相似句子对详情
+- **手动触发**：在后台「轻言 → 相似度检查」页面点击「立即检查」按钮，触发时可在查询参数中临时指定 `algorithm` 与 `threshold` 覆盖设置值
+- **结果查看**：在「轻言 → 相似度检查」页面查看历史检查记录与相似句子分组详情
 
 ## 权限体系
 
@@ -591,9 +634,9 @@ AI 生成任务运行日志，由 `AiGenerateService` 在每次定时 / 手动�
 
 | 角色模板                                | 说明                          | 授权对象       |
 | ----------------------------------- | --------------------------- | ---------- |
-| `hitokoto-hub-role-template-public` | 公共接口权限（随机、分类、点赞）            | 匿名用户（自动聚合） |
+| `hitokoto-hub-role-template-public` | 公共接口权限（随机、分类、点赞、投递）          | 匿名用户（自动聚合） |
 | `hitokoto-hub-role-template-view`   | 后台查看权限                      | 需手动分配      |
-| `hitokoto-hub-role-template-manage` | 后台管理权限（CRUD、批量导入、概览），依赖查看权限 | 需手动分配      |
+| `hitokoto-hub-role-template-manage` | 后台管理权限（CRUD、批量导入、概览、审核），依赖查看权限 | 需手动分配      |
 
 对应 UI 权限标识：
 
@@ -605,9 +648,10 @@ AI 生成任务运行日志，由 `AiGenerateService` 在每次定时 / 手动�
 ```
 plugin-hitokoto-hub/
 ├── src/main/java/top/puresky/hitokotohub/
-│   ├── HitokotoHubPlugin.java              # 插件入口，注册 6 个扩展模型与索引
+│   ├── HitokotoHubPlugin.java              # 插件入口，注册 6 个扩展模型与索引，迁移孤儿句子
 │   ├── HitokotoTemplateRouter.java         # 默认模板路由 /hitokoto
 │   ├── PluginConfiguration.java            # 插件配置
+│   ├── UncategorizedConstants.java         # 「未分类」内置分类常量
 │   ├── config/                             # 设置配置读取
 │   │   ├── SettingConfig.java
 │   │   └── impl/SettingConfigImpl.java
@@ -619,7 +663,7 @@ plugin-hitokoto-hub/
 │   │   ├── SentenceSubmissionConsoleEndpoint.java  # 访客提交审核接口
 │   │   ├── OverviewConsoleEndpoint.java
 │   │   ├── AiGenerateLogConsoleEndpoint.java      # AI 日志查询 / 触发 / 删除
-│   │   ├── SimilarityCheckConsoleEndpoint.java    # 相似度检查查询 / 触发
+│   │   ├── SimilarityCheckConsoleEndpoint.java    # 相似度检查查询 / 触发 / 分组 / 批量删除
 │   │   └── SentenceQuery.java
 │   ├── extension/                          # 自定义扩展模型（GVK）
 │   │   ├── Sentence.java
@@ -627,20 +671,21 @@ plugin-hitokoto-hub/
 │   │   ├── CategoryViewRecord.java
 │   │   ├── SentenceSubmission.java        # 访客投递记录
 │   │   ├── AiGenerateLog.java             # AI 生成任务日志
-│   │   └── SimilarityCheckLog.java        # 相似度检查日志
+│   │   ├── SimilarityCheckLog.java        # 相似度检查日志
+│   │   └── SimilarityGroup.java           # 相似分组响应模型（非 Extension）+ 评分算法
 │   ├── finder/                             # 主题 Finder API
 │   │   ├── HitokotoFinder.java
 │   │   └── impl/HitokotoFinderImpl.java
 │   ├── reconciler/                         # 资源 Reconciler
-│   │   ├── SentenceReconciler.java
+│   │   ├── SentenceReconciler.java        # 维护分类计数 + 清理相似度比对数据
 │   │   └── CategoryReconciler.java
 │   ├── scheduled/                          # 定时任务
-│   │   └── StatsCleanupScheduler.java      # 清理缓存/统计/AI日志/提交记录 + 注册 AI 生成与相似度检查任务
+│   │   └── StatsCleanupScheduler.java      # 清理缓存/统计/AI日志 + 注册 AI 生成与相似度检查任务
 │   └── service/                            # 服务层
 │       ├── AiGenerateService.java
 │       ├── impl/AiGenerateServiceImpl.java
 │       ├── SimilarityCheckService.java
-│       └── impl/SimilarityCheckServiceImpl.java
+│       └── impl/SimilarityCheckServiceImpl.java  # 相似度算法 + 并查集分组 + 最优选择 + 批量删除
 ├── src/main/resources/
 │   ├── extensions/                         # 角色模板与设置定义
 │   │   ├── role-template-manage-hitokoto-hub.yaml
@@ -663,7 +708,7 @@ plugin-hitokoto-hub/
 │       │   ├── SentenceList.vue            # 句子管理（含批量导入）
 │       │   ├── SubmissionList.vue          # 访客提交审核
 │       │   ├── AiGenerateLogList.vue       # AI 生成日志
-│       │   └── SimilarityCheck.vue         # 相似度检查
+│       │   └── SimilarityCheck.vue         # 相似度检查（分组展示 + 单条/批量删除）
 │       └── views/HomeView.vue              # Tab 容器（概览 / 数据 / 访客提交 / AI 日志 / 相似度检查）
 ├── api-docs/openapi/v3_0/                  # 生成的 OpenAPI 文档
 ├── build.gradle                            # 根构建脚本
