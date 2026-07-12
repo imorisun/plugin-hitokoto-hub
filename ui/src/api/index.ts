@@ -25,6 +25,8 @@ const sentenceCoreApiClient = {
     axiosInstance.get<SentenceList>('/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence', {
       params,
     }),
+  clearUncategorizedSentences: () =>
+    axiosInstance.delete<number>('/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence/-/clear-uncategorized'),
 }
 const overviewV1alpha1ApiClient = {
   overview: new OverviewV1alpha1Api(undefined, '', axiosInstance),

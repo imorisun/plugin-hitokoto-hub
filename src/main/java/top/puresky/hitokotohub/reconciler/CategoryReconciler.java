@@ -12,6 +12,7 @@ import run.halo.app.extension.controller.Controller;
 import run.halo.app.extension.controller.ControllerBuilder;
 import run.halo.app.extension.controller.Reconciler;
 import run.halo.app.extension.index.query.Queries;
+import top.puresky.hitokotohub.UncategorizedConstants;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.extension.Sentence;
@@ -29,17 +30,30 @@ public class CategoryReconciler implements Reconciler<Reconciler.Request> {
         client.fetch(Category.class, request.name()).ifPresent(category -> {
 
             if (ExtensionOperator.isDeleted(category)) {
+                String categoryMetadataName = category.getMetadata().getName();
+
+                // 禁止删除"未分类"
+                if (UncategorizedConstants.METADATA_NAME.equals(categoryMetadataName)) {
+                    ExtensionUtil.removeFinalizers(category.getMetadata(), Set.of(FINALIZER_NAME));
+                    category.getMetadata().setDeletionTimestamp(null);
+                    client.update(category);
+                    return;
+                }
+
                 // 添加删除分类终结器
                 ExtensionUtil.addFinalizers(category.getMetadata(), Set.of(FINALIZER_NAME));
                 client.update(category);
 
-                String categoryMetadataName = category.getMetadata().getName();
-
+                // 将该分类下的句子归入"未分类"
                 client.listAll(Sentence.class, ListOptions.builder()
                             .fieldQuery(Queries.equal("spec.categoryName", categoryMetadataName)).build(),
                         Sort.unsorted())
-                    .forEach(client::delete);
+                    .forEach(sentence -> {
+                        sentence.getSpec().setCategoryName(UncategorizedConstants.METADATA_NAME);
+                        client.update(sentence);
+                    });
 
+                // 删除该分类下的浏览记录
                 client.listAll(CategoryViewRecord.class, ListOptions.builder()
                             .fieldQuery(Queries.equal("spec.categoryName", categoryMetadataName)).build(),
                         Sort.unsorted())

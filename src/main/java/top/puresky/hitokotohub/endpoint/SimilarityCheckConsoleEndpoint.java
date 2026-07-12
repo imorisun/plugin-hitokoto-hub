@@ -73,6 +73,20 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
                     .summary("获取相似度检查配置")
                     .tag(TAG)
                     .response(responseBuilder().implementation(Map.class)))
+            .GET("similarity-check-groups", this::listGroups,
+                builder -> builder.operationId("listSimilarityGroups")
+                    .summary("查询相似句子分组结果（分页）")
+                    .tag(TAG)
+                    .parameter(parameterBuilder().in(ParameterIn.QUERY).name("page")
+                        .description("页码，从 1 开始").implementation(Integer.class).required(false))
+                    .parameter(parameterBuilder().in(ParameterIn.QUERY).name("size")
+                        .description("每页数量").implementation(Integer.class).required(false))
+                    .response(responseBuilder().implementation(Map.class)))
+            .POST("similarity-check-groups/-/delete-nonoptimal", this::deleteNonOptimal,
+                builder -> builder.operationId("deleteNonOptimalSentences")
+                    .summary("批量删除每个相似组中的非最优句子")
+                    .tag(TAG)
+                    .response(responseBuilder().implementation(Map.class)))
             .build();
     }
 
@@ -162,5 +176,18 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
                 return result;
             })
             .flatMap(config -> ServerResponse.ok().bodyValue(config));
+    }
+
+    private @NonNull Mono<ServerResponse> listGroups(@NonNull ServerRequest request) {
+        int page = Integer.parseInt(request.queryParam("page").orElse("1"));
+        int size = Integer.parseInt(request.queryParam("size").orElse("10"));
+        return similarityCheckService.getGroups(page, size)
+            .flatMap(result -> ServerResponse.ok().bodyValue(result));
+    }
+
+    private @NonNull Mono<ServerResponse> deleteNonOptimal(@NonNull ServerRequest request) {
+        return similarityCheckService.deleteNonOptimalSentences()
+            .flatMap(count -> ServerResponse.ok()
+                .bodyValue(Map.of("message", "批量删除完成，共删除 " + count + " 个句子", "deleted", count)));
     }
 }

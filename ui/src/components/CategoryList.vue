@@ -27,7 +27,7 @@
 
     <!-- Empty -->
     <VEmpty
-            v-else-if="categories.length === 0"
+            v-else-if="regularCategories.length === 0"
             title="暂无分类"
             message="点击「新建分类」创建你的第一个分类"
     />
@@ -36,7 +36,7 @@
     <template v-else>
       <VEntityContainer>
         <VEntity
-                v-for="category in categories"
+                v-for="category in regularCategories"
                 :key="category.metadata.name"
         >
           <template #start>
@@ -77,6 +77,47 @@
                             @click="handleDelete(category)"
                     >
                       删除
+                    </VDropdownItem>
+                  </template>
+                </VDropdown>
+              </template>
+            </VEntityField>
+          </template>
+        </VEntity>
+
+        <!-- 未分类：系统内置分类 -->
+        <VEntity v-if="uncategorizedCategory">
+          <template #start>
+            <VEntityField title="未分类">
+              <template #description>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600 whitespace-nowrap">
+                    描述：系统内置分类，用于存放未指定分类或分类不存在的句子
+                  </span>
+                </div>
+              </template>
+            </VEntityField>
+          </template>
+          <template #end>
+            <VEntityField>
+              <template #description>
+                <div class="flex items-center gap-1.5">
+                  <VTag>
+                    {{ uncategorizedCategory.status?.sentenceCount ?? 0 }} 条句子
+                  </VTag>
+                </div>
+              </template>
+            </VEntityField>
+            <VEntityField>
+              <template #description>
+                <VDropdown>
+                  <VButton size="sm" type="default">操作</VButton>
+                  <template #popper>
+                    <VDropdownItem
+                            type="danger"
+                            @click="handleClearUncategorized"
+                    >
+                      清空句子
                     </VDropdownItem>
                   </template>
                 </VDropdown>
@@ -142,8 +183,8 @@
 </template>
 
 <script setup lang="ts">
-import {onMounted, onUnmounted, ref, watch} from 'vue'
-import {categoryCoreApiClient} from '@/api'
+import {onMounted, onUnmounted, ref, watch, computed} from 'vue'
+import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
 import type {Category} from '@/api/generated'
 import {
   Dialog,
@@ -187,6 +228,16 @@ const formData = ref({
   specName: '',
   description: '',
 })
+
+const UNCATEGORIZED_NAME = 'uncategorized'
+
+const regularCategories = computed(() =>
+  categories.value.filter((c) => c.metadata.name !== UNCATEGORIZED_NAME),
+)
+
+const uncategorizedCategory = computed(() =>
+        categories.value.find((c) => c.metadata.name === UNCATEGORIZED_NAME) ?? null,
+)
 
 // 通过 deletionTimestamp 判断是否正在删除
 const isDeleting = (category: Category): boolean => {
@@ -368,7 +419,7 @@ async function handleSave() {
 function handleDelete(category: Category) {
   Dialog.warning({
     title: '删除确认',
-    description: `确定要删除分类「${category.spec.name}」吗？该操作不可撤销。`,
+    description: `确定要删除分类「${category.spec.name}」吗？该分类下的句子将归入「未分类」，该操作不可撤销。`,
     confirmType: 'danger',
     confirmText: '删除',
     cancelText: '取消',
@@ -389,6 +440,26 @@ function handleDelete(category: Category) {
       } catch (e) {
         console.error('Failed to delete category', e)
         Toast.error('删除分类失败')
+      }
+    },
+  })
+}
+
+async function handleClearUncategorized() {
+  Dialog.warning({
+    title: '清空未分类句子',
+    description: '确定要清空所有未分类的句子吗？这些句子将被永久删除，该操作不可撤销。',
+    confirmType: 'danger',
+    confirmText: '清空',
+    cancelText: '取消',
+    onConfirm: async () => {
+      try {
+        const { data: deletedCount } = await sentenceCoreApiClient.clearUncategorizedSentences()
+        Toast.success(`已清空 ${deletedCount} 条未分类句子`)
+        await fetchCategories()
+      } catch (e) {
+        console.error('清空未分类句子失败', e)
+        Toast.error('清空未分类句子失败')
       }
     },
   })

@@ -9,10 +9,6 @@
             <span class="sim-status-pill-dot"></span>
             {{ getStatusLabel(latestLog.spec.status) }}
           </span>
-          <span v-if="syncing" class="sim-sync-pill">
-            <el-icon :size="12" class="is-loading"><Loading/></el-icon>
-            正在同步
-          </span>
         </div>
         <p class="sim-panel-desc">对所有已保存的句子进行两两相似度比对，发现重复或高度相似的内容</p>
       </div>
@@ -122,13 +118,13 @@
           </div>
           <div class="sim-tabs">
             <button
-              :class="{ active: viewMode === 'table' }"
+              :class="{ active: viewMode === 'group' }"
               class="sim-tab"
               type="button"
-              @click="viewMode = 'table'"
+              @click="viewMode = 'group'"
             >
-              <el-icon :size="14"><Grid/></el-icon>
-              列表
+              <el-icon :size="14"><Connection/></el-icon>
+              分组
             </button>
             <button
               :class="{ active: viewMode === 'heatmap' }"
@@ -145,84 +141,133 @@
 
       <div class="sim-results">
         <Transition name="sim-slide" mode="out-in">
-          <!-- 表格视图 -->
-          <div v-if="viewMode === 'table'" key="table" class="sim-table-wrap">
-            <div v-if="similarPairs.length === 0" class="sim-empty">
+          <!-- 分组视图 -->
+          <div v-if="viewMode === 'group'" key="group" class="sim-group-wrap">
+            <div v-if="groups.length === 0 && !groupLoading" class="sim-empty">
               <el-icon :size="36" color="#10b981"><CircleCheckFilled/></el-icon>
               <p class="sim-empty-text">未发现相似句子，所有内容均为唯一</p>
             </div>
-            <el-scrollbar v-else max-height="520px">
-              <el-table :data="similarPairs" style="width: 100%" table-layout="auto">
-                <el-table-column label="#" width="48" type="index" align="center" />
-                <el-table-column label="句子 A" min-width="300">
-                  <template #default="{ row }">
-                    <div class="sim-cell">
-                      <span class="sim-cell-text" :title="row.sentence1Content">{{ row.sentence1Content }}</span>
-                      <div class="sim-cell-meta">
-                        <VTag>作者：{{ row.sentence1Author || '匿名' }}</VTag>
-                         <VTag>分类：{{ getCategoryName(row.sentence1Category) }}</VTag>
-                         <VTag>来源：{{ row.sentence1Source || '未知' }}</VTag>
+            <template v-else>
+              <!-- 批量操作栏 -->
+              <div v-if="groups.length > 0" class="sim-group-toolbar">
+                <span class="sim-group-toolbar-info">
+                  共 <strong>{{ groupTotal }}</strong> 组相似句子
+                </span>
+                <VButton
+                  size="sm"
+                  type="danger"
+                  :loading="batchDeleting"
+                  @click="handleBatchDeleteNonOptimal"
+                >
+                  <template #icon><el-icon :size="14"><Delete/></el-icon></template>
+                  批量删除非最优句子
+                </VButton>
+              </div>
+              <!-- 加载中 -->
+              <div v-if="groupLoading" class="sim-loading">
+                <el-icon :size="24" class="is-loading" color="#fb7185"><Loading/></el-icon>
+                <p class="sim-loading-text">正在加载分组数据...</p>
+              </div>
+              <!-- 分组列表 -->
+              <el-scrollbar v-else max-height="520px">
+                <div class="sim-group-list">
+                  <div v-for="(group, gi) in groups" :key="group.groupId" class="sim-group-card">
+                    <!-- 最优句子 -->
+                    <div class="sim-group-hub">
+                      <span class="sim-group-num">{{ (groupPage - 1) * groupSize + gi + 1 }}</span>
+                      <span class="sim-best-badge">最优</span>
+                      <div class="sim-group-hub-body">
+                        <div class="sim-group-hub-header">
+                          <span class="sim-group-hub-text" :title="group.bestSentence.content">{{ group.bestSentence.content }}</span>
+                          <span class="sim-group-hub-count">
+                            <el-icon :size="12"><Connection/></el-icon>
+                            关联 {{ group.similarCount }} 个句子
+                          </span>
+                        </div>
+                        <div class="sim-group-hub-meta">
+                          <VTag size="sm">作者：{{ group.bestSentence.author || '匿名' }}</VTag>
+                          <VTag size="sm">分类：{{ getCategoryName(group.bestSentence.category) }}</VTag>
+                          <VTag size="sm">来源：{{ group.bestSentence.source || '未知' }}</VTag>
+                          <VTag size="sm" :class="group.bestSentence.published ? 'sim-tag-published' : ''">
+                            {{ group.bestSentence.published ? '已发布' : '未发布' }}
+                          </VTag>
+                          <span class="sim-group-score">评分 {{ group.bestSentenceScore.toFixed(1) }}</span>
+                        </div>
+                      </div>
+                      </div>
+                      <!-- 相似句子列表 -->
+                    <div class="sim-group-items">
+                      <div
+                        v-for="item in group.similarSentences"
+                        :key="item.name"
+                        class="sim-group-item"
+                      >
+                        <div class="sim-group-item-left">
+                          <span class="sim-group-item-text" :title="item.content">{{ item.content }}</span>
+                          <div class="sim-group-item-meta">
+                            <VTag size="sm">作者：{{ item.author || '匿名' }}</VTag>
+                            <VTag size="sm">分类：{{ getCategoryName(item.category) }}</VTag>
+                            <VTag size="sm" :class="item.published ? 'sim-tag-published' : ''">
+                              {{ item.published ? '已发布' : '未发布' }}
+                            </VTag>
+                            <span class="sim-group-score sim-group-score--sub">评分 {{ item.score.toFixed(1) }}</span>
+                          </div>
+                        </div>
+                        <div class="sim-group-item-right">
+                          <span class="sim-sim-pct" :class="getSimLevel(item.similarity)">
+                            {{ (item.similarity * 100).toFixed(1) }}%
+                          </span>
+                          <div class="sim-group-item-bar">
+                            <div
+                              class="sim-sim-fill"
+                              :class="getSimLevel(item.similarity)"
+                              :style="{ width: `${item.similarity * 100}%` }"
+                            ></div>
+                          </div>
+                          <button
+                            v-tooltip="'删除'"
+                            class="sim-act sim-act--del"
+                            type="button"
+                            :disabled="deletingSentence === item.name"
+                            @click="handleDeleteSentence(item.name, item.content)"
+                          >
+                            <el-icon :size="13" :class="{ 'is-loading': deletingSentence === item.name }">
+                              <Loading v-if="deletingSentence === item.name"/>
+                              <Delete v-else/>
+                            </el-icon>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </template>
-                </el-table-column>
-                <el-table-column label="句子 B" min-width="300">
-                  <template #default="{ row }">
-                    <div class="sim-cell">
-                      <span class="sim-cell-text" :title="row.sentence2Content">{{ row.sentence2Content }}</span>
-                      <div class="sim-cell-meta">
-                        <VTag>作者：{{ row.sentence2Author || '匿名' }}</VTag>
-                         <VTag>分类：{{ getCategoryName(row.sentence2Category) }}</VTag>
-                         <VTag>来源：{{ row.sentence2Source || '未知' }}</VTag>
-                      </div>
+                    <!-- 组统计 -->
+                    <div class="sim-group-footer">
+                      <span>最高相似度 <strong>{{ (group.maxSimilarity * 100).toFixed(1) }}%</strong></span>
+                      <span>平均相似度 <strong>{{ (group.avgSimilarity * 100).toFixed(1) }}%</strong></span>
                     </div>
-                  </template>
-                </el-table-column>
-                <el-table-column label="相似度" width="130" align="center">
-                  <template #default="{ row }">
-                    <div class="sim-sim">
-                      <div class="sim-sim-bar">
-                        <div
-                          class="sim-sim-fill"
-                          :class="getSimLevel(row.similarity)"
-                          :style="{ width: `${row.similarity * 100}%` }"
-                        ></div>
-                      </div>
-                      <span class="sim-sim-pct" :class="getSimLevel(row.similarity)">
-                        {{ (row.similarity * 100).toFixed(1) }}%
-                      </span>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="110" fixed="right" align="center">
-                  <template #default="{ row }">
-                    <div class="sim-actions">
-                      <button v-tooltip="'编辑 A'" class="sim-act sim-act--edit" type="button" @click="handleEditByPair(row, 1)">
-                        <el-icon><EditPen/></el-icon><span class="sim-act-label">A</span>
-                      </button>
-                      <button v-tooltip="'编辑 B'" class="sim-act sim-act--edit" type="button" @click="handleEditByPair(row, 2)">
-                        <el-icon><EditPen/></el-icon><span class="sim-act-label">B</span>
-                      </button>
-                      <button v-tooltip="'删除 A'" class="sim-act sim-act--del" type="button" @click="handleDeleteByPair(row, 1)">
-                        <el-icon><Delete/></el-icon><span class="sim-act-label">A</span>
-                      </button>
-                      <button v-tooltip="'删除 B'" class="sim-act sim-act--del" type="button" @click="handleDeleteByPair(row, 2)">
-                        <el-icon><Delete/></el-icon><span class="sim-act-label">B</span>
-                      </button>
-                    </div>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </el-scrollbar>
-            <div v-if="latestLog.spec.similarPairCount > similarPairs.length" class="sim-truncated">
-              <el-icon :size="13"><InfoFilled/></el-icon>
-              仅显示前 {{ similarPairs.length }} 条，共 {{ latestLog.spec.similarPairCount }} 条
-            </div>
+                  </div>
+                </div>
+              </el-scrollbar>
+              <!-- 分页 -->
+              <div class="sim-pagination">
+                <el-config-provider :locale="zhCn">
+                  <el-pagination
+                    v-model:current-page="groupPage"
+                    v-model:page-size="groupSize"
+                    :total="groupTotal"
+                    :page-sizes="[5, 10, 20]"
+                    layout="total, prev, pager, next, sizes"
+                    small
+                    @update:current-page="onGroupPageChange"
+                    @update:page-size="onGroupSizeChange"
+                  />
+                </el-config-provider>
+              </div>
+            </template>
           </div>
 
           <!-- 热力图视图 -->
           <div v-else key="heatmap" class="sim-heatmap-wrap">
-            <div v-if="similarPairs.length === 0" class="sim-empty">
+            <div v-if="groups.length === 0" class="sim-empty">
               <el-icon :size="36" color="#10b981"><CircleCheckFilled/></el-icon>
               <p class="sim-empty-text">未发现相似句子，无需生成热力图</p>
             </div>
@@ -268,56 +313,6 @@
         <p class="sim-empty-state-desc">点击上方「立即检查」按钮，对所有句子进行相似度比对</p>
       </div>
     </VCard>
-
-    <!-- ======================== 编辑弹窗 ======================== -->
-    <VModal v-model:visible="showEditModal" title="编辑句子" :width="600">
-      <div class="sim-form">
-        <FormKit
-          v-model="editForm.content"
-          type="textarea"
-          label="句子内容"
-          validation="required"
-          validation-message="请输入句子内容"
-          placeholder="请输入句子内容"
-          :rows="4"
-        />
-        <FormKit
-          v-model="editForm.categoryName"
-          type="select"
-          label="分类"
-          validation="required"
-          validation-message="请选择分类"
-          placeholder="请选择分类"
-          :options="categorySelectOptions"
-        />
-        <FormKit
-          v-model="editForm.author"
-          type="text"
-          label="作者"
-          placeholder="请输入作者（默认为匿名）"
-        />
-        <FormKit
-          v-model="editForm.source"
-          type="text"
-          label="来源"
-          placeholder="请输入来源（默认为未知）"
-        />
-        <FormKit
-          v-model="editForm.published"
-          type="checkbox"
-          label="发布状态"
-          help="勾选后公开对外可见，未勾选则仅管理员可见"
-        >
-          已发布
-        </FormKit>
-      </div>
-      <template #footer>
-        <div class="sim-modal-footer">
-          <VButton @click="showEditModal = false">取消</VButton>
-          <VButton type="secondary" :loading="saving" @click="handleSaveSentence">保存修改</VButton>
-        </div>
-      </template>
-    </VModal>
   </div>
 </template>
 
@@ -327,15 +322,13 @@ import {
   Toast,
   VButton,
   VCard,
-  VModal,
   VTag,
 } from '@halo-dev/components'
 import {
   CircleCheckFilled,
   CircleCloseFilled,
+  Connection,
   Delete,
-  EditPen,
-  Grid,
   Histogram,
   InfoFilled,
   Loading,
@@ -343,28 +336,47 @@ import {
 } from '@element-plus/icons-vue'
 import {computed, onMounted, onUnmounted, ref} from 'vue'
 import {axiosInstance} from '@halo-dev/api-client'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import VChart from 'vue-echarts'
 import {use} from 'echarts/core'
 import {HeatmapChart} from 'echarts/charts'
 import {GridComponent, TooltipComponent, VisualMapComponent} from 'echarts/components'
 import {CanvasRenderer} from 'echarts/renderers'
 import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
-import type {Category, Sentence} from '@/api/generated'
+import type {Category} from '@/api/generated'
 
 use([HeatmapChart, GridComponent, TooltipComponent, VisualMapComponent, CanvasRenderer])
 
-interface SimilarityPair {
-  sentence1Name: string
-  sentence1Content: string
-  sentence1Category: string
-  sentence1Author: string
-  sentence1Source: string
-  sentence2Name: string
-  sentence2Content: string
-  sentence2Category: string
-  sentence2Author: string
-  sentence2Source: string
+// ============== 类型定义 ==============
+
+interface SentenceInfo {
+  name: string
+  content: string
+  category: string
+  author: string
+  source: string
+  published: boolean
+  likeCount: number
+  viewCount: number
+  score: number
   similarity: number
+}
+
+interface SimilarityGroup {
+  groupId: string
+  bestSentence: SentenceInfo
+  bestSentenceScore: number
+  similarSentences: SentenceInfo[]
+  similarCount: number
+  maxSimilarity: number
+  avgSimilarity: number
+}
+
+interface GroupResult {
+  page: number
+  size: number
+  total: number
+  groups: SimilarityGroup[]
 }
 
 interface SimilarityCheckLog {
@@ -373,7 +385,6 @@ interface SimilarityCheckLog {
   metadata: {
     name: string
     creationTimestamp: string
-    deletionTimestamp?: string
   }
   spec: {
     triggerType: 'MANUAL' | 'SCHEDULED'
@@ -386,7 +397,6 @@ interface SimilarityCheckLog {
     durationMs: number
     status: 'RUNNING' | 'SUCCESS' | 'FAILED'
     errorMessage?: string
-    similarPairs: string
   }
 }
 
@@ -397,50 +407,39 @@ interface SimilarityCheckLogList {
   items: SimilarityCheckLog[]
 }
 
-// ==================== 状态 ====================
+// ============== 状态 ==============
 const checkAlgorithm = ref('COSINE')
 const checkThreshold = ref(0.8)
 const triggering = ref(false)
-const syncing = ref(false)
 const latestLog = ref<SimilarityCheckLog | null>(null)
-const similarPairs = ref<SimilarityPair[]>([])
-const viewMode = ref<'table' | 'heatmap'>('table')
+const viewMode = ref<'group' | 'heatmap'>('group')
+
+// 分组数据
+const groups = ref<SimilarityGroup[]>([])
+const groupPage = ref(1)
+const groupSize = ref(5)
+const groupTotal = ref(0)
+const groupLoading = ref(false)
+const batchDeleting = ref(false)
 
 const categories = ref<Category[]>([])
 
-const showEditModal = ref(false)
-const saving = ref(false)
-const editingSentenceName = ref('')
-const editForm = ref({
-  content: '',
-  categoryName: '',
-  author: '匿名',
-  source: '未知',
-  published: true,
-})
+const deletingSentence = ref<string | null>(null)
 
-let checkPollTimer: ReturnType<typeof setInterval> | null = null
-let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let checkPollTimer: ReturnType<typeof setTimeout> | null = null
 
 // ==================== 计算属性 ====================
 const isChecking = computed(() =>
   latestLog.value?.spec.status === 'RUNNING' || triggering.value,
 )
 
-const categorySelectOptions = computed(() =>
-  categories.value.map((c) => ({
-    label: c.spec.name,
-    value: c.metadata.name,
-  })),
-)
-
-const currentThreshold = computed(() =>
-  latestLog.value?.spec.threshold ?? checkThreshold.value,
-)
-
-const currentAlgorithm = computed(() =>
-  latestLog.value?.spec.algorithm ?? checkAlgorithm.value,
-)
+const categoryMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const c of categories.value) {
+    map.set(c.metadata.name, c.spec.name)
+  }
+  return map
+})
 
 // ==================== 热力图 ====================
 const HEATMAP_MAX = 30
@@ -448,14 +447,18 @@ const HEATMAP_MAX = 30
 const heatmapSentences = computed(() => {
   const seen = new Set<string>()
   const result: { name: string; content: string }[] = []
-  for (const pair of similarPairs.value) {
-    if (!seen.has(pair.sentence1Name)) {
-      seen.add(pair.sentence1Name)
-      result.push({name: pair.sentence1Name, content: pair.sentence1Content})
+  for (const group of groups.value) {
+    if (!seen.has(group.bestSentence.name)) {
+      seen.add(group.bestSentence.name)
+      result.push({name: group.bestSentence.name, content: group.bestSentence.content})
+      if (result.length >= HEATMAP_MAX) break
     }
-    if (!seen.has(pair.sentence2Name)) {
-      seen.add(pair.sentence2Name)
-      result.push({name: pair.sentence2Name, content: pair.sentence2Content})
+    for (const item of group.similarSentences) {
+      if (!seen.has(item.name)) {
+        seen.add(item.name)
+        result.push({name: item.name, content: item.content})
+        if (result.length >= HEATMAP_MAX) break
+      }
     }
     if (result.length >= HEATMAP_MAX) break
   }
@@ -466,17 +469,24 @@ const heatmapOption = computed(() => {
   const sentences = heatmapSentences.value
   if (sentences.length === 0) return null
 
+  // 从所有分组中构建相似度矩阵
+  const simMap = new Map<string, number>()
+  for (const group of groups.value) {
+    const best = group.bestSentence
+    for (const item of group.similarSentences) {
+      simMap.set(`${best.name}|${item.name}`, item.similarity)
+    }
+  }
+
   const labels = sentences.map((_, i) => `#${i + 1}`)
   const data: [number, number, number][] = []
 
   for (let i = 0; i < sentences.length; i++) {
     for (let j = i; j < sentences.length; j++) {
-      const pair = similarPairs.value.find(
-        (p) =>
-          (p.sentence1Name === sentences[i].name && p.sentence2Name === sentences[j].name) ||
-          (p.sentence1Name === sentences[j].name && p.sentence2Name === sentences[i].name),
-      )
-      data.push([i, j, pair ? pair.similarity : (i === j ? 1 : 0)])
+      const key1 = `${sentences[i].name}|${sentences[j].name}`
+      const key2 = `${sentences[j].name}|${sentences[i].name}`
+      const sim = simMap.get(key1) ?? simMap.get(key2)
+      data.push([i, j, sim ?? (i === j ? 1 : 0)])
     }
   }
 
@@ -511,191 +521,12 @@ const heatmapOption = computed(() => {
   }
 })
 
-// ==================== 前端相似度算法 ====================
-// 与后端保持一致的字符二元组分词
-
-function tokenizeToSet(text: string): Set<string> {
-  if (!text || text.length < 2) return new Set()
-  const tokens = new Set<string>()
-  for (let i = 0; i < text.length - 1; i++) {
-    tokens.add(text.substring(i, i + 2))
-  }
-  return tokens
-}
-
-function computeTfVector(text: string): Map<string, number> {
-  const tf = new Map<string, number>()
-  if (!text || text.length < 2) return tf
-  let total = 0
-  for (let i = 0; i < text.length - 1; i++) {
-    const bigram = text.substring(i, i + 2)
-    tf.set(bigram, (tf.get(bigram) || 0) + 1)
-    total++
-  }
-  if (total > 0) {
-    for (const [key, val] of tf) {
-      tf.set(key, val / total)
-    }
-  }
-  return tf
-}
-
-function computeIdfMap(tokenSets: Set<string>[]): Map<string, number> {
-  const docFreq = new Map<string, number>()
-  const n = tokenSets.length
-  for (const tokens of tokenSets) {
-    for (const token of tokens) {
-      docFreq.set(token, (docFreq.get(token) || 0) + 1)
-    }
-  }
-  const idf = new Map<string, number>()
-  for (const [key, freq] of docFreq) {
-    idf.set(key, Math.log(n / (freq + 1)) + 1)
-  }
-  return idf
-}
-
-function computeTfidfVector(tf: Map<string, number>, idf: Map<string, number>): Map<string, number> {
-  const tfidf = new Map<string, number>()
-  for (const [key, tfVal] of tf) {
-    const idfVal = idf.get(key)
-    if (idfVal !== undefined) {
-      tfidf.set(key, tfVal * idfVal)
-    }
-  }
-  return tfidf
-}
-
-function vectorNorm(v: Map<string, number>): number {
-  let sum = 0
-  for (const val of v.values()) {
-    sum += val * val
-  }
-  return Math.sqrt(sum)
-}
-
-function cosineSimilarity(v1: Map<string, number>, v2: Map<string, number>): number {
-  if (v1.size === 0 || v2.size === 0) return 0
-  const smaller = v1.size <= v2.size ? v1 : v2
-  const larger = v1.size <= v2.size ? v2 : v1
-  let dot = 0
-  for (const [key, val] of smaller) {
-    const val2 = larger.get(key)
-    if (val2 !== undefined) {
-      dot += val * val2
-    }
-  }
-  const n1 = vectorNorm(v1)
-  const n2 = vectorNorm(v2)
-  if (n1 === 0 || n2 === 0) return 0
-  return dot / (n1 * n2)
-}
-
-function jaccardSimilarity(set1: Set<string>, set2: Set<string>): number {
-  if (set1.size === 0 && set2.size === 0) return 0
-  let intersection = 0
-  for (const token of set1) {
-    if (set2.has(token)) intersection++
-  }
-  const union = set1.size + set2.size - intersection
-  return union === 0 ? 0 : intersection / union
-}
-
-/**
- * 对编辑后的句子重新计算与其他句子的相似度（乐观更新）
- * 使用与检查日志相同的算法和阈值
- */
-function recalculateSimilarityForSentence(
-  sentenceName: string,
-  newContent: string,
-): SimilarityPair[] {
-  const algorithm = currentAlgorithm.value
-  const threshold = currentThreshold.value
-
-  // 收集所有唯一句子内容作为语料库（用于 IDF 计算）
-  const contentMap = new Map<string, string>() // name -> content
-  for (const pair of similarPairs.value) {
-    if (!contentMap.has(pair.sentence1Name)) {
-      contentMap.set(pair.sentence1Name, pair.sentence1Content)
-    }
-    if (!contentMap.has(pair.sentence2Name)) {
-      contentMap.set(pair.sentence2Name, pair.sentence2Content)
-    }
-  }
-
-  // 更新编辑后的句子内容
-  contentMap.set(sentenceName, newContent)
-
-  // 预计算所有句子的特征
-  const tfVectors = new Map<string, Map<string, number>>()
-  const tokenSets = new Map<string, Set<string>>()
-  for (const [name, content] of contentMap) {
-    tfVectors.set(name, computeTfVector(content))
-    tokenSets.set(name, tokenizeToSet(content))
-  }
-
-  // 计算 IDF
-  const allTokenSets = Array.from(tokenSets.values())
-  const idfMap = computeIdfMap(allTokenSets)
-
-  // 计算 TF-IDF 向量
-  const tfidfVectors = new Map<string, Map<string, number>>()
-  for (const [name, tf] of tfVectors) {
-    tfidfVectors.set(name, computeTfidfVector(tf, idfMap))
-  }
-
-  // 重新计算涉及编辑句子的所有配对
-  const updatedPairs: SimilarityPair[] = []
-  for (const pair of similarPairs.value) {
-    let content1 = pair.sentence1Content
-    let content2 = pair.sentence2Content
-
-    if (pair.sentence1Name === sentenceName) {
-      content1 = newContent
-    }
-    if (pair.sentence2Name === sentenceName) {
-      content2 = newContent
-    }
-
-    // 不涉及编辑句子的配对保持原样
-    if (pair.sentence1Name !== sentenceName && pair.sentence2Name !== sentenceName) {
-      updatedPairs.push(pair)
-      continue
-    }
-
-    // 重新计算相似度
-    let similarity: number
-    if (algorithm === 'JACCARD') {
-      const set1 = tokenSets.get(pair.sentence1Name)!
-      const set2 = tokenSets.get(pair.sentence2Name)!
-      similarity = jaccardSimilarity(set1, set2)
-    } else {
-      const v1 = tfidfVectors.get(pair.sentence1Name)!
-      const v2 = tfidfVectors.get(pair.sentence2Name)!
-      similarity = cosineSimilarity(v1, v2)
-    }
-
-    // 仅保留超过阈值的配对
-    if (similarity >= threshold) {
-      updatedPairs.push({
-        ...pair,
-        sentence1Content: content1,
-        sentence2Content: content2,
-        similarity: Math.round(similarity * 10000) / 10000,
-      })
-    }
-  }
-
-  // 按相似度降序排序
-  updatedPairs.sort((a, b) => b.similarity - a.similarity)
-  return updatedPairs
-}
-
 // ==================== 数据获取 ====================
+
+const BASE = '/apis/console.api.hitokotohub.puresky.top/v1alpha1'
+
 const getCategoryName = (categoryId: string): string => {
-  if (!categoryId) return '-'
-  const category = categories.value.find((c) => c.metadata.name === categoryId)
-  return category?.spec.name || categoryId
+  return categoryMap.value.get(categoryId) || categoryId || '-'
 }
 
 const initCategories = async () => {
@@ -707,11 +538,56 @@ const initCategories = async () => {
   }
 }
 
+const fetchLatestLog = async (silent = false) => {
+  try {
+    const {data} = await axiosInstance.get<SimilarityCheckLogList>(
+      `${BASE}/similarity-check-logs`,
+      {params: {page: 1, size: 1}},
+    )
+    if (data.items?.length > 0) {
+      latestLog.value = data.items[0]
+    } else {
+      latestLog.value = null
+    }
+  } catch (e) {
+    if (!silent) console.error('获取检查日志失败', e)
+  }
+}
+
+const fetchGroups = async () => {
+  groupLoading.value = true
+  try {
+    const {data} = await axiosInstance.get<GroupResult>(
+      `${BASE}/similarity-check-groups`,
+      {params: {page: groupPage.value, size: groupSize.value}},
+    )
+    groups.value = data.groups || []
+    groupTotal.value = data.total || 0
+  } catch (e) {
+    console.error('获取分组数据失败', e)
+    groups.value = []
+    groupTotal.value = 0
+  } finally {
+    groupLoading.value = false
+  }
+}
+
+const onGroupPageChange = (newPage: number) => {
+  groupPage.value = newPage
+  fetchGroups()
+}
+
+const onGroupSizeChange = () => {
+  groupPage.value = 1
+  fetchGroups()
+}
+
+// ==================== 检查触发 ====================
 const handleTriggerCheck = async () => {
   triggering.value = true
   try {
     await axiosInstance.post(
-      '/apis/console.api.hitokotohub.puresky.top/v1alpha1/similarity-check-logs/-/trigger',
+      `${BASE}/similarity-check-logs/-/trigger`,
       null,
       {params: {algorithm: checkAlgorithm.value, threshold: checkThreshold.value}},
     )
@@ -726,153 +602,32 @@ const handleTriggerCheck = async () => {
 }
 
 const startCheckPolling = () => {
-  if (checkPollTimer) clearInterval(checkPollTimer)
+  if (checkPollTimer) clearTimeout(checkPollTimer)
   let count = 0
-  checkPollTimer = setInterval(async () => {
-    if (++count > 150) {
-      stopCheckPolling()
-      syncing.value = false
-      return
-    }
+  const poll = async () => {
+    if (++count > 90) { stopCheckPolling(); return }
     await fetchLatestLog(true)
     if (latestLog.value && latestLog.value.spec.status !== 'RUNNING') {
       stopCheckPolling()
-      syncing.value = false
+      // 检查完成后重新加载数据
+      groupPage.value = 1
+      await fetchGroups()
+      return
     }
-  }, 2000)
+    // 递增间隔：前10次1s，之后3s
+    const interval = count <= 10 ? 1000 : 3000
+    checkPollTimer = setTimeout(poll, interval)
+  }
+  checkPollTimer = setTimeout(poll, 1000)
 }
 
 const stopCheckPolling = () => {
-  if (checkPollTimer) { clearInterval(checkPollTimer); checkPollTimer = null }
+  if (checkPollTimer) { clearTimeout(checkPollTimer); checkPollTimer = null }
 }
 
-const fetchLatestLog = async (silent = false) => {
-  try {
-    const {data} = await axiosInstance.get<SimilarityCheckLogList>(
-      '/apis/console.api.hitokotohub.puresky.top/v1alpha1/similarity-check-logs',
-      {params: {page: 1, size: 1}},
-    )
-    if (data.items?.length > 0) {
-      latestLog.value = data.items[0]
-      similarPairs.value = latestLog.value.spec.similarPairs
-        ? JSON.parse(latestLog.value.spec.similarPairs)
-        : []
-    } else {
-      latestLog.value = null
-      similarPairs.value = []
-    }
-  } catch (e) {
-    if (!silent) console.error('获取检查日志失败', e)
-  }
-}
-
-/**
- * 触发后端重新检查以同步数据（防抖）
- * 在用户完成删除/修改操作后，自动重新计算并替换本地结果
- */
-const scheduleSync = () => {
-  if (syncDebounceTimer) clearTimeout(syncDebounceTimer)
-  syncing.value = true
-  syncDebounceTimer = setTimeout(async () => {
-    syncDebounceTimer = null
-    try {
-      await axiosInstance.post(
-        '/apis/console.api.hitokotohub.puresky.top/v1alpha1/similarity-check-logs/-/trigger',
-        null,
-        {params: {algorithm: checkAlgorithm.value, threshold: checkThreshold.value}},
-      )
-      startCheckPolling()
-    } catch (e: any) {
-      console.error('同步检查失败', e)
-      syncing.value = false
-    }
-  }, 1500)
-}
-
-// ==================== 句子编辑（乐观更新 + 后台同步） ====================
-const handleEditByPair = async (pair: SimilarityPair, which: number) => {
-  const name = which === 1 ? pair.sentence1Name : pair.sentence2Name
-  try {
-    const {data} = await sentenceCoreApiClient.sentence.getSentence({name})
-    editingSentenceName.value = name
-    editForm.value = {
-      content: data.spec.content,
-      categoryName: data.spec.categoryName,
-      author: data.spec.author || '匿名',
-      source: data.spec.source || '未知',
-      published: data.status?.published ?? true,
-    }
-    showEditModal.value = true
-  } catch (e) {
-    console.error('获取句子失败', e)
-    Toast.error('获取句子失败')
-  }
-}
-
-const handleSaveSentence = async () => {
-  if (!editForm.value.content || !editForm.value.categoryName) {
-    Toast.warning('请填写句子内容和分类')
-    return
-  }
-  saving.value = true
-  try {
-    const {data: latest} = await sentenceCoreApiClient.sentence.getSentence({
-      name: editingSentenceName.value,
-    })
-    const updated: Sentence = {
-      ...latest,
-      spec: {
-        ...latest.spec,
-        content: editForm.value.content,
-        categoryName: editForm.value.categoryName,
-        author: editForm.value.author,
-        source: editForm.value.source,
-      },
-      status: {...latest.status, published: editForm.value.published},
-    }
-    await sentenceCoreApiClient.sentence.updateSentence({
-      name: editingSentenceName.value,
-      sentence: updated,
-    })
-
-    // 乐观更新：立即本地重算该句子与其他句子的相似度
-    const newPairs = recalculateSimilarityForSentence(
-      editingSentenceName.value,
-      editForm.value.content,
-    )
-    const oldCount = similarPairs.value.length
-    similarPairs.value = newPairs
-
-    if (latestLog.value) {
-      const diff = newPairs.length - oldCount
-      if (diff !== 0) {
-        latestLog.value = {
-          ...latestLog.value,
-          spec: {
-            ...latestLog.value.spec,
-            similarPairCount: Math.max(0, latestLog.value.spec.similarPairCount + diff),
-          },
-        }
-      }
-    }
-
-    showEditModal.value = false
-    Toast.success('保存成功，正在同步检查结果...')
-
-    // 后台触发重新检查，保证数据与后端一致
-    scheduleSync()
-  } catch (e) {
-    console.error('保存失败', e)
-    Toast.error('保存失败')
-  } finally {
-    saving.value = false
-  }
-}
-
-// ==================== 句子删除（乐观更新 + 后台同步） ====================
-const handleDeleteByPair = (pair: SimilarityPair, which: number) => {
-  const name = which === 1 ? pair.sentence1Name : pair.sentence2Name
-  const content = which === 1 ? pair.sentence1Content : pair.sentence2Content
+// ==================== 删除 ====================
+const handleDeleteSentence = (name: string, content: string) => {
+  if (deletingSentence.value) return  // 防重复点击
   Dialog.warning({
     title: '删除确认',
     description: `确定要删除「${content.slice(0, 30)}${content.length > 30 ? '...' : ''}」吗？此操作不可撤销。`,
@@ -880,34 +635,101 @@ const handleDeleteByPair = (pair: SimilarityPair, which: number) => {
     confirmText: '删除',
     cancelText: '取消',
     onConfirm: async () => {
+      deletingSentence.value = name
       try {
         await sentenceCoreApiClient.sentence.deleteSentence({name})
-
-        // 乐观更新：立即移除涉及该句子的所有配对
-        const filtered = similarPairs.value.filter(
-          (p) => p.sentence1Name !== name && p.sentence2Name !== name,
-        )
-        const removedCount = similarPairs.value.length - filtered.length
-        similarPairs.value = filtered
-
-        if (latestLog.value) {
-          latestLog.value = {
-            ...latestLog.value,
-            spec: {
-              ...latestLog.value.spec,
-              similarPairCount: Math.max(0, latestLog.value.spec.similarPairCount - removedCount),
-              totalSentences: Math.max(0, latestLog.value.spec.totalSentences - 1),
-            },
-          }
-        }
-
-        Toast.success('删除成功，正在同步检查结果...')
-
-        // 后台触发重新检查，保证数据与后端一致
-        scheduleSync()
+        Toast.success('删除成功')
+        // 乐观更新：直接从本地 groups 中移除该句子，保持排序不变
+        removeSentenceFromGroups(name)
       } catch (e) {
         console.error('删除失败', e)
         Toast.error('删除失败')
+      } finally {
+        deletingSentence.value = null
+      }
+    },
+  })
+}
+
+/**
+ * 从本地 groups 中移除指定句子（乐观更新）
+ * - 如果删除的是相似句子：从 similarSentences 中移除，更新 similarCount
+ * - 如果删除的是最优句子：从相似句子中选评分最高的作为新最优
+ * - 如果删除后组内不足 2 个句子，移除整个组
+ */
+const removeSentenceFromGroups = (name: string) => {
+  const newGroups: SimilarityGroup[] = []
+  for (const group of groups.value) {
+    // 删除的是最优句子
+    if (group.bestSentence.name === name) {
+      if (group.similarSentences.length === 0) {
+        // 组内没有其他句子，移除整个组
+        groupTotal.value--
+        continue
+      }
+      // 从相似句子中选评分最高的作为新最优
+      const sorted = [...group.similarSentences].sort((a, b) => b.score - a.score)
+      const newBest = sorted[0]
+      const newSimilar = sorted.slice(1)
+      newGroups.push({
+        ...group,
+        bestSentence: newBest,
+        bestSentenceScore: newBest.score,
+        similarSentences: newSimilar,
+        similarCount: newSimilar.length,
+      })
+      continue
+    }
+
+    // 删除的是相似句子
+    const idx = group.similarSentences.findIndex(s => s.name === name)
+    if (idx >= 0) {
+      const newSimilar = group.similarSentences.filter(s => s.name !== name)
+      if (newSimilar.length === 0) {
+        // 组内只剩最优句子，移除整个组
+        groupTotal.value--
+        continue
+      }
+      newGroups.push({
+        ...group,
+        similarSentences: newSimilar,
+        similarCount: newSimilar.length,
+      })
+      continue
+    }
+
+    // 该组不包含被删除的句子，保持不变
+    newGroups.push(group)
+  }
+  groups.value = newGroups
+}
+
+const handleBatchDeleteNonOptimal = () => {
+  if (groupTotal.value === 0) {
+    Toast.info('没有可删除的非最优句子')
+    return
+  }
+  Dialog.warning({
+    title: '批量删除确认',
+    description: `将删除全部 ${groupTotal.value} 组相似中的非最优句子，仅保留每组的最优句子。此操作不可撤销，确定继续？`,
+    confirmType: 'danger',
+    confirmText: '全部删除',
+    cancelText: '取消',
+    onConfirm: async () => {
+      batchDeleting.value = true
+      try {
+        const {data} = await axiosInstance.post<{message: string; deleted: number}>(
+          `${BASE}/similarity-check-groups/-/delete-nonoptimal`,
+        )
+        Toast.success(data.message || '批量删除完成')
+        // 重新加载数据
+        groupPage.value = 1
+        await fetchLatestLog()
+        await fetchGroups()
+      } catch (e: any) {
+        Toast.error(e?.response?.data?.message || '批量删除失败')
+      } finally {
+        batchDeleting.value = false
       }
     },
   })
@@ -948,13 +770,17 @@ const getSimLevel = (sim: number): string => {
 // ==================== 生命周期 ====================
 onMounted(() => {
   initCategories()
-  fetchLatestLog()
-  if (latestLog.value?.spec.status === 'RUNNING') startCheckPolling()
+  fetchLatestLog().then(() => {
+    if (latestLog.value && latestLog.value.spec.status === 'SUCCESS') {
+      fetchGroups()
+    } else if (latestLog.value?.spec.status === 'RUNNING') {
+      startCheckPolling()
+    }
+  })
 })
 
 onUnmounted(() => {
   stopCheckPolling()
-  if (syncDebounceTimer) clearTimeout(syncDebounceTimer)
 })
 </script>
 
@@ -1013,19 +839,6 @@ onUnmounted(() => {
 .sim-status-pill.is-success .sim-status-pill-dot { background: #10b981; }
 .sim-status-pill.is-failed { background: #fee2e2; color: #991b1b; }
 .sim-status-pill.is-failed .sim-status-pill-dot { background: #ef4444; }
-
-/* 同步状态标签 */
-.sim-sync-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-  background: #eff6ff;
-  color: #1d4ed8;
-}
 
 @keyframes sim-pulse {
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
@@ -1258,7 +1071,6 @@ onUnmounted(() => {
   padding: 0 16px 16px;
 }
 
-.sim-table-wrap,
 .sim-heatmap-wrap {
   min-height: 160px;
 }
@@ -1298,50 +1110,7 @@ onUnmounted(() => {
   color: #9ca3af;
 }
 
-/* ============================ 表格单元格 ============================ */
-.sim-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 4px 0;
-}
-
-.sim-cell-text {
-  font-size: 14px;
-  font-weight: 600;
-  color: #111827;
-  line-height: 1.55;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  cursor: default;
-}
-
-.sim-cell-meta {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-/* ============================ 相似度条 ============================ */
-.sim-sim {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  width: 100%;
-}
-
-.sim-sim-bar {
-  width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: #f0f0f0;
-  overflow: hidden;
-}
-
+/* ============================ 相似度条（sim-pct 和 sim-fill 在分组视图中复用） ============================ */
 .sim-sim-fill {
   height: 100%;
   border-radius: 2px;
@@ -1362,13 +1131,6 @@ onUnmounted(() => {
 .sim-sim-pct.level-low { color: #2563eb; }
 
 /* ============================ 操作按钮 ============================ */
-.sim-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-}
-
 .sim-act {
   display: flex;
   align-items: center;
@@ -1384,13 +1146,241 @@ onUnmounted(() => {
 }
 
 .sim-act:hover { background: #f5f5f5; }
-.sim-act--edit:hover { background: #eff6ff; color: #2563eb; }
 .sim-act--del:hover { background: #fef2f2; color: #ef4444; }
 
-.sim-act-label {
+/* ============================ 分组视图 ============================ */
+.sim-group-wrap {
+  min-height: 160px;
+}
+
+.sim-group-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 12px;
+  flex-wrap: wrap;
+}
+
+.sim-group-toolbar-info {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.sim-group-toolbar-info strong {
+  color: #111827;
+}
+
+.sim-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.sim-group-card {
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.sim-group-card:hover {
+  border-color: #fda4af;
+}
+
+/* 最优句子 */
+.sim-group-hub {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #fdf2f4;
+  border-bottom: 1px solid #fce7f3;
+}
+
+.sim-group-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fb7185;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.sim-best-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #f43f5e, #e11d48);
+  color: #fff;
   font-size: 10px;
   font-weight: 700;
-  opacity: 0.6;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.sim-group-hub-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sim-group-hub-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sim-group-hub-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #881337;
+  line-height: 1.5;
+  flex: 1;
+  min-width: 0;
+}
+
+.sim-group-hub-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #fecdd3;
+  color: #9f1239;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sim-group-hub-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.sim-group-score {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e11d48;
+  background: #fff1f2;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.sim-group-score--sub {
+  color: #9ca3af;
+  background: #f9fafb;
+}
+
+/* 已发布标签 */
+:deep(.sim-tag-published) {
+  --tag-color: #059669;
+  --tag-border-color: #a7f3d0;
+  --tag-bg-color: #ecfdf5;
+}
+
+/* 相似项列表 */
+.sim-group-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-group-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #fafafa;
+  transition: background-color 0.12s;
+}
+
+.sim-group-item:last-child {
+  border-bottom: none;
+}
+
+.sim-group-item:hover {
+  background: #fff5f5;
+}
+
+.sim-group-item-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sim-group-item-text {
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sim-group-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.sim-group-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sim-group-item-bar {
+  width: 60px;
+  height: 4px;
+  border-radius: 2px;
+  background: #f0f0f0;
+  overflow: hidden;
+}
+
+/* 组底部统计 */
+.sim-group-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  background: #fafafa;
+  border-top: 1px solid #f5f5f5;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.sim-group-footer strong {
+  color: #374151;
+  font-weight: 600;
+}
+
+/* 分页 */
+.sim-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
 }
 
 /* ============================ 热力图 ============================ */
@@ -1401,19 +1391,6 @@ onUnmounted(() => {
   margin-bottom: 10px;
   font-size: 12px;
   color: #9ca3af;
-}
-
-/* ============================ 截断提示 ============================ */
-.sim-truncated {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 8px 12px;
-  margin-top: 10px;
-  font-size: 12px;
-  color: #92400e;
-  background: #fffbeb;
-  border-radius: 6px;
 }
 
 /* ============================ 加载/失败 ============================ */
@@ -1434,43 +1411,7 @@ onUnmounted(() => {
   margin-top: 16px;
 }
 
-/* ============================ 弹窗 ============================ */
-.sim-form { padding: 0 4px; }
-
-.sim-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 /* ============================ Element Plus 覆盖 ============================ */
-:deep(.el-table) {
-  border: none !important;
-  --el-table-border-color: #f5f5f5;
-}
-
-:deep(.el-table th.el-table__cell) {
-  background-color: #fafafa !important;
-  border-bottom: 1px solid #f0f0f0 !important;
-  padding: 10px 12px;
-  font-weight: 600;
-  color: #374151;
-  font-size: 13px;
-}
-
-:deep(.el-table td.el-table__cell) {
-  border-bottom: 1px solid #f5f5f5 !important;
-  padding: 10px 12px;
-}
-
-:deep(.el-table__body tr) {
-  transition: background-color 0.15s;
-}
-
-:deep(.el-table__body tr:hover > td.el-table__cell) {
-  background-color: #fdf2f4 !important;
-}
-
 :deep(.el-slider__runway) {
   margin: 10px 0;
   height: 4px;

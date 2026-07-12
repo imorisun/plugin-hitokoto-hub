@@ -74,7 +74,7 @@
               </span>
               </button>
               <div
-                      v-for="category in categories"
+                      v-for="category in regularCategories"
                       :key="category.metadata.name"
                       :class="{ 'category-nav__item--active': selectedCategory === category.metadata.name }"
                       class="category-nav__item category-nav__item--editable"
@@ -110,6 +110,32 @@
                         class="category-nav__action category-nav__action--danger"
                         type="button"
                         @click.stop="handleDeleteCategory(category)"
+                >
+                  <Delete class="h-3.5 w-3.5"/>
+                </button>
+              </span>
+              </div>
+
+              <!-- 未分类：系统内置分类 -->
+              <div
+                      v-if="uncategorizedCategory"
+                      :class="{ 'category-nav__item--active': selectedCategory === uncategorizedCategory.metadata.name }"
+                      class="category-nav__item category-nav__item--editable"
+                      role="button"
+                      tabindex="0"
+                      @click="handleCategorySelect(uncategorizedCategory.metadata.name)"
+                      @keydown.enter="handleCategorySelect(uncategorizedCategory.metadata.name)"
+              >
+              <span class="category-nav__text">
+                <span class="category-nav__name">{{ uncategorizedCategory.spec.name }}</span>
+                <span class="category-nav__count">{{ uncategorizedCategory.status?.sentenceCount ?? 0 }} 条句子</span>
+              </span>
+                <span class="category-nav__actions">
+                <button
+                        v-tooltip="'清空未分类句子'"
+                        class="category-nav__action category-nav__action--danger"
+                        type="button"
+                        @click.stop="handleClearUncategorized"
                 >
                   <Delete class="h-3.5 w-3.5"/>
                 </button>
@@ -664,7 +690,9 @@ const categoryFormData = ref({
 
 const getCategoryName = (categoryId: string): string => {
   const category = categories.value.find((c) => c.metadata.name === categoryId)
-  return category?.spec.name || categoryId
+  if (category) return category.spec.name
+  if (categoryId === UNCATEGORIZED_NAME) return '未分类'
+  return categoryId
 }
 
 const totalCategorySentenceCount = computed(() =>
@@ -790,6 +818,24 @@ const categorySelectOptions = computed(() =>
           label: c.spec.name,
           value: c.metadata.name,
         })),
+)
+
+const UNCATEGORIZED_NAME = 'uncategorized'
+
+const regularCategories = computed(() =>
+        categories.value.filter((c) => c.metadata.name !== UNCATEGORIZED_NAME),
+)
+
+const uncategorizedCategory = computed(() =>
+        categories.value.find((c) => c.metadata.name === UNCATEGORIZED_NAME) ?? null,
+)
+
+const isUncategorizedSelected = computed(() =>
+        selectedCategory.value === UNCATEGORIZED_NAME,
+)
+
+const uncategorizedSentenceCount = computed(() =>
+        uncategorizedCategory.value?.status?.sentenceCount ?? 0,
 )
 
 const initCategories = async () => {
@@ -1060,7 +1106,7 @@ const handleSaveCategory = async () => {
 const handleDeleteCategory = (category: Category) => {
   Dialog.warning({
     title: '删除确认',
-    description: `确定要删除分类「${category.spec.name}」吗？该操作不可撤销。`,
+    description: `确定要删除分类「${category.spec.name}」吗？该分类下的句子将归入「未分类」，该操作不可撤销。`,
     confirmType: 'danger',
     confirmText: '删除',
     cancelText: '取消',
@@ -1076,6 +1122,30 @@ const handleDeleteCategory = (category: Category) => {
       } catch (e) {
         console.error('删除分类失败', e)
         Toast.error('删除分类失败')
+      }
+    },
+  })
+}
+
+const handleClearUncategorized = () => {
+  Dialog.warning({
+    title: '清空未分类句子',
+    description: '确定要清空所有未分类的句子吗？这些句子将被永久删除，该操作不可撤销。',
+    confirmType: 'danger',
+    confirmText: '清空',
+    cancelText: '取消',
+    onConfirm: async () => {
+      try {
+        const count = uncategorizedSentenceCount.value
+        const {data: deletedCount} = await sentenceCoreApiClient.clearUncategorizedSentences()
+        Toast.success(`已清空 ${deletedCount} 条未分类句子`)
+        if (selectedCategory.value === UNCATEGORIZED_NAME) {
+          await fetchSentences()
+        }
+        await initCategories()
+      } catch (e) {
+        console.error('清空未分类句子失败', e)
+        Toast.error('清空未分类句子失败')
       }
     },
   })

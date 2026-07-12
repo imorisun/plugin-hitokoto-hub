@@ -40,8 +40,12 @@ import run.halo.app.core.extension.endpoint.CustomEndpoint;
 import run.halo.app.core.user.service.RoleService;
 import run.halo.app.extension.GroupVersion;
 import run.halo.app.extension.ListResult;
+import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.Metadata;
 import run.halo.app.extension.ReactiveExtensionClient;
+import run.halo.app.extension.index.query.Queries;
+import run.halo.app.extension.router.selector.FieldSelector;
+import top.puresky.hitokotohub.UncategorizedConstants;
 import top.puresky.hitokotohub.extension.Sentence;
 
 @Component
@@ -81,7 +85,11 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
                         .implementation(String.class).required(true)).parameter(
                         parameterBuilder().in(ParameterIn.QUERY).name("categoryName")
                             .implementation(String.class).required(false))
-                    .response(responseBuilder().implementationArray(Sentence.class))).build();
+                    .response(responseBuilder().implementationArray(Sentence.class)))
+            .DELETE("sentence/-/clear-uncategorized", this::clearUncategorizedSentences,
+                builder -> builder.operationId("clearUncategorizedSentences")
+                    .summary("清空未分类的所有句子").tag(TAG)
+                    .response(responseBuilder().implementation(Long.class))).build();
     }
 
     @Override
@@ -258,6 +266,18 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
         return client.listBy(Sentence.class, query.toListOptions(), query.toPageRequest())
             .map(ListResult::getItems)
             .flatMap(sentences -> ServerResponse.ok().bodyValue(sentences));
+    }
+
+    private @NonNull Mono<ServerResponse> clearUncategorizedSentences(ServerRequest request) {
+        var listOptions = new ListOptions();
+        listOptions.setFieldSelector(
+            FieldSelector.of(Queries.equal("spec.categoryName",
+                UncategorizedConstants.METADATA_NAME)));
+
+        return client.listAll(Sentence.class, listOptions, org.springframework.data.domain.Sort.unsorted())
+            .flatMap(sentence -> client.delete(sentence).onErrorResume(e -> Mono.empty()))
+            .count()
+            .flatMap(count -> ServerResponse.ok().bodyValue(count));
     }
 
     @Data
