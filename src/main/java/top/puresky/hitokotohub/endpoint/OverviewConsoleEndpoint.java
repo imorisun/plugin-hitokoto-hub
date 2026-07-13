@@ -58,6 +58,11 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
                     .summary("获取分类浏览量统计数据（用于折线图）")
                     .tag(TAG)
                     .response(responseBuilder().implementation(ViewStatisticsResponse.class)))
+            .GET("overview/today-sentence-details", this::getTodaySentenceDetails,
+                builder -> builder.operationId("getTodaySentenceDetails")
+                    .summary("获取今日句子维度的浏览量/点赞量详情（按句子聚合）")
+                    .tag(TAG)
+                    .response(responseBuilder().implementation(TodaySentenceDetailsResponse.class)))
             .build();
     }
 
@@ -199,6 +204,90 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
 
                 return ServerResponse.ok().bodyValue(response);
             });
+    }
+
+    /**
+     * 获取今日句子维度的事件详情（浏览量/点赞量），按事件数降序排列。
+     * 会按句子名称聚合记录数，并填充句子的内容、作者、来源、分类显示名等信息。
+     *
+     * @param request 包含 query 参数 eventType（VIEW 或 LIKE，默认 LIKE）
+     */
+    private @NonNull Mono<ServerResponse> getTodaySentenceDetails(ServerRequest request) {
+        String eventType = request.queryParam("eventType").orElse("LIKE");
+        Instant todayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+        Mono<List<CategoryViewRecord>> todayRecords = client.listAll(
+            CategoryViewRecord.class,
+            ListOptions.builder()
+                .fieldQuery(Queries.and(
+                    Queries.greaterThan("metadata.creationTimestamp", todayStart.toString()),
+                    Queries.equal("spec.eventType", eventType)
+                ))
+                .build(),
+            Sort.by("metadata.creationTimestamp").descending()
+        ).collectList();
+
+        Mono<Map<String, Category>> categoryMap = client.listAll(
+                Category.class, ListOptions.builder().build(), Sort.unsorted())
+            .collectMap(c -> c.getMetadata().getName(), c -> c);
+
+        Mono<Map<String, Sentence>> sentenceMap = client.listAll(
+                Sentence.class, ListOptions.builder().build(), Sort.unsorted())
+            .collectMap(s -> s.getMetadata().getName(), s -> s);
+
+        return Mono.zip(todayRecords, categoryMap, sentenceMap)
+            .map(tuple -> {
+                List<CategoryViewRecord> records = tuple.getT1();
+                Map<String, Category> cats = tuple.getT2();
+                Map<String, Sentence> sentences = tuple.getT3();
+
+                // 按句子名称聚合事件数
+                Map<String, TodaySentenceDetailsResponse.TodaySentenceDetail> grouped =
+                    new LinkedHashMap<>();
+                for (CategoryViewRecord record : records) {
+                    String sentenceName = record.getSpec().getSentenceName();
+                    if (sentenceName == null || sentenceName.isBlank()) {
+                        continue;
+                    }
+                    grouped.compute(sentenceName, (key, existing) -> {
+                        if (existing == null) {
+                            TodaySentenceDetailsResponse.TodaySentenceDetail item =
+                                new TodaySentenceDetailsResponse.TodaySentenceDetail();
+                            item.setSentenceName(sentenceName);
+                            item.setEventCount(1L);
+                            item.setLastEventTime(record.getMetadata().getCreationTimestamp());
+                            return item;
+                        }
+                        existing.setEventCount(existing.getEventCount() + 1);
+                        return existing;
+                    });
+                }
+
+                // 填充句子详细信息
+                List<TodaySentenceDetailsResponse.TodaySentenceDetail> result = new ArrayList<>();
+                for (TodaySentenceDetailsResponse.TodaySentenceDetail item : grouped.values()) {
+                    Sentence s = sentences.get(item.getSentenceName());
+                    if (s != null) {
+                        item.setContent(s.getSpec().getContent());
+                        item.setAuthor(s.getSpec().getAuthor());
+                        item.setSource(s.getSpec().getSource());
+                        String catName = s.getSpec().getCategoryName();
+                        item.setCategoryName(catName);
+                        Category cat = cats.get(catName);
+                        item.setCategoryDisplayName(
+                            cat != null ? cat.getSpec().getName() : catName);
+                    }
+                    result.add(item);
+                }
+
+                TodaySentenceDetailsResponse response = new TodaySentenceDetailsResponse();
+                response.setSuccess(true);
+                response.setEventType(eventType);
+                response.setTotal(result.size());
+                response.setSentences(result);
+                return response;
+            })
+            .flatMap(response -> ServerResponse.ok().bodyValue(response));
     }
 
     private Map<String, Map<String, Long>> aggregateByGranularity(List<CategoryViewRecord> records,
@@ -396,6 +485,40 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
             private List<Long> data;
             @Schema(description = "是否平滑曲线")
             private boolean smooth = true;
+        }
+    }
+
+    @Data
+    @Schema(name = "TodaySentenceDetailsResponse")
+    public static class TodaySentenceDetailsResponse {
+        @Schema(description = "是否成功")
+        private boolean success;
+        @Schema(description = "事件类型：VIEW / LIKE")
+        private String eventType;
+        @Schema(description = "今日有事件的句子总数（去重）")
+        private long total;
+        @Schema(description = "句子详情列表（按事件数降序）")
+        private List<TodaySentenceDetail> sentences;
+
+        @Data
+        @Schema(name = "TodaySentenceDetail")
+        public static class TodaySentenceDetail {
+            @Schema(description = "句子 metadata name")
+            private String sentenceName;
+            @Schema(description = "句子内容")
+            private String content;
+            @Schema(description = "作者")
+            private String author;
+            @Schema(description = "来源")
+            private String source;
+            @Schema(description = "分类名称")
+            private String categoryName;
+            @Schema(description = "分类显示名称")
+            private String categoryDisplayName;
+            @Schema(description = "今日事件数（浏览量或点赞量）")
+            private Long eventCount;
+            @Schema(description = "最近一次事件时间")
+            private Instant lastEventTime;
         }
     }
 }

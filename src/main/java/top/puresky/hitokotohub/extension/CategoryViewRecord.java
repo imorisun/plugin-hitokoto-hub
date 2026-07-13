@@ -40,7 +40,7 @@ public class CategoryViewRecord extends AbstractExtension {
         @Schema(description = "事件类型：VIEW / LIKE（UNLIKE 已废弃）")
         private EventType eventType;
 
-        @Schema(description = "句子 metadata name，仅 LIKE 事件使用")
+        @Schema(description = "句子 metadata name，用于按句子维度统计浏览量/点赞量")
         private String sentenceName;
 
         @Schema(description = "客户端 IP，仅 LIKE 事件使用，用于定位对应的点赞记录")

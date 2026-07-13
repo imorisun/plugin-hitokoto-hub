@@ -89,23 +89,28 @@ public class HitokotoFinderImpl implements HitokotoFinder {
 
                                 if (config.getEnableViewCount()) {
                                     return Flux.fromIterable(randomItems)
-                                        .flatMap(sentence -> {
+                                        .concatMap(sentence -> {
                                             if (sentence.getStatus() == null) {
                                                 sentence.setStatus(new Sentence.Status());
                                             }
                                             sentence.getStatus().setViewCount(sentence.getStatus().getViewCount() + 1);
 
-                                            // 记录分类浏览
+                                            // 记录分类浏览（同时记录句子名称以支持按句子维度统计）
                                             CategoryViewRecord record = new CategoryViewRecord();
                                             record.setMetadata(new Metadata());
                                             record.getMetadata().setGenerateName("cvr-");
                                             record.setSpec(new CategoryViewRecord.Spec());
                                             record.getSpec().setCategoryName(sentence.getSpec().getCategoryName());
+                                            if (sentence.getMetadata() != null
+                                                && sentence.getMetadata().getName() != null) {
+                                                record.getSpec().setSentenceName(
+                                                    sentence.getMetadata().getName());
+                                            }
                                             record.getSpec().setEventType(CategoryViewRecord.EventType.VIEW);
                                             return client.update(sentence)
                                                 .then(client.create(record))
                                                 .thenReturn(sentence);
-                                        })
+                                        }, 1)
                                         .thenMany(Flux.fromIterable(randomItems));
                                 }
                                 return Flux.fromIterable(randomItems);
