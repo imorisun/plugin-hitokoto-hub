@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -209,6 +210,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
     /**
      * 获取今日句子维度的事件详情（浏览量/点赞量），按事件数降序排列。
      * 会按句子名称聚合记录数，并填充句子的内容、作者、来源、分类显示名等信息。
+     * 为避免 OOM，仅查询今日涉及的句子和分类，而非全量加载。
      *
      * @param request 包含 query 参数 eventType（VIEW 或 LIKE，默认 LIKE）
      */
@@ -216,78 +218,118 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
         String eventType = request.queryParam("eventType").orElse("LIKE");
         Instant todayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant();
 
-        Mono<List<CategoryViewRecord>> todayRecords = client.listAll(
-            CategoryViewRecord.class,
-            ListOptions.builder()
-                .fieldQuery(Queries.and(
-                    Queries.greaterThan("metadata.creationTimestamp", todayStart.toString()),
-                    Queries.equal("spec.eventType", eventType)
-                ))
-                .build(),
-            Sort.by("metadata.creationTimestamp").descending()
-        ).collectList();
+        return client.listAll(
+                CategoryViewRecord.class,
+                ListOptions.builder()
+                    .fieldQuery(Queries.and(
+                        Queries.greaterThan("metadata.creationTimestamp", todayStart.toString()),
+                        Queries.equal("spec.eventType", eventType)
+                    ))
+                    .build(),
+                Sort.by("metadata.creationTimestamp").descending()
+            ).collectList()
+            .flatMap(records -> {
+                // 提取涉及的句子名称集合，仅查询需要的句子
+                Set<String> sentenceNames = records.stream()
+                    .map(r -> r.getSpec().getSentenceName())
+                    .filter(name -> name != null && !name.isBlank())
+                    .collect(Collectors.toSet());
 
-        Mono<Map<String, Category>> categoryMap = client.listAll(
-                Category.class, ListOptions.builder().build(), Sort.unsorted())
-            .collectMap(c -> c.getMetadata().getName(), c -> c);
+                if (sentenceNames.isEmpty()) {
+                    TodaySentenceDetailsResponse emptyResponse =
+                        new TodaySentenceDetailsResponse();
+                    emptyResponse.setSuccess(true);
+                    emptyResponse.setEventType(eventType);
+                    emptyResponse.setTotal(0);
+                    emptyResponse.setSentences(List.of());
+                    return ServerResponse.ok().bodyValue(emptyResponse);
+                }
 
-        Mono<Map<String, Sentence>> sentenceMap = client.listAll(
-                Sentence.class, ListOptions.builder().build(), Sort.unsorted())
-            .collectMap(s -> s.getMetadata().getName(), s -> s);
+                // 按需查询涉及的句子
+                Mono<Map<String, Sentence>> sentenceMapMono =
+                    client.listAll(Sentence.class,
+                            ListOptions.builder()
+                                .fieldQuery(Queries.in("metadata.name", sentenceNames))
+                                .build(),
+                            Sort.unsorted())
+                        .collectMap(s -> s.getMetadata().getName(), s -> s);
 
-        return Mono.zip(todayRecords, categoryMap, sentenceMap)
-            .map(tuple -> {
-                List<CategoryViewRecord> records = tuple.getT1();
-                Map<String, Category> cats = tuple.getT2();
-                Map<String, Sentence> sentences = tuple.getT3();
+                // 按需查询涉及的分类
+                Mono<Map<String, Category>> categoryMapMono = sentenceMapMono
+                    .flatMap(sentenceMap -> {
+                        Set<String> categoryNames = sentenceMap.values().stream()
+                            .map(s -> s.getSpec().getCategoryName())
+                            .filter(name -> name != null && !name.isBlank())
+                            .collect(Collectors.toSet());
 
-                // 按句子名称聚合事件数
-                Map<String, TodaySentenceDetailsResponse.TodaySentenceDetail> grouped =
-                    new LinkedHashMap<>();
-                for (CategoryViewRecord record : records) {
-                    String sentenceName = record.getSpec().getSentenceName();
-                    if (sentenceName == null || sentenceName.isBlank()) {
-                        continue;
-                    }
-                    grouped.compute(sentenceName, (key, existing) -> {
-                        if (existing == null) {
-                            TodaySentenceDetailsResponse.TodaySentenceDetail item =
-                                new TodaySentenceDetailsResponse.TodaySentenceDetail();
-                            item.setSentenceName(sentenceName);
-                            item.setEventCount(1L);
-                            item.setLastEventTime(record.getMetadata().getCreationTimestamp());
-                            return item;
+                        if (categoryNames.isEmpty()) {
+                            return Mono.just(Map.<String, Category>of());
                         }
-                        existing.setEventCount(existing.getEventCount() + 1);
-                        return existing;
+                        return client.listAll(Category.class,
+                                ListOptions.builder()
+                                    .fieldQuery(Queries.in("metadata.name", categoryNames))
+                                    .build(),
+                                Sort.unsorted())
+                            .collectMap(c -> c.getMetadata().getName(), c -> c);
                     });
-                }
 
-                // 填充句子详细信息
-                List<TodaySentenceDetailsResponse.TodaySentenceDetail> result = new ArrayList<>();
-                for (TodaySentenceDetailsResponse.TodaySentenceDetail item : grouped.values()) {
-                    Sentence s = sentences.get(item.getSentenceName());
-                    if (s != null) {
-                        item.setContent(s.getSpec().getContent());
-                        item.setAuthor(s.getSpec().getAuthor());
-                        item.setSource(s.getSpec().getSource());
-                        String catName = s.getSpec().getCategoryName();
-                        item.setCategoryName(catName);
-                        Category cat = cats.get(catName);
-                        item.setCategoryDisplayName(
-                            cat != null ? cat.getSpec().getName() : catName);
-                    }
-                    result.add(item);
-                }
+                return Mono.zip(sentenceMapMono, categoryMapMono)
+                    .flatMap(tuple -> {
+                        Map<String, Sentence> sentences = tuple.getT1();
+                        Map<String, Category> cats = tuple.getT2();
 
-                TodaySentenceDetailsResponse response = new TodaySentenceDetailsResponse();
-                response.setSuccess(true);
-                response.setEventType(eventType);
-                response.setTotal(result.size());
-                response.setSentences(result);
-                return response;
+                        // 按句子名称聚合事件数
+                        Map<String, TodaySentenceDetailsResponse.TodaySentenceDetail> grouped =
+                            new LinkedHashMap<>();
+                        for (CategoryViewRecord record : records) {
+                            String sentenceName = record.getSpec().getSentenceName();
+                            if (sentenceName == null || sentenceName.isBlank()) {
+                                continue;
+                            }
+                            grouped.compute(sentenceName, (key, existing) -> {
+                                if (existing == null) {
+                                    TodaySentenceDetailsResponse.TodaySentenceDetail item =
+                                        new TodaySentenceDetailsResponse.TodaySentenceDetail();
+                                    item.setSentenceName(sentenceName);
+                                    item.setEventCount(1L);
+                                    item.setLastEventTime(record.getMetadata().getCreationTimestamp());
+                                    return item;
+                                }
+                                existing.setEventCount(existing.getEventCount() + 1);
+                                return existing;
+                            });
+                        }
+
+                        // 填充句子详细信息
+                        List<TodaySentenceDetailsResponse.TodaySentenceDetail> result = new ArrayList<>();
+                        for (TodaySentenceDetailsResponse.TodaySentenceDetail item : grouped.values()) {
+                            Sentence s = sentences.get(item.getSentenceName());
+                            if (s != null) {
+                                item.setContent(s.getSpec().getContent());
+                                item.setAuthor(s.getSpec().getAuthor());
+                                item.setSource(s.getSpec().getSource());
+                                String catName = s.getSpec().getCategoryName();
+                                item.setCategoryName(catName);
+                                Category cat = cats.get(catName);
+                                item.setCategoryDisplayName(
+                                    cat != null ? cat.getSpec().getName() : catName);
+                            }
+                            result.add(item);
+                        }
+
+                        // 按事件数降序排列
+                        result.sort(Comparator.comparing(
+                            TodaySentenceDetailsResponse.TodaySentenceDetail::getEventCount).reversed());
+
+                        TodaySentenceDetailsResponse response = new TodaySentenceDetailsResponse();
+                        response.setSuccess(true);
+                        response.setEventType(eventType);
+                        response.setTotal(result.size());
+                        response.setSentences(result);
+                        return ServerResponse.ok().bodyValue(response);
+                    });
             })
-            .flatMap(response -> ServerResponse.ok().bodyValue(response));
+            ;
     }
 
     private Map<String, Map<String, Long>> aggregateByGranularity(List<CategoryViewRecord> records,
