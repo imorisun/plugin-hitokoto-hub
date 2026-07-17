@@ -3,12 +3,18 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!-- 移动端浏览器顶栏跟随主题色（初始为暗色，applyTheme 时动态更新） -->
+    <meta name="theme-color" content="#0a0606"/>
+    <meta name="color-scheme" content="dark light"/>
     <title>轻言-轻拾人间辞藻，言说万千心绪</title>
     <!-- Favicon 玫瑰色花瓣 -->
     <link rel="icon" type="image/svg+xml"
           href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23fb7185' d='M50 15 C70 25 85 45 75 65 C65 85 35 85 25 65 C15 45 30 25 50 15 Z' transform='rotate(45 50 50)'/%3E%3C/svg%3E"/>
     <link rel="apple-touch-icon"
           href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23fb7185' d='M50 15 C70 25 85 45 75 65 C65 85 35 85 25 65 C15 45 30 25 50 15 Z' transform='rotate(45 50 50)'/%3E%3C/svg%3E"/>
+    <!-- Google Fonts 预连接：提前完成 DNS/TLS 握手，加速字体加载 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap"
           rel="stylesheet">
     <style>
@@ -186,35 +192,6 @@
             40% { transform: scale(1.35); }
             70% { transform: scale(0.9); }
             100% { transform: scale(1); }
-        }
-
-        @keyframes sakuraBurst {
-            0% {
-                transform: translate3d(0, 0, 0) scale(0) rotateZ(0deg);
-                opacity: 1;
-            }
-            40% {
-                opacity: 0.9;
-            }
-            100% {
-                transform: translate3d(var(--bx), var(--by), 0) scale(1.2) rotateZ(var(--br));
-                opacity: 0;
-            }
-        }
-
-        .sakura-burst {
-            position: fixed;
-            pointer-events: none;
-            z-index: 11;
-            animation: sakuraBurst 1.2s cubic-bezier(0.05, 0.65, 0.25, 1) forwards;
-        }
-
-        .sakura-burst span {
-            display: block;
-            background: var(--petal-bg);
-            border-radius: 50% 0 50% 50%;
-            box-shadow: 0 0 8px rgba(251, 113, 133, 0.35);
-            filter: blur(0.3px);
         }
 
         body {
@@ -1438,6 +1415,34 @@
             opacity: 1;
             transform: translateX(-50%) translateY(0);
         }
+
+        /* ==================== 减少动效偏好适配 ====================
+           尊重用户系统级 prefers-reduced-motion 设置：
+           - 关闭所有动画与过渡（保留 0.001ms 以保证状态切换终态正确）
+           - 隐藏樱花粒子、背景光晕呼吸、噪点纹理等装饰性动效
+           - JS 侧同步跳过樱花物理引擎启动（见 createSakura IIFE 顶部判断）
+        */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.001ms !important;
+                scroll-behavior: auto !important;
+            }
+            #sakura-container,
+            .sakura,
+            .bg-glow,
+            .noise-overlay {
+                display: none !important;
+            }
+            /* 文字逐字动画直接显示终态 */
+            .quote-text .char {
+                opacity: 1 !important;
+                transform: none !important;
+                filter: none !important;
+                animation: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1504,7 +1509,9 @@
 <main>
     <div class="quote-container" id="quoteContainer"
          th:each="s : ${hitokotoFinder.randomSentences(1, null)}"
-         th:attr="data-name=${s.name}, data-likes=${s.likeCount}">
+         th:attr="data-name=${s.name}, data-likes=${s.likeCount}"
+         aria-live="polite" aria-atomic="true"
+         aria-label="当前句子">
         <h1 class="quote-text" id="quoteText" th:text="${s.content}">加载中...</h1>
         <p class="quote-author" id="quoteAuthor"
            th:attr="data-author=${s.author}, data-source=${s.source}"
@@ -1651,6 +1658,11 @@
                 html.setAttribute('data-theme', 'light');
             } else {
                 html.removeAttribute('data-theme');
+            }
+            /* 同步更新移动端浏览器顶栏 theme-color，跟随主题切换 */
+            var themeColorMeta = document.querySelector('meta[name="theme-color"]');
+            if (themeColorMeta) {
+                themeColorMeta.setAttribute('content', actualTheme === 'light' ? '#faf7f5' : '#0a0606');
             }
         }
 
@@ -2167,8 +2179,11 @@
     const categoryLabel = document.getElementById('submitCategoryLabel');
     let submitCategoriesLoaded = false;
     let submitting = false;
+    /* 记录打开 modal 前的焦点元素，关闭后返回焦点（满足 WCAG 模态对话框规范） */
+    let modalLastFocused = null;
 
     function openSubmitModal() {
+        modalLastFocused = document.activeElement;
         submitModal.classList.add('open');
         if (!submitCategoriesLoaded) {
             loadSubmitCategories();
@@ -2189,6 +2204,11 @@
             categoryLabel.classList.add('custom-select__value--placeholder');
             categoryDropdown.querySelectorAll('.custom-select__option--selected')
                 .forEach((o) => o.classList.remove('custom-select__option--selected'));
+            /* 焦点返回触发按钮，保证键盘用户操作连续性 */
+            if (modalLastFocused && typeof modalLastFocused.focus === 'function') {
+                modalLastFocused.focus();
+                modalLastFocused = null;
+            }
         }, 250);
     }
 
@@ -2356,8 +2376,37 @@
         }
     });
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && submitModal.classList.contains('open')) {
+        if (!submitModal.classList.contains('open')) return;
+        if (e.key === 'Escape') {
             closeSubmitModal();
+            return;
+        }
+        /* 焦点陷阱：Tab / Shift+Tab 在 modal 内循环，不漏出到背景元素 */
+        if (e.key === 'Tab') {
+            var focusables = Array.prototype.slice.call(
+                submitModal.querySelectorAll(
+                    'button:not([disabled]), [href], input:not([disabled]),' +
+                    ' select:not([disabled]), textarea:not([disabled]),' +
+                    ' [tabindex]:not([tabindex="-1"])'
+                )
+            ).filter(function(el) {
+                /* 排除隐藏元素（如 type=hidden 不在 selector 内，但兜底过滤） */
+                return el.type !== 'hidden' && el.getClientRects().length > 0;
+            });
+            if (focusables.length === 0) return;
+            var first = focusables[0];
+            var last = focusables[focusables.length - 1];
+            if (e.shiftKey) {
+                if (document.activeElement === first || !submitModal.contains(document.activeElement)) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            } else {
+                if (document.activeElement === last || !submitModal.contains(document.activeElement)) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
         }
     });
 
@@ -2399,6 +2448,8 @@
     (function() {
         var cfg = document.getElementById('templateConfig');
         if (cfg && cfg.getAttribute('data-sakura') === 'false') return;
+        /* 尊重用户系统级减少动效偏好：跳过整个樱花物理引擎启动 */
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
         var sakuraList = [];
         var sakuraContainer = document.getElementById('sakura-container');
@@ -2442,6 +2493,10 @@
             mouseActive = false;
             mouseDown = false;
         });
+        document.addEventListener('touchcancel', function() {
+            mouseActive = false;
+            mouseDown = false;
+        }, { passive: true });
         window.addEventListener('resize', function() {
             SCREEN_H = window.innerHeight;
             SCREEN_W = window.innerWidth;
@@ -2514,13 +2569,8 @@
             } else {
                 x = Math.random() * SCREEN_W;       /* 边缘点缀 */
             }
-            /* Y轴散布：70% 从顶部飘入，30% 已散布在屏幕各处 */
-            var y;
-            if (Math.random() < 0.7) {
-                y = -size * 2 - Math.random() * 100;        /* 屏幕上方飘入 */
-            } else {
-                y = Math.random() * SCREEN_H * 0.6;          /* 屏幕上半部已存在 */
-            }
+            /* 所有花瓣统一从屏幕顶部上方飘入 */
+            var y = -size * 2 - Math.random() * 120;
             var wobbleSpeed = Math.random() * 0.012 + 0.006;
             var wobbleAmountX = Math.random() * 45 + 20;      /* 20-65（更大摇摆幅度） */
             var wobbleAmountY = Math.random() * 15 + 5;       /* 5-20（垂直波动增强） */
@@ -2546,12 +2596,14 @@
                 opacity: baseOpacity,
                 depth: depth,
                 age: 0,
+                scale: 1,
+                burstFrames: 0,
                 _lastOpacity: -1,
                 _lastTransform: ''
             };
 
             petal.style.opacity = data.opacity;
-            sakura.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0) rotateZ(' + data.rotationZ.toFixed(1) + 'deg)';
+            sakura.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0) rotateZ(' + data.rotationZ.toFixed(1) + 'deg) scale(1)';
             sakura.style.opacity = '0';
             sakuraContainer.appendChild(sakura);
 
@@ -2625,6 +2677,13 @@
                 if (s.x < -s.size) s.x = SCREEN_W + s.size;
                 if (s.x > SCREEN_W + s.size) s.x = -s.size;
 
+                /* 绽放生长阶段：scale 0→1 渐显，同时受重力/风/摆动影响 */
+                if (s.burstFrames > 0) {
+                    s.burstFrames--;
+                    s.scale += s.burstScaleStep;
+                    if (s.scale > 1) s.scale = 1;
+                }
+
                 /* 淡出 — 避免重复 DOM 写入 */
                 var fadeProgress = s.y / SCREEN_H;
                 var targetOpacity = s.opacity;
@@ -2632,15 +2691,20 @@
                     var fadeRatio = Math.min(1, (fadeProgress - FADE_START) / (FADE_END - FADE_START));
                     targetOpacity = s.opacity * (1 - fadeRatio);
                 }
+                /* 绽放阶段：opacity 随 scale 渐显 */
+                if (s.burstFrames > 0) {
+                    targetOpacity *= s.scale;
+                }
                 if (Math.abs(targetOpacity - s._lastOpacity) > 0.012) {
                     s.element.style.opacity = targetOpacity;
                     s._lastOpacity = targetOpacity;
                 }
 
-                /* GPU 加速变换 — 仅平面旋转 */
+                /* GPU 加速变换 — 平面旋转 + 绽放缩放 */
                 var newTransform =
                     'translate3d(' + s.x.toFixed(1) + 'px,' + s.y.toFixed(1) + 'px,0)' +
-                    ' rotateZ(' + s.rotationZ.toFixed(1) + 'deg)';
+                    ' rotateZ(' + s.rotationZ.toFixed(1) + 'deg)' +
+                    ' scale(' + s.scale.toFixed(2) + ')';
                 if (newTransform !== s._lastTransform) {
                     s.element.style.transform = newTransform;
                     s._lastTransform = newTransform;
@@ -2655,37 +2719,79 @@
             requestAnimationFrame(animateSakura);
         }
 
+        /* 点击绽放可配置参数 */
+        var BURST_COUNT = 10;       /* 基础花瓣数（实际 ±3 随机） */
+        var BURST_DIST_MIN = 50;   /* 最小扩散半径 (px) */
+        var BURST_DIST_MAX = 130;  /* 最大扩散半径 (px) */
+
         /**
-         * 鼠标点击绽放特效：在点击位置生成 12-16 片花瓣，
-         * 使用 CSS 动画驱动，向四周散射并淡出。
+         * 鼠标点击绽放特效（纯 JS 驱动，无缝融入飘落系统）：
+         *   花瓣从点击位置以高速扩散 → 阻尼减速 → 重力接管 → 自然飘落，
+         *   全程由 animateSakura 物理引擎统一驱动，零切换、零间隙。
          */
         function createBurst(x, y) {
-            var count = 10 + Math.floor(Math.random() * 7);  /* 10-16 */
+            var count = BURST_COUNT + Math.floor(Math.random() * 7);  /* 10-16 */
             for (var i = 0; i < count; i++) {
-                var div = document.createElement('div');
-                div.className = 'sakura-burst';
-                var petal = document.createElement('span');
-                div.appendChild(petal);
+                (function() {
+                    var sakura = document.createElement('div');
+                    sakura.className = 'sakura';
+                    var petal = document.createElement('span');
+                    sakura.appendChild(petal);
 
-                var angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
-                var dist = 60 + Math.random() * 80;
-                var bx = Math.cos(angle) * dist;
-                var by = Math.sin(angle) * dist;
-                var br = (Math.random() - 0.5) * 360;
+                    var angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
+                    var br = (Math.random() - 0.5) * 360;
+                    var size = Math.random() * 6 + 6;
+                    var burstSpeed = 2.5 + Math.random() * 2.5;  /* 2.5-5.0 px/帧 高速扩散 */
 
-                div.style.setProperty('--bx', bx.toFixed(1) + 'px');
-                div.style.setProperty('--by', by.toFixed(1) + 'px');
-                div.style.setProperty('--br', br.toFixed(1) + 'deg');
-                div.style.left = x + 'px';
-                div.style.top = y + 'px';
+                    petal.style.width = size + 'px';
+                    petal.style.height = size + 'px';
 
-                var size = Math.random() * 6 + 6;
-                petal.style.width = size + 'px';
-                petal.style.height = size + 'px';
+                    /* 随机花瓣形状 */
+                    var shape = Math.random();
+                    if (shape < 0.5) {
+                        petal.style.borderRadius = '50% 0 50% 50%';
+                    } else if (shape < 0.75) {
+                        var rx = Math.random() * 30 + 45;
+                        petal.style.borderRadius = rx + '% 0 ' + rx + '% ' + rx + '%';
+                    } else {
+                        petal.style.borderRadius = '50% 50% 50% 0';
+                    }
 
-                document.body.appendChild(div);
-                /* 动画结束后清理 */
-                setTimeout(function() { div.remove(); }, 1250);
+                    /* 初始状态：scale(0) 隐藏，位置在点击点 */
+                    sakura.style.transition = 'none';
+                    sakura.style.opacity = '0';
+                    sakura.style.transform =
+                        'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0)' +
+                        ' rotateZ(' + br.toFixed(1) + 'deg) scale(0)';
+                    sakuraContainer.appendChild(sakura);
+
+                    var BURST_GROW = 15;  /* 15 帧（0.25s）scale 0→1 */
+
+                    var data = {
+                        element: sakura,
+                        x: x, y: y,
+                        baseX: x,
+                        speed: Math.random() * 0.2 + 0.15,    /* 恒定下落分量（低，靠扩散动量） */
+                        wobbleSpeed: Math.random() * 0.012 + 0.006,
+                        wobbleAmountX: Math.random() * 45 + 20,
+                        wobbleAmountY: Math.random() * 15 + 5,
+                        rotationZ: br,
+                        rotSpeedZ: (Math.random() - 0.5) * 4,   /* 较快初始旋转 */
+                        time: Math.random() * Math.PI * 2,
+                        size: size,
+                        vx: Math.cos(angle) * burstSpeed,       /* 沿扩散方向高速射出 */
+                        vy: Math.sin(angle) * burstSpeed,
+                        opacity: Math.random() * 0.25 + 0.55,
+                        depth: 1,
+                        age: 0,
+                        scale: 0,
+                        burstFrames: BURST_GROW,
+                        burstScaleStep: 1 / BURST_GROW,
+                        _lastOpacity: -1,
+                        _lastTransform: ''
+                    };
+                    sakuraList.push(data);
+                })();
             }
         }
 
