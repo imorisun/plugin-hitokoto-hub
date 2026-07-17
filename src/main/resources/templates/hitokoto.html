@@ -111,6 +111,11 @@
             }
         }
 
+        @keyframes textShimmer {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+        }
+
         @keyframes authorFadeIn {
             from {
                 opacity: 0;
@@ -171,6 +176,18 @@
             50% { opacity: 1; }
         }
 
+        @keyframes glowBreathe {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+            50% { transform: translate(-50%, -50%) scale(1.06); opacity: 1; }
+        }
+
+        @keyframes countPop {
+            0% { transform: scale(1); }
+            40% { transform: scale(1.35); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+
         body {
             font-family: 'Noto Serif SC', -apple-system, BlinkMacSystemFont, serif;
             background-color: var(--bg);
@@ -193,6 +210,7 @@
             pointer-events: none;
             z-index: 0;
             transition: background 0.4s ease;
+            animation: glowBreathe 8s ease-in-out infinite;
         }
 
         .bg-glow.top {
@@ -201,6 +219,7 @@
             width: 700px;
             height: 700px;
             background: var(--glow-secondary);
+            animation: glowBreathe 10s ease-in-out 2s infinite;
         }
 
         /* 边缘暗角，聚焦中心 */
@@ -211,6 +230,16 @@
             pointer-events: none;
             z-index: 1;
             transition: background 0.4s ease;
+        }
+
+        /* 噪点纹理：模拟胶片质感 */
+        .noise-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 2;
+            filter: url(#noise-filter);
+            opacity: 0.035;
         }
 
         .sakura {
@@ -283,6 +312,39 @@
             transition: opacity 0.3s ease, color 0.4s ease;
             cursor: pointer;
             text-shadow: var(--shadow-text);
+        }
+
+        /* 流光渐变：逐字动画完成后渐显 */
+        .quote-text.shimmer {
+            background: linear-gradient(
+                105deg,
+                transparent 35%,
+                rgba(251, 113, 133, 0.06) 42%,
+                rgba(251, 113, 133, 0.12) 45%,
+                rgba(244, 114, 182, 0.1) 48%,
+                rgba(251, 113, 133, 0.06) 55%,
+                transparent 62%
+            );
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            animation: textShimmer 4s ease-in-out infinite;
+        }
+
+        :root[data-theme="light"] .quote-text.shimmer {
+            background: linear-gradient(
+                105deg,
+                transparent 35%,
+                rgba(232, 93, 111, 0.08) 42%,
+                rgba(232, 93, 111, 0.15) 45%,
+                rgba(232, 99, 158, 0.12) 48%,
+                rgba(232, 93, 111, 0.08) 55%,
+                transparent 62%
+            );
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            animation: textShimmer 4s ease-in-out infinite;
         }
 
         .quote-text .char {
@@ -384,6 +446,11 @@
             min-width: 1.5em;
             text-align: left;
             font-variant-numeric: tabular-nums;
+            display: inline-block;
+        }
+
+        .like-count.pop {
+            animation: countPop 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
         footer {
@@ -1340,6 +1407,13 @@
     </style>
 </head>
 <body>
+<!-- 噪点纹理 SVG 滤镜定义 -->
+<svg style="display:none" aria-hidden="true">
+    <filter id="noise-filter">
+        <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="3" stitchTiles="stitch"/>
+        <feColorMatrix type="saturate" values="0"/>
+    </filter>
+</svg>
 <!-- 服务端配置注入，JS 通过 data 属性读取 -->
 <div id="templateConfig"
      style="display:none"
@@ -1350,6 +1424,7 @@
 <div class="bg-glow"></div>
 <div class="vignette"></div>
 <div id="sakura-container"></div>
+<div class="noise-overlay"></div>
 
 <header>
     <div class="music-btn">LiteWords</div>
@@ -1764,17 +1839,26 @@
         const element = document.getElementById(elementId);
         const text = element.innerText.trim();
         element.innerHTML = '';
-        let delay = 0;
-        const charDelay = 0.035;
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            const span = document.createElement('span');
+        element.classList.remove('shimmer');
+        var delay = 0;
+        var total = text.length;
+        for (var i = 0; i < total; i++) {
+            var char = text[i];
+            var span = document.createElement('span');
             span.className = 'char';
             span.textContent = char === ' ' ? '\u00A0' : char;
-            span.style.animationDelay = `${delay}s`;
+            span.style.animationDelay = delay.toFixed(3) + 's';
             element.appendChild(span);
+            /* 渐进加速：前期字符延迟较大（从容展开），后期字符紧凑（行云流水） */
+            var progress = i / Math.max(total - 1, 1);
+            var charDelay = 0.06 - progress * 0.04;
             delay += charDelay;
         }
+        /* 逐字动画完成后添加流光效果 */
+        var totalDuration = (delay + 0.6) * 1000;
+        setTimeout(function() {
+            element.classList.add('shimmer');
+        }, totalDuration);
     }
 
     function animateAuthor(callback) {
@@ -1846,10 +1930,18 @@
     }
 
     /* ==================== 渲染点赞 UI ==================== */
-    function renderLikeUI() {
-        const btn = document.getElementById('likeBtn');
-        const countEl = document.getElementById('likeCount');
-        countEl.textContent = formatCount(state.likes);
+    function renderLikeUI(animate) {
+        var btn = document.getElementById('likeBtn');
+        var countEl = document.getElementById('likeCount');
+        var newText = formatCount(state.likes);
+        if (animate && countEl.textContent !== newText) {
+            countEl.textContent = newText;
+            countEl.classList.remove('pop');
+            void countEl.offsetWidth;
+            countEl.classList.add('pop');
+        } else {
+            countEl.textContent = newText;
+        }
         btn.classList.toggle('liked', state.liked);
     }
 
@@ -1919,7 +2011,7 @@
                     state.likes += state.liked ? 1 : -1;
                     if (state.likes < 0) state.likes = 0;
                 }
-                renderLikeUI();
+                renderLikeUI(true);
                 /* 触发心跳动画 */
                 btn.classList.remove('liked');
                 void btn.offsetWidth;
