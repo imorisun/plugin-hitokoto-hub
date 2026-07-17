@@ -10,6 +10,7 @@ public interface SettingConfig {
     Mono<AiConfig> getAiConfig();
     Mono<SubmissionConfig> getSubmissionConfig();
     Mono<SimilarityConfig> getSimilarityConfig();
+    Mono<TemplateConfig> getTemplateConfig();
 
     @Data
     class BasicConfig {
@@ -83,5 +84,16 @@ public interface SettingConfig {
         private String similarityAlgorithm;
         @Schema(description = "相似度阈值")
         private Double similarityThreshold;
+    }
+
+    @Data
+    class TemplateConfig {
+        public static final String GROUP = "template";
+        @Schema(description = "模板默认主题：auto 跟随系统, dark 暗色, light 亮色")
+        private String templateTheme;
+        @Schema(description = "是否显示花瓣飘落动画")
+        private Boolean templateShowSakura;
+        @Schema(description = "是否显示首次操作提示")
+        private Boolean templateShowHint;
     }
 }

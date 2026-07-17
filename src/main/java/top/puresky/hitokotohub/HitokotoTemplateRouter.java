@@ -13,12 +13,14 @@ import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 import run.halo.app.theme.TemplateNameResolver;
+import top.puresky.hitokotohub.config.SettingConfig;
 
 @RequiredArgsConstructor
 @Configuration(proxyBeanMethods = false)
 public class HitokotoTemplateRouter {
 
     private final TemplateNameResolver templateNameResolver;
+    private final SettingConfig settingConfig;
 
     @Bean
     RouterFunction<ServerResponse> hitokotoRouterFunction() {
@@ -26,9 +28,16 @@ public class HitokotoTemplateRouter {
     }
 
     Mono<ServerResponse> renderHitokotoPage(ServerRequest request) {
-        var model = new HashMap<String, Object>();
-        model.put("sentences", List.of());
-        return templateNameResolver.resolveTemplateNameOrDefault(request.exchange(), "hitokoto")
-            .flatMap(templateName -> ServerResponse.ok().render(templateName, model));
+        return settingConfig.getTemplateConfig()
+            .defaultIfEmpty(new SettingConfig.TemplateConfig())
+            .flatMap(templateConfig -> {
+                var model = new HashMap<String, Object>();
+                model.put("sentences", List.of());
+                model.put("templateTheme", templateConfig.getTemplateTheme());
+                model.put("templateShowSakura", templateConfig.getTemplateShowSakura());
+                model.put("templateShowHint", templateConfig.getTemplateShowHint());
+                return templateNameResolver.resolveTemplateNameOrDefault(request.exchange(), "hitokoto")
+                    .flatMap(templateName -> ServerResponse.ok().render(templateName, model));
+            });
     }
 }

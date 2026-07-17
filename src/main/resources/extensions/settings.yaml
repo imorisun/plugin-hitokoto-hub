@@ -300,3 +300,28 @@ spec:
           max: 1.0
           step: 0.05
           help: "超过此阈值的句子对将被标记为相似（0~1 之间，越大越严格）"
+    - group: template
+      label: 模板展示设置
+      formSchema:
+        - $formkit: select
+          name: templateTheme
+          label: 默认主题
+          value: auto
+          options:
+            - label: 跟随系统
+              value: auto
+            - label: 暗色模式
+              value: dark
+            - label: 亮色模式
+              value: light
+          help: 访客首次访问时展示的主题配色；若访客手动切换过主题，则以访客的选择为准
+        - $formkit: switch
+          name: templateShowSakura
+          label: 显示花瓣飘落动画
+          value: true
+          help: 关闭后，模板页面将不展示花瓣飘落背景动画
+        - $formkit: switch
+          name: templateShowHint
+          label: 显示首次操作提示
+          value: true
+          help: 开启后，页面加载完成时将显示"双击屏幕任意位置点赞"的操作提示
