@@ -2406,6 +2406,7 @@
         var SAKURA_MAX = isMobile ? 35 : 75;
         var mouseX = -1000, mouseY = -1000;
         var mouseActive = false;    /* 鼠标是否在页面内 */
+        var mouseDown = false;      /* 鼠标是否按住 */
         var windAngle = (Math.random() - 0.5) * 0.6;    /* 全局风向 */
         var windTimer = 0;
         var SCREEN_H = window.innerHeight;
@@ -2418,7 +2419,20 @@
         }, { passive: true });
         document.addEventListener('mouseleave', function() {
             mouseActive = false;
+            mouseDown = false;
         });
+        document.addEventListener('mousedown', function() {
+            mouseDown = true;
+        });
+        document.addEventListener('mouseup', function() {
+            mouseDown = false;
+        });
+        document.addEventListener('touchstart', function(e) {
+            mouseX = e.touches[0].clientX;
+            mouseY = e.touches[0].clientY;
+            mouseActive = true;
+            mouseDown = true;
+        }, { passive: true });
         document.addEventListener('touchmove', function(e) {
             mouseX = e.touches[0].clientX;
             mouseY = e.touches[0].clientY;
@@ -2426,6 +2440,7 @@
         }, { passive: true });
         document.addEventListener('touchend', function() {
             mouseActive = false;
+            mouseDown = false;
         });
         window.addEventListener('resize', function() {
             SCREEN_H = window.innerHeight;
@@ -2471,6 +2486,9 @@
                 blur = 0;
             }
 
+            /* 移动端减速 35%，飘落更从容 */
+            if (isMobile) baseSpeed *= 0.65;
+
             petal.style.width = size + 'px';
             petal.style.height = size + 'px';
             if (blur > 0) petal.style.filter = 'blur(' + blur.toFixed(1) + 'px)';
@@ -2506,7 +2524,6 @@
             var wobbleSpeed = Math.random() * 0.012 + 0.006;
             var wobbleAmountX = Math.random() * 45 + 20;      /* 20-65（更大摇摆幅度） */
             var wobbleAmountY = Math.random() * 15 + 5;       /* 5-20（垂直波动增强） */
-            var rotSpeed3D = (Math.random() - 0.5) * 0.9;   /* 3D 翻转速度（减缓，保持正面朝向） */
             var rotSpeedZ = (Math.random() - 0.5) * 2.5;
 
             /* 初始水平漂移速度（风） */
@@ -2520,10 +2537,7 @@
                 wobbleSpeed: wobbleSpeed,
                 wobbleAmountX: wobbleAmountX,
                 wobbleAmountY: wobbleAmountY,
-                rotationX: (Math.random() - 0.5) * 50,   /* ±25° 轻微俯仰 */
-                rotationY: (Math.random() - 0.5) * 60,   /* ±30° 轻微偏转 */
-                rotationZ: Math.random() * 360,           /* 平面旋转保持多样性 */
-                rotSpeed3D: rotSpeed3D,
+                rotationZ: Math.random() * 360,           /* 平面旋转 */
                 rotSpeedZ: rotSpeedZ,
                 time: Math.random() * Math.PI * 2,
                 size: size,
@@ -2567,26 +2581,20 @@
                 var s = sakuraList[i];
                 s.age++;
 
-                /* 鼠标双层力场 — 缓存三角函数 */
-                if (mouseActive) {
+                /* 鼠标按住吸引：按住时花瓣朝光标方向聚拢 */
+                if (mouseDown && mouseActive) {
                     var dx = s.x - mouseX;
                     var dy = s.y - mouseY;
                     var distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < 200) {
+                    if (distance < 250) {
                         var angle = Math.atan2(dy, dx);
                         var cosA = Math.cos(angle);
                         var sinA = Math.sin(angle);
-                        if (distance < 80) {
-                            var repel = (80 - distance) / 80;
-                            s.vx += cosA * repel * 3;
-                            s.vy += sinA * repel * 2;
-                            s.rotationZ += repel * 10;
-                        } else {
-                            var attract = (distance - 80) / 120;
-                            var pull = (1 - attract) * 0.35;
-                            s.vx -= cosA * pull;
-                            s.vy -= sinA * pull;
-                        }
+                        var strength = (250 - distance) / 250;   /* 0→1，越近越强 */
+                        var pull = strength * 1.6;
+                        s.vx -= cosA * pull;
+                        s.vy -= sinA * pull;
+                        s.rotationZ += (Math.random() - 0.5) * strength * 12;
                     }
                 }
 
@@ -2610,9 +2618,7 @@
                 s.x += sinTime * s.wobbleAmountX * 0.06;
                 s.y += cosTime * s.wobbleAmountY * 0.04;
 
-                /* 3D 旋转 */
-                s.rotationX += s.rotSpeed3D * 0.6;
-                s.rotationY += s.rotSpeed3D * 0.4;
+                /* 旋转 */
                 s.rotationZ += s.rotSpeedZ;
 
                 /* 屏幕边界环绕 */
@@ -2631,11 +2637,9 @@
                     s._lastOpacity = targetOpacity;
                 }
 
-                /* GPU 加速变换 — 缓存字符串减少拼接 */
+                /* GPU 加速变换 — 仅平面旋转 */
                 var newTransform =
                     'translate3d(' + s.x.toFixed(1) + 'px,' + s.y.toFixed(1) + 'px,0)' +
-                    ' rotateX(' + s.rotationX.toFixed(1) + 'deg)' +
-                    ' rotateY(' + s.rotationY.toFixed(1) + 'deg)' +
                     ' rotateZ(' + s.rotationZ.toFixed(1) + 'deg)';
                 if (newTransform !== s._lastTransform) {
                     s.element.style.transform = newTransform;
