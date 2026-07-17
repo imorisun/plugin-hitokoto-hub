@@ -1250,31 +1250,92 @@
         }
 
         .theme-toggle .icon-sun,
-        .theme-toggle .icon-moon {
+        .theme-toggle .icon-moon,
+        .theme-toggle .icon-auto {
             position: absolute;
             transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
-        [data-theme="dark"] .theme-toggle .icon-sun,
-        :root:not([data-theme="light"]) .theme-toggle .icon-sun {
+        .theme-toggle .icon-auto {
+            fill: currentColor;
+        }
+        .theme-toggle--auto .icon-auto {
             opacity: 1;
             transform: rotate(0deg);
         }
 
-        [data-theme="dark"] .theme-toggle .icon-moon,
-        :root:not([data-theme="light"]) .theme-toggle .icon-moon {
+        .theme-toggle--auto .icon-sun,
+        .theme-toggle--auto .icon-moon {
             opacity: 0;
             transform: rotate(90deg);
         }
 
-        [data-theme="light"] .theme-toggle .icon-sun {
+        /* 非 auto 模式：隐藏 auto 图标 */
+        .theme-toggle:not(.theme-toggle--auto) .icon-auto {
             opacity: 0;
             transform: rotate(-90deg);
         }
 
-        [data-theme="light"] .theme-toggle .icon-moon {
+        /* 暗色模式 → 显示太阳（点击切亮色） */
+        [data-theme="dark"] .theme-toggle:not(.theme-toggle--auto) .icon-sun,
+        :root:not([data-theme="light"]) .theme-toggle:not(.theme-toggle--auto) .icon-sun {
             opacity: 1;
             transform: rotate(0deg);
+        }
+
+        [data-theme="dark"] .theme-toggle:not(.theme-toggle--auto) .icon-moon,
+        :root:not([data-theme="light"]) .theme-toggle:not(.theme-toggle--auto) .icon-moon {
+            opacity: 0;
+            transform: rotate(90deg);
+        }
+
+        /* 亮色模式 → 显示月亮（点击切 auto） */
+        :root[data-theme="light"] .theme-toggle:not(.theme-toggle--auto) .icon-sun {
+            opacity: 0;
+            transform: rotate(-90deg);
+        }
+
+        :root[data-theme="light"] .theme-toggle:not(.theme-toggle--auto) .icon-moon {
+            opacity: 1;
+            transform: rotate(0deg);
+        }
+
+        /* auto 模式下边框微调，与图标呼应 */
+        .theme-toggle--auto {
+            border-color: var(--border-hover);
+        }
+
+        /* ==================== 主题切换按钮提示 ==================== */
+        .theme-toggle {
+            --tooltip-y: 0px;
+        }
+
+        .theme-toggle::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            padding: 4px 12px;
+            font-family: var(--ui-font);
+            font-size: 0.7rem;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            color: var(--text-dim);
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-default);
+            border-radius: 99px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            z-index: 100;
+        }
+
+        .theme-toggle:hover::after {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
         }
     </style>
 </head>
@@ -1293,7 +1354,7 @@
 <header>
     <div class="music-btn">LiteWords</div>
     <div class="header-actions">
-        <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换主题">
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换主题" data-tooltip="切换主题">
             <!-- 太阳图标：暗色模式下显示，点击切换到亮色 -->
             <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="12" r="5"/>
@@ -1309,6 +1370,11 @@
             <!-- 月亮图标：亮色模式下显示，点击切换到暗色 -->
             <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+            <!-- auto 模式图标：跟随系统 -->
+            <svg class="icon-auto" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M12 2a10 10 0 0 1 0 20" fill="currentColor" opacity="0.5"/>
             </svg>
         </button>
         <button class="submit-btn" id="submitBtn" type="button" aria-label="提交句子">
@@ -1447,36 +1513,32 @@
         }
 
         /**
-         * 获取存储的主题偏好。优先级：
-         * 1. localStorage 中用户手动设置的值
-         * 2. 服务端配置的默认主题（auto 则回退到系统偏好）
-         * 3. 系统 prefers-color-scheme 媒体查询
-         * 4. 默认 dark
+         * 获取存储的主题偏好。返回 'dark' | 'light' | 'auto' | null。
          */
         function getStoredTheme() {
             try {
                 var stored = localStorage.getItem(THEME_KEY);
-                if (stored === 'light' || stored === 'dark') {
+                if (stored === 'light' || stored === 'dark' || stored === 'auto') {
                     return stored;
                 }
             } catch (e) { /* localStorage 不可用时静默处理 */ }
             return null;
         }
 
-        function getConfiguredTheme() {
-            var serverDefault = getServerDefaultTheme();
-            if (serverDefault === 'light' || serverDefault === 'dark') {
-                return serverDefault;
-            }
-            /* auto 或未知值 → 跟随系统 */
+        /**
+         * 将抽象主题值解析为实际渲染值（dark / light）。
+         */
+        function resolveActualTheme(stored) {
+            if (stored === 'dark' || stored === 'light') return stored;
+            /* auto 或未设置 → 跟随系统 */
             if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
                 return 'light';
             }
             return 'dark';
         }
 
-        function applyTheme(theme) {
-            if (theme === 'light') {
+        function applyTheme(actualTheme) {
+            if (actualTheme === 'light') {
                 html.setAttribute('data-theme', 'light');
             } else {
                 html.removeAttribute('data-theme');
@@ -1484,18 +1546,47 @@
         }
 
         /**
-         * 初始化主题：优先使用用户手动设置，否则使用管理员配置的默认主题。
+         * 更新按钮上的 auto 模式视觉指示器。
+         */
+        function updateAutoIndicator() {
+            var btn = document.getElementById('themeToggle');
+            if (!btn) return;
+            var currentMode = getStoredTheme();
+            if (currentMode === 'auto') {
+                btn.classList.add('theme-toggle--auto');
+                btn.setAttribute('aria-label', '当前：跟随系统 — 点击切换');
+                btn.setAttribute('data-tooltip', '跟随系统');
+            } else if (currentMode === 'dark') {
+                btn.classList.remove('theme-toggle--auto');
+                btn.setAttribute('aria-label', '当前：暗色模式 — 点击切换');
+                btn.setAttribute('data-tooltip', '暗色模式');
+            } else {
+                btn.classList.remove('theme-toggle--auto');
+                btn.setAttribute('aria-label', '当前：亮色模式 — 点击切换');
+                btn.setAttribute('data-tooltip', '亮色模式');
+            }
+        }
+
+        /**
+         * 初始化主题。
+         * 首次访问时 storage 为空，使用管理员设置的默认主题（即 router 传入的 templateTheme）。
          */
         var stored = getStoredTheme();
-        var theme = stored || getConfiguredTheme();
-        applyTheme(theme);
+        if (!stored) {
+            var serverDefault = getServerDefaultTheme();
+            stored = serverDefault || 'auto';
+            try { localStorage.setItem(THEME_KEY, stored); } catch (e) {}
+        }
+        applyTheme(resolveActualTheme(stored));
+        updateAutoIndicator();
 
-        /* 监听系统主题变化（仅当用户未手动设置时生效） */
+        /* 监听系统主题变化（auto 模式及未手动设置时跟随） */
         if (window.matchMedia) {
             var mq = window.matchMedia('(prefers-color-scheme: dark)');
             if (mq.addEventListener) {
                 mq.addEventListener('change', function(e) {
-                    if (!getStoredTheme()) {
+                    var currentMode = getStoredTheme();
+                    if (currentMode === 'auto' || !currentMode) {
                         applyTheme(e.matches ? 'dark' : 'light');
                     }
                 });
@@ -1503,15 +1594,23 @@
         }
 
         /**
-         * 用户点击切换按钮
+         * 用户点击切换按钮：dark → light → auto → dark
          */
         function toggleTheme() {
-            var isLight = html.hasAttribute('data-theme') && html.getAttribute('data-theme') === 'light';
-            var newTheme = isLight ? 'dark' : 'light';
-            applyTheme(newTheme);
+            var currentMode = getStoredTheme() || 'dark';
+            var nextMode;
+            if (currentMode === 'dark') {
+                nextMode = 'light';
+            } else if (currentMode === 'light') {
+                nextMode = 'auto';
+            } else {
+                nextMode = 'dark';
+            }
+            applyTheme(resolveActualTheme(nextMode));
             try {
-                localStorage.setItem(THEME_KEY, newTheme);
+                localStorage.setItem(THEME_KEY, nextMode);
             } catch (e) { /* localStorage 不可用时静默处理 */ }
+            updateAutoIndicator();
         }
 
         /* 在 DOM 就绪后绑定点击事件 */
