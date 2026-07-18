@@ -612,7 +612,6 @@ import {
   IconAddCircle,
   IconRefreshLine,
   IconUpload,
-  Toast,
   VButton,
   VCard,
   VDropdownItem,
@@ -633,6 +632,9 @@ import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
 import type {BatchCreateSentenceResult, Category, Sentence} from '@/api/generated'
 import IconLike from '~icons/my-icons/like';
 import * as XLSX from 'xlsx'
+import {useToast} from '@/composables/useToast'
+
+const toast = useToast()
 
 const xlsxRows = ref<any[][]>([])
 const page = ref(1)
@@ -925,7 +927,7 @@ const fetchSentences = async () => {
     total.value = data.total || 0
   } catch (e) {
     console.error('获取句子列表失败', e)
-    Toast.error('加载句子列表失败')
+    toast.error('加载句子列表失败')
   } finally {
     loading.value = false
   }
@@ -1052,7 +1054,7 @@ const handleSaveCategory = async () => {
   const description = categoryFormData.value.description.trim()
 
   if (!specName) {
-    Toast.warning('请输入分类名称')
+    toast.warning('请输入分类名称')
     return
   }
 
@@ -1075,7 +1077,7 @@ const handleSaveCategory = async () => {
         name: editingCategory.value.metadata.name,
         category: updated,
       })
-      Toast.success('更新分类成功')
+      toast.success('更新分类成功')
     } else {
       const category: Category = {
         apiVersion: 'hitokotohub.puresky.top/v1alpha1',
@@ -1090,14 +1092,14 @@ const handleSaveCategory = async () => {
         },
       }
       await categoryCoreApiClient.category.createCategory({category})
-      Toast.success('创建分类成功')
+      toast.success('创建分类成功')
     }
 
     showCategoryFormModal.value = false
     await initCategories()
   } catch (e) {
     console.error('保存分类失败', e)
-    Toast.error(isEditingCategory.value ? '更新分类失败' : '创建分类失败')
+    toast.error(isEditingCategory.value ? '更新分类失败' : '创建分类失败')
   } finally {
     savingCategory.value = false
   }
@@ -1116,12 +1118,12 @@ const handleDeleteCategory = (category: Category) => {
         if (selectedCategory.value === category.metadata.name) {
           selectedCategory.value = undefined
         }
-        Toast.success('删除分类成功')
+        toast.success('删除分类成功')
         await initCategories()
         await fetchSentences()
       } catch (e) {
         console.error('删除分类失败', e)
-        Toast.error('删除分类失败')
+        toast.error('删除分类失败')
       }
     },
   })
@@ -1138,14 +1140,14 @@ const handleClearUncategorized = () => {
       try {
         const count = uncategorizedSentenceCount.value
         const {data: deletedCount} = await sentenceCoreApiClient.clearUncategorizedSentences()
-        Toast.success(`已清空 ${deletedCount} 条未分类句子`)
+        toast.success(`已清空 ${deletedCount} 条未分类句子`)
         if (selectedCategory.value === UNCATEGORIZED_NAME) {
           await fetchSentences()
         }
         await initCategories()
       } catch (e) {
         console.error('清空未分类句子失败', e)
-        Toast.error('清空未分类句子失败')
+        toast.error('清空未分类句子失败')
       }
     },
   })
@@ -1200,7 +1202,7 @@ const handleExcelFileChange = async (event: Event) => {
 
 const handleSave = async () => {
   if (!formData.value.content || !formData.value.categoryName) {
-    Toast.warning('请填写句子内容和分类')
+    toast.warning('请填写句子内容和分类')
     return
   }
   saving.value = true
@@ -1225,7 +1227,7 @@ const handleSave = async () => {
         name: editingSentenceName.value,
         sentence: updated,
       })
-      Toast.success('更新成功')
+      toast.success('更新成功')
     } else {
       const sentence = buildSentence(
               formData.value.content,
@@ -1234,14 +1236,14 @@ const handleSave = async () => {
               formData.value.source,
       )
       await batchCreate([sentence])
-      Toast.success('创建成功')
+      toast.success('创建成功')
     }
     showFormModal.value = false
     await fetchSentencesSilently()
     await initCategories()
   } catch (e) {
     console.error('保存失败', e)
-    Toast.error(isEditing.value ? '更新失败' : '创建失败')
+    toast.error(isEditing.value ? '更新失败' : '创建失败')
   } finally {
     saving.value = false
   }
@@ -1249,16 +1251,16 @@ const handleSave = async () => {
 
 const handleBatchSave = async () => {
   if (!batchImportForm.value.categoryName) {
-    Toast.warning('请选择目标分类')
+    toast.warning('请选择目标分类')
     return
   }
 
   if (batchImportMode.value === 'json' && parsedSentences.value.length === 0) {
-    Toast.warning('没有解析到有效的句子数据')
+    toast.warning('没有解析到有效的句子数据')
     return
   }
   if (batchImportMode.value === 'excel' && excelPreview.value.length === 0) {
-    Toast.warning('没有解析到有效的句子数据')
+    toast.warning('没有解析到有效的句子数据')
     return
   }
 
@@ -1276,13 +1278,13 @@ const handleBatchSave = async () => {
       )
       result = await batchCreate(sentenceList)
     }
-    Toast.success(`导入完成！成功: ${result.success || 0}，失败: ${result.failed || 0}`)
+    toast.success(`导入完成！成功: ${result.success || 0}，失败: ${result.failed || 0}`)
     showBatchImportModal.value = false
     await fetchSentences()
     await initCategories()
   } catch (e) {
     console.error('批量导入失败', e)
-    Toast.error('批量导入失败')
+    toast.error('批量导入失败')
   } finally {
     batchImporting.value = false
   }
@@ -1312,11 +1314,11 @@ const handleDelete = (sentence: Sentence) => {
     onConfirm: async () => {
       try {
         await sentenceCoreApiClient.sentence.deleteSentence({name: sentence.metadata.name})
-        Toast.success('删除成功')
+        toast.success('删除成功')
         await fetchSentencesSilently()
       } catch (e) {
         console.error('删除失败', e)
-        Toast.error('删除失败')
+        toast.error('删除失败')
       }
     },
   })

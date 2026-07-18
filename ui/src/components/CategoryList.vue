@@ -190,7 +190,6 @@ import {
   Dialog,
   IconAddCircle,
   IconRefreshLine,
-  Toast,
   VButton,
   VDropdown,
   VDropdownItem,
@@ -204,6 +203,9 @@ import {
   VSpace,
   VTag,
 } from '@halo-dev/components'
+import {useToast} from '@/composables/useToast'
+
+const toast = useToast()
 
 const loading = ref(false)
 const categories = ref<Category[]>([])
@@ -327,7 +329,7 @@ async function fetchCategories() {
     }
   } catch (e) {
     console.error('Failed to fetch categories', e)
-    Toast.error('加载分类列表失败')
+    toast.error('加载分类列表失败')
   } finally {
     loading.value = false
   }
@@ -365,7 +367,7 @@ function handleEdit(category: Category) {
 
 async function handleSave() {
   if (!formData.value.specName.trim()) {
-    Toast.warning('请输入分类名称')
+    toast.warning('请输入分类名称')
     return
   }
   saving.value = true
@@ -387,7 +389,7 @@ async function handleSave() {
         name: formCategory.value.metadata.name,
         category: updated,
       })
-      Toast.success('更新分类成功')
+      toast.success('更新分类成功')
     } else {
       const newCategory: Category = {
         apiVersion: 'hitokotohub.puresky.top/v1alpha1',
@@ -404,13 +406,13 @@ async function handleSave() {
       await categoryCoreApiClient.category.createCategory({
         category: newCategory,
       })
-      Toast.success('创建分类成功')
+      toast.success('创建分类成功')
     }
     showFormModal.value = false
     await fetchCategories()
   } catch (e) {
     console.error('Failed to save category', e)
-    Toast.error(isEditing.value ? '更新分类失败' : '创建分类失败')
+    toast.error(isEditing.value ? '更新分类失败' : '创建分类失败')
   } finally {
     saving.value = false
   }
@@ -428,7 +430,7 @@ function handleDelete(category: Category) {
       try {
         // 调用删除 API，后端会设置 deletionTimestamp
         await categoryCoreApiClient.category.deleteCategory({ name })
-        Toast.success('删除成功')
+        toast.success('删除成功')
 
         // 立即刷新一次，让列表显示 deletionTimestamp 状态
         await fetchCategoriesSilently()
@@ -439,7 +441,7 @@ function handleDelete(category: Category) {
         }
       } catch (e) {
         console.error('Failed to delete category', e)
-        Toast.error('删除分类失败')
+        toast.error('删除分类失败')
       }
     },
   })
@@ -455,11 +457,11 @@ async function handleClearUncategorized() {
     onConfirm: async () => {
       try {
         const { data: deletedCount } = await sentenceCoreApiClient.clearUncategorizedSentences()
-        Toast.success(`已清空 ${deletedCount} 条未分类句子`)
+        toast.success(`已清空 ${deletedCount} 条未分类句子`)
         await fetchCategories()
       } catch (e) {
         console.error('清空未分类句子失败', e)
-        Toast.error('清空未分类句子失败')
+        toast.error('清空未分类句子失败')
       }
     },
   })

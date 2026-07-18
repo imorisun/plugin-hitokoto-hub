@@ -267,7 +267,6 @@ import {
   Dialog,
   IconMore,
   IconRefreshLine,
-  Toast,
   VButton,
   VCard,
   VEmpty,
@@ -280,6 +279,9 @@ import {MagicStick} from '@element-plus/icons-vue'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import {axiosInstance} from '@halo-dev/api-client'
 import {categoryCoreApiClient} from '@/api'
+import {useToast} from '@/composables/useToast'
+
+const toast = useToast()
 
 interface AiGenerateLog {
   apiVersion: string
@@ -380,7 +382,7 @@ const fetchLogs = async () => {
     total.value = data.total || 0
   } catch (e) {
     console.error('获取AI生成日志失败', e)
-    Toast.error('加载AI生成日志失败')
+    toast.error('加载AI生成日志失败')
   } finally {
     loading.value = false
   }
@@ -462,7 +464,7 @@ const handleTriggerGenerate = async () => {
     await axiosInstance.post(
       '/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs/-/trigger'
     )
-    Toast.success('AI生成任务已触发，请稍后查看日志')
+    toast.success('AI生成任务已触发，请稍后查看日志')
     /* 无感刷新：回到第一页静默拉取，然后轮询直到生成完成 */
     if (page.value !== 1) {
       skipLoadingFetch = true
@@ -473,7 +475,7 @@ const handleTriggerGenerate = async () => {
     startGeneratePolling()
   } catch (e: any) {
     const msg = e?.response?.data?.message || '触发AI生成失败'
-    Toast.error(msg)
+    toast.error(msg)
   } finally {
     triggering.value = false
   }
@@ -504,12 +506,12 @@ const handleDelete = (log: AiGenerateLog) => {
         await axiosInstance.delete(
           `/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs/${log.metadata.name}`,
         )
-        Toast.success('删除成功')
+        toast.success('删除成功')
         await fetchLogsSilently()
         startDeletionRefetch()
       } catch (e: any) {
         const msg = e?.response?.data?.message || '删除失败'
-        Toast.error(msg)
+        toast.error(msg)
       }
     },
   })

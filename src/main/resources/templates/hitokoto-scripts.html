@@ -1,0 +1,1210 @@
+<!--
+  访客模板脚本 fragment（从 hitokoto.html 拆分，零行为变更）。
+  通过 <th:block th:replace="~{hitokoto-scripts :: scripts}"/> 引用。
+-->
+<th:block th:fragment="scripts" xmlns:th="http://www.thymeleaf.org">
+<script>
+    /* ==================== 主题切换 ==================== */
+    (function() {
+        const THEME_KEY = 'hitokoto:theme';
+        const html = document.documentElement;
+
+        /**
+         * 获取服务端配置的默认主题（由管理员在插件设置中设定）。
+         * 值：'auto' | 'dark' | 'light'
+         */
+        function getServerDefaultTheme() {
+            var cfg = document.getElementById('templateConfig');
+            return cfg ? cfg.getAttribute('data-theme') : 'auto';
+        }
+
+        /**
+         * 获取存储的主题偏好。返回 'dark' | 'light' | 'auto' | null。
+         */
+        function getStoredTheme() {
+            try {
+                var stored = localStorage.getItem(THEME_KEY);
+                if (stored === 'light' || stored === 'dark' || stored === 'auto') {
+                    return stored;
+                }
+            } catch (e) { /* localStorage 不可用时静默处理 */ }
+            return null;
+        }
+
+        /**
+         * 将抽象主题值解析为实际渲染值（dark / light）。
+         */
+        function resolveActualTheme(stored) {
+            if (stored === 'dark' || stored === 'light') return stored;
+            /* auto 或未设置 → 跟随系统 */
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                return 'light';
+            }
+            return 'dark';
+        }
+
+        function applyTheme(actualTheme) {
+            if (actualTheme === 'light') {
+                html.setAttribute('data-theme', 'light');
+            } else {
+                html.removeAttribute('data-theme');
+            }
+            /* 同步更新移动端浏览器顶栏 theme-color，跟随主题切换 */
+            var themeColorMeta = document.querySelector('meta[name="theme-color"]');
+            if (themeColorMeta) {
+                themeColorMeta.setAttribute('content', actualTheme === 'light' ? '#faf7f5' : '#0a0606');
+            }
+        }
+
+        /**
+         * 更新按钮上的 auto 模式视觉指示器。
+         */
+        function updateAutoIndicator() {
+            var btn = document.getElementById('themeToggle');
+            if (!btn) return;
+            var currentMode = getStoredTheme();
+            if (currentMode === 'auto') {
+                btn.classList.add('theme-toggle--auto');
+                btn.setAttribute('aria-label', '当前：跟随系统 — 点击切换');
+                btn.setAttribute('data-tooltip', '跟随系统');
+            } else if (currentMode === 'dark') {
+                btn.classList.remove('theme-toggle--auto');
+                btn.setAttribute('aria-label', '当前：暗色模式 — 点击切换');
+                btn.setAttribute('data-tooltip', '暗色模式');
+            } else {
+                btn.classList.remove('theme-toggle--auto');
+                btn.setAttribute('aria-label', '当前：亮色模式 — 点击切换');
+                btn.setAttribute('data-tooltip', '亮色模式');
+            }
+        }
+
+        /**
+         * 初始化主题。
+         * 首次访问时 storage 为空，使用管理员设置的默认主题（即 router 传入的 templateTheme）。
+         */
+        var stored = getStoredTheme();
+        if (!stored) {
+            var serverDefault = getServerDefaultTheme();
+            stored = serverDefault || 'auto';
+            try { localStorage.setItem(THEME_KEY, stored); } catch (e) {}
+        }
+        applyTheme(resolveActualTheme(stored));
+        updateAutoIndicator();
+
+        /* 监听系统主题变化（auto 模式及未手动设置时跟随） */
+        if (window.matchMedia) {
+            var mq = window.matchMedia('(prefers-color-scheme: dark)');
+            if (mq.addEventListener) {
+                mq.addEventListener('change', function(e) {
+                    var currentMode = getStoredTheme();
+                    if (currentMode === 'auto' || !currentMode) {
+                        applyTheme(e.matches ? 'dark' : 'light');
+                    }
+                });
+            }
+        }
+
+        /**
+         * 用户点击切换按钮：dark → light → auto → dark
+         */
+        function toggleTheme() {
+            var currentMode = getStoredTheme() || 'dark';
+            var nextMode;
+            if (currentMode === 'dark') {
+                nextMode = 'light';
+            } else if (currentMode === 'light') {
+                nextMode = 'auto';
+            } else {
+                nextMode = 'dark';
+            }
+            applyTheme(resolveActualTheme(nextMode));
+            try {
+                localStorage.setItem(THEME_KEY, nextMode);
+            } catch (e) { /* localStorage 不可用时静默处理 */ }
+            updateAutoIndicator();
+        }
+
+        /* 在 DOM 就绪后绑定点击事件 */
+        document.addEventListener('DOMContentLoaded', function() {
+            const btn = document.getElementById('themeToggle');
+            if (btn) {
+                btn.addEventListener('click', toggleTheme);
+            }
+        });
+    })();
+
+    /* ==================== 句子状态 ==================== */
+    const state = {
+        name: '',
+        likes: 0,
+        liked: false,
+        busy: false
+    };
+
+    const LIKE_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like';
+    const RANDOM_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/random?limit=1';
+    const CATEGORY_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/category/list';
+    const SUBMIT_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence-submission/submit';
+
+    /* ==================== 响应式文本截断 ==================== */
+    let originalQuoteText = '';
+    let resizeDebounce = null;
+
+    /**
+     * 根据容器宽度和可用垂直空间动态计算可容纳的最大字符数。
+     *
+     * 水平方向：中文字符 ≈ 1em 宽，containerWidth / charWidth = 每行字数
+     * 垂直方向：视口高度 - header - footer - 作者行 = 文本可用高度，
+     *           再除以行高得到最大行数。
+     *
+     * 不同屏幕尺寸下字号、容器宽、视口高均不同，计算结果随设备自然变化。
+     */
+    function getMaxChars() {
+        const container = document.getElementById('quoteContainer');
+        const textEl = document.getElementById('quoteText');
+        const authorEl = document.getElementById('quoteAuthor');
+        const header = document.querySelector('header');
+        const footer = document.querySelector('footer');
+
+        if (!container || !textEl) return 200;
+
+        // ---- 水平：每行字数 ----
+        const containerWidth = container.clientWidth;
+        const textStyle = getComputedStyle(textEl);
+        const fontSize = parseFloat(textStyle.fontSize);
+
+        const rawLs = parseFloat(textStyle.letterSpacing);
+        const letterSpacing = isNaN(rawLs) ? 0 : rawLs;
+
+        if (fontSize <= 0) return 200;
+
+        const charWidth = fontSize + letterSpacing;
+        const charsPerLine = Math.floor(containerWidth / charWidth);
+
+        // ---- 垂直：最大行数 ----
+        const vh = window.innerHeight;
+
+        // 实测各固定定位元素高度（含 padding），不存在时用默认值
+        const headerHeight = header ? header.offsetHeight : 52;
+        const footerHeight = footer ? footer.offsetHeight : 50;
+
+        // 作者行 = margin-top + 元素自身高度
+        const authorStyle = authorEl ? getComputedStyle(authorEl) : null;
+        const authorMargin = authorStyle ? parseFloat(authorStyle.marginTop) || 0 : 24;
+        const authorH = authorEl ? authorEl.offsetHeight : 14;
+        const authorTotal = authorMargin + authorH;
+
+        // 安全边距：上下各留少量呼吸空间，防止贴边
+        const safety = 28;
+
+        const availableHeight = vh - headerHeight - footerHeight - authorTotal - safety;
+
+        const rawLineHeight = parseFloat(textStyle.lineHeight);
+        const lineHeight = isNaN(rawLineHeight) ? fontSize * 1.5 : rawLineHeight;
+
+        // 上限 15 行：既充分利用空间，也防止极端高视口时动画过长
+        const maxLines = Math.min(Math.floor(availableHeight / lineHeight), 15);
+
+        return Math.floor(charsPerLine * Math.max(maxLines, 2));
+    }
+
+    /**
+     * 对文本进行智能截断：
+     * - 超出最大字数时在末尾追加 "..."
+     * - 避免在英文单词中间截断
+     * - 中文每个字都是合法截断点
+     */
+    function truncateText(text) {
+        if (!text) return text;
+        const maxChars = getMaxChars();
+        if (text.length <= maxChars) {
+            return text;
+        }
+
+        let cutIndex = maxChars - 3; // 为 "..." 预留空间
+        if (cutIndex < 1) cutIndex = 1;
+
+        // 避免在英文单词中间截断：如果截断位置是英文字母，回溯到单词起始
+        if (/[a-zA-Z]/.test(text[cutIndex])) {
+            while (cutIndex > 0 && /[a-zA-Z]/.test(text[cutIndex - 1])) {
+                cutIndex--;
+            }
+        }
+
+        if (cutIndex < 1) cutIndex = 1;
+        return text.substring(0, cutIndex) + '...';
+    }
+
+    /**
+     * 格式化来源：统一用《》包裹，先去除源数据中已有的不完整书名号
+     */
+    function formatSource(source) {
+        if (!source) return '';
+        // 去除已有书名号，统一重新包裹
+        const cleaned = source.replace(/[《》]/g, '');
+        return ' · 《' + cleaned + '》';
+    }
+
+    /**
+     * 窗口 / 设备方向变化时，重新计算截断并逐字动画渲染。
+     * 使用 350ms 防抖避免频繁重绘。
+     */
+    function handleResizeTruncate() {
+        clearTimeout(resizeDebounce);
+        resizeDebounce = setTimeout(() => {
+            if (!originalQuoteText) return;
+            const textEl = document.getElementById('quoteText');
+            const truncated = truncateText(originalQuoteText);
+            const currentText = (textEl.innerText || textEl.textContent || '').trim();
+            if (currentText !== truncated) {
+                textEl.style.opacity = '0';
+                setTimeout(() => {
+                    textEl.innerText = truncated;
+                    textEl.style.opacity = '1';
+                    animateText('quoteText');
+                }, 300);
+            }
+        }, 350);
+    }
+
+    window.addEventListener('resize', handleResizeTruncate);
+    window.addEventListener('orientationchange', handleResizeTruncate);
+
+    /* ==================== 文字入场动画 ==================== */
+    function animateText(elementId) {
+        const element = document.getElementById(elementId);
+        const text = element.innerText.trim();
+        element.innerHTML = '';
+        element.classList.remove('shimmer');
+        var delay = 0;
+        var total = text.length;
+        for (var i = 0; i < total; i++) {
+            var char = text[i];
+            var span = document.createElement('span');
+            span.className = 'char';
+            span.textContent = char === ' ' ? '\u00A0' : char;
+            span.style.animationDelay = delay.toFixed(3) + 's';
+            element.appendChild(span);
+            /* 渐进加速：前期字符延迟较大（从容展开），后期字符紧凑（行云流水） */
+            var progress = i / Math.max(total - 1, 1);
+            var charDelay = 0.06 - progress * 0.04;
+            delay += charDelay;
+        }
+        /* 逐字动画完成后添加流光效果 */
+        var totalDuration = (delay + 0.6) * 1000;
+        setTimeout(function() {
+            element.classList.add('shimmer');
+        }, totalDuration);
+    }
+
+    function animateAuthor(callback) {
+        const el = document.getElementById('quoteAuthor');
+        const text = el.innerText.trim();
+        el.innerHTML = '';
+        el.style.opacity = '1';
+        let delay = 0;
+        const authorCharDelay = 0.05;
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const span = document.createElement('span');
+            span.textContent = char === ' ' ? '\u00A0' : char;
+            span.style.cssText = `
+                display: inline-block;
+                opacity: 0;
+                animation: authorFadeIn 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+                animation-delay: ${delay}s;
+            `;
+            el.appendChild(span);
+            delay += authorCharDelay;
+        }
+        const lineDelay = delay - authorCharDelay + 0.4;
+        const styleSheet = document.createElement('style');
+        styleSheet.id = 'dynamic-line-delay';
+        styleSheet.textContent = `
+            #quoteAuthor::before,
+            #quoteAuthor::after {
+                animation: authorFadeIn 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+                animation-delay: ${lineDelay}s;
+            }
+        `;
+        const oldStyle = document.getElementById('dynamic-line-delay');
+        if (oldStyle) oldStyle.remove();
+        document.head.appendChild(styleSheet);
+        const totalDuration = (lineDelay + 0.7) * 1000;
+        if (callback) setTimeout(callback, totalDuration);
+    }
+
+    /* ==================== 点赞状态读写 ==================== */
+    function likedKey(name) {
+        return 'hitokoto:liked:' + name;
+    }
+
+    function isLiked(name) {
+        try {
+            return localStorage.getItem(likedKey(name)) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function setLiked(name, liked) {
+        try {
+            if (liked) {
+                localStorage.setItem(likedKey(name), '1');
+            } else {
+                localStorage.removeItem(likedKey(name));
+            }
+        } catch (e) {
+            /* localStorage 不可用时静默处理 */
+        }
+    }
+
+    function formatCount(n) {
+        if (n >= 10000) return (n / 10000).toFixed(1) + 'w';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+        return String(n);
+    }
+
+    /* ==================== 渲染点赞 UI ==================== */
+    function renderLikeUI(animate) {
+        var btn = document.getElementById('likeBtn');
+        var countEl = document.getElementById('likeCount');
+        var newText = formatCount(state.likes);
+        if (animate && countEl.textContent !== newText) {
+            countEl.textContent = newText;
+            countEl.classList.remove('pop');
+            void countEl.offsetWidth;
+            countEl.classList.add('pop');
+        } else {
+            countEl.textContent = newText;
+        }
+        btn.classList.toggle('liked', state.liked);
+    }
+
+    function loadFromDOM() {
+        const container = document.getElementById('quoteContainer');
+        state.name = container.getAttribute('data-name') || '';
+        state.likes = parseInt(container.getAttribute('data-likes') || '0', 10) || 0;
+        state.liked = isLiked(state.name);
+        renderLikeUI();
+    }
+
+    /* ==================== 心形粒子动画 ==================== */
+    function createHeartBurst(x, y) {
+        const count = 7;
+        for (let i = 0; i < count; i++) {
+            const heart = document.createElement('div');
+            heart.className = 'heart-particle';
+            heart.textContent = '\u2665';
+            const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
+            const distance = 55 + Math.random() * 50;
+            const dx = Math.cos(angle) * distance;
+            const dy = Math.sin(angle) * distance;
+            const rot = (Math.random() - 0.5) * 60;
+            heart.style.left = x + 'px';
+            heart.style.top = y + 'px';
+            heart.style.setProperty('--dx', dx + 'px');
+            heart.style.setProperty('--dy', dy + 'px');
+            heart.style.setProperty('--rot', rot + 'deg');
+            document.body.appendChild(heart);
+            setTimeout(() => heart.remove(), 900);
+        }
+    }
+
+    /* ==================== 轻提示 ==================== */
+    let toastTimer = null;
+    function showToast(message) {
+        const toast = document.getElementById('toast');
+        if (toastTimer) clearTimeout(toastTimer);
+        toast.classList.remove('hide');
+        toast.textContent = message;
+        toast.classList.remove('show');
+        void toast.offsetWidth; /* 重置动画 */
+        toast.classList.add('show');
+        toastTimer = setTimeout(() => {
+            toast.classList.remove('show');
+            toast.classList.add('hide');
+        }, 2200);
+    }
+
+    /* ==================== 点赞切换 ==================== */
+    async function toggleLike(originX, originY) {
+        if (state.busy || !state.name) return;
+        state.busy = true;
+        const action = state.liked ? 'unlike' : 'like';
+        const btn = document.getElementById('likeBtn');
+        btn.disabled = true;
+        try {
+            const url = LIKE_API + '?name=' + encodeURIComponent(state.name) + '&action=' + action;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.success) {
+                state.liked = !state.liked;
+                setLiked(state.name, state.liked);
+                if (data.sentence && typeof data.sentence.likeCount === 'number') {
+                    state.likes = data.sentence.likeCount;
+                } else {
+                    state.likes += state.liked ? 1 : -1;
+                    if (state.likes < 0) state.likes = 0;
+                }
+                renderLikeUI(true);
+                /* 触发心跳动画 */
+                btn.classList.remove('liked');
+                void btn.offsetWidth;
+                btn.classList.toggle('liked', state.liked);
+                if (state.liked && originX != null && originY != null) {
+                    createHeartBurst(originX, originY);
+                }
+            } else {
+                showToast(data.message || '操作过于频繁');
+            }
+        } catch (e) {
+            showToast('网络异常，请稍后再试');
+        } finally {
+            state.busy = false;
+            btn.disabled = false;
+        }
+    }
+
+    /* ==================== 应用新句子 ==================== */
+    function applySentence(s) {
+        const textEl = document.getElementById('quoteText');
+        const authorEl = document.getElementById('quoteAuthor');
+        const container = document.getElementById('quoteContainer');
+        const oldStyle = document.getElementById('dynamic-line-delay');
+        if (oldStyle) oldStyle.remove();
+
+        textEl.style.opacity = '0';
+        authorEl.style.opacity = '0';
+
+        setTimeout(() => {
+            // 存储原始文本并截断
+            originalQuoteText = s.content || '';
+            const truncated = truncateText(originalQuoteText);
+            textEl.innerText = truncated;
+            const author = s.author || '';
+            const source = s.source || '';
+            authorEl.setAttribute('data-author', author);
+            authorEl.setAttribute('data-source', source);
+            authorEl.innerText = author
+                ? author + formatSource(source)
+                : '佚名';
+
+            state.name = s.metaName || s.name || '';
+            state.likes = s.likeCount || 0;
+            state.liked = isLiked(state.name);
+            container.setAttribute('data-name', state.name);
+            container.setAttribute('data-likes', state.likes);
+            renderLikeUI();
+
+            textEl.style.opacity = '1';
+            animateText('quoteText');
+            animateAuthor();
+        }, 300);
+    }
+
+    async function fetchNewSentence() {
+        const res = await fetch(RANDOM_API);
+        if (!res.ok) throw new Error('fetch failed');
+        const data = await res.json();
+        const list = data.sentences || [];
+        if (list.length === 0) throw new Error('empty');
+        return list[0];
+    }
+
+    /* ==================== 初始化 ==================== */
+    document.addEventListener('DOMContentLoaded', () => {
+        /* 存储原始文本并在渲染前执行截断 */
+        const textEl = document.getElementById('quoteText');
+        originalQuoteText = textEl.innerText.trim();
+        const truncated = truncateText(originalQuoteText);
+        textEl.innerText = truncated;
+
+        /* 修正作者行：统一用《》包裹来源 */
+        const authorEl = document.getElementById('quoteAuthor');
+        const raw = authorEl.innerText.trim();
+        const sep = ' · ';
+        const idx = raw.indexOf(sep);
+        if (idx > 0) {
+            const authorPart = raw.substring(0, idx);
+            const sourcePart = raw.substring(idx + sep.length);
+            authorEl.innerText = authorPart + formatSource(sourcePart);
+        }
+
+        animateText('quoteText');
+        animateAuthor();
+        loadFromDOM();
+        /* 首次进入提示一次双击点赞（由管理员设置控制） */
+        var cfg = document.getElementById('templateConfig');
+        if (cfg && cfg.getAttribute('data-hint') !== 'false') {
+            if (!sessionStorage.getItem('hitokoto:hint-shown')) {
+                setTimeout(function() {
+                    showToast('双击屏幕任意位置点赞');
+                    try { sessionStorage.setItem('hitokoto:hint-shown', '1'); } catch (e) {}
+                }, 1200);
+            }
+        }
+        /* 查询访客提交是否启用，未启用则隐藏提交按钮 */
+        fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence-submission/config')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.enableSubmission) {
+                    const submitBtn = document.getElementById('submitBtn');
+                    if (submitBtn) submitBtn.style.display = 'none';
+                }
+            })
+            .catch(() => {});
+    });
+
+    /* ==================== 访客提交句子 ==================== */
+    const submitModal = document.getElementById('submitModal');
+    const submitForm = document.getElementById('submitForm');
+    const submitContent = document.getElementById('submitContent');
+    const submitContentCount = document.getElementById('submitContentCount');
+    const submitCategory = document.getElementById('submitCategory');
+    const submitConfirmBtn = document.getElementById('submitConfirm');
+    const categorySelect = document.getElementById('submitCategorySelect');
+    const categoryTrigger = document.getElementById('submitCategoryTrigger');
+    const categoryDropdown = document.getElementById('submitCategoryDropdown');
+    const categoryLabel = document.getElementById('submitCategoryLabel');
+    let submitCategoriesLoaded = false;
+    let submitting = false;
+    /* 记录打开 modal 前的焦点元素，关闭后返回焦点（满足 WCAG 模态对话框规范） */
+    let modalLastFocused = null;
+
+    function openSubmitModal() {
+        modalLastFocused = document.activeElement;
+        submitModal.classList.add('open');
+        if (!submitCategoriesLoaded) {
+            loadSubmitCategories();
+        }
+        setTimeout(() => submitContent.focus(), 350);
+    }
+
+    function closeSubmitModal() {
+        submitModal.classList.add('closing');
+        submitModal.classList.remove('open');
+        closeCategoryDropdown();
+        setTimeout(() => {
+            submitModal.classList.remove('closing');
+            submitForm.reset();
+            submitContentCount.textContent = '0';
+            submitConfirmBtn.disabled = true;
+            categoryLabel.textContent = '请选择分类';
+            categoryLabel.classList.add('custom-select__value--placeholder');
+            categoryDropdown.querySelectorAll('.custom-select__option--selected')
+                .forEach((o) => o.classList.remove('custom-select__option--selected'));
+            /* 焦点返回触发按钮，保证键盘用户操作连续性 */
+            if (modalLastFocused && typeof modalLastFocused.focus === 'function') {
+                modalLastFocused.focus();
+                modalLastFocused = null;
+            }
+        }, 250);
+    }
+
+    async function loadSubmitCategories() {
+        try {
+            const res = await fetch(CATEGORY_API);
+            if (!res.ok) throw new Error('fetch failed');
+            const list = await res.json();
+            categoryDropdown.innerHTML = '';
+            if (!list || list.length === 0) {
+                categoryLabel.textContent = '暂无分类';
+                categoryLabel.classList.add('custom-select__value--placeholder');
+                submitCategory.value = '';
+                return;
+            }
+            categoryLabel.textContent = '请选择分类';
+            categoryLabel.classList.add('custom-select__value--placeholder');
+            list.forEach((c) => {
+                const opt = document.createElement('div');
+                opt.className = 'custom-select__option';
+                opt.dataset.value = c.name;
+                opt.textContent = c.displayName;
+                opt.addEventListener('click', () => {
+                    submitCategory.value = c.name;
+                    categoryLabel.textContent = c.displayName;
+                    categoryLabel.classList.remove('custom-select__value--placeholder');
+                    categoryDropdown.querySelectorAll('.custom-select__option--selected')
+                        .forEach((o) => o.classList.remove('custom-select__option--selected'));
+                    opt.classList.add('custom-select__option--selected');
+                    closeCategoryDropdown();
+                    validateSubmitForm();
+                });
+                categoryDropdown.appendChild(opt);
+            });
+            submitCategoriesLoaded = true;
+        } catch (e) {
+            categoryLabel.textContent = '分类加载失败';
+            categoryLabel.classList.add('custom-select__value--placeholder');
+        }
+    }
+
+    function validateSubmitForm() {
+        const content = submitContent.value.trim();
+        const category = submitCategory.value;
+        submitConfirmBtn.disabled = !(content && category);
+    }
+
+    async function handleSubmit(event) {
+        event.preventDefault();
+        if (submitting) return;
+        const content = submitContent.value.trim();
+        const categoryName = submitCategory.value;
+        if (!content) {
+            showToast('请输入句子内容');
+            return;
+        }
+        if (!categoryName) {
+            showToast('请选择分类');
+            return;
+        }
+        submitting = true;
+        submitConfirmBtn.disabled = true;
+        submitConfirmBtn.textContent = '投递中...';
+        try {
+            const body = {
+                content,
+                categoryName,
+                author: document.getElementById('submitAuthor').value.trim() || undefined,
+                source: document.getElementById('submitSource').value.trim() || undefined,
+                submitterName: document.getElementById('submitterName').value.trim() || undefined,
+            };
+            const res = await fetch(SUBMIT_API, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.success) {
+                showToast(data.message || '投递成功，等待审核');
+                closeSubmitModal();
+            } else if (res.status === 429) {
+                showToast(data.message || '提交过于频繁，请稍后再试');
+            } else if (res.status === 403) {
+                showToast(data.message || '访客提交功能未开启');
+            } else {
+                showToast(data.message || '提交失败，请稍后再试');
+            }
+        } catch (e) {
+            showToast('网络异常，请稍后再试');
+        } finally {
+            submitting = false;
+            submitConfirmBtn.textContent = '投递';
+            validateSubmitForm();
+        }
+    }
+
+    submitContent.addEventListener('input', () => {
+        submitContentCount.textContent = String(submitContent.value.length);
+        const countEl = submitContentCount.parentElement;
+        if (submitContent.value.length >= 450) {
+            countEl.classList.add('submit-field__count--warn');
+        } else {
+            countEl.classList.remove('submit-field__count--warn');
+        }
+        validateSubmitForm();
+    });
+    function positionCategoryDropdown() {
+        const triggerRect = categoryTrigger.getBoundingClientRect();
+        categoryDropdown.style.top = (triggerRect.bottom + 4) + 'px';
+        categoryDropdown.style.left = triggerRect.left + 'px';
+        categoryDropdown.style.width = triggerRect.width + 'px';
+    }
+
+    function closeCategoryDropdown() {
+        categorySelect.classList.remove('custom-select--open');
+        categoryDropdown.classList.remove('custom-select__dropdown--open');
+        categoryDropdown.style.top = '';
+        categoryDropdown.style.left = '';
+        categoryDropdown.style.width = '';
+    }
+
+    categoryTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wasOpen = categoryDropdown.classList.contains('custom-select__dropdown--open');
+        if (wasOpen) {
+            closeCategoryDropdown();
+        } else {
+            categorySelect.classList.add('custom-select--open');
+            categoryDropdown.classList.add('custom-select__dropdown--open');
+            positionCategoryDropdown();
+        }
+    });
+    categoryTrigger.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            const wasOpen = categoryDropdown.classList.contains('custom-select__dropdown--open');
+            if (wasOpen) {
+                closeCategoryDropdown();
+            } else {
+                categorySelect.classList.add('custom-select--open');
+                categoryDropdown.classList.add('custom-select__dropdown--open');
+                positionCategoryDropdown();
+            }
+        }
+    });
+    document.addEventListener('click', (e) => {
+        if (!categorySelect.contains(e.target) && !categoryDropdown.contains(e.target)) {
+            closeCategoryDropdown();
+        }
+    });
+    document.getElementById('submitBtn').addEventListener('click', openSubmitModal);
+    document.getElementById('submitCancel').addEventListener('click', closeSubmitModal);
+    document.getElementById('submitModalClose').addEventListener('click', closeSubmitModal);
+    document.getElementById('submitModalBackdrop').addEventListener('click', closeSubmitModal);
+    submitForm.addEventListener('submit', handleSubmit);
+    // 卡片滚动时重新定位下拉框
+    document.querySelector('.submit-modal__card').addEventListener('scroll', () => {
+        if (categoryDropdown.classList.contains('custom-select__dropdown--open')) {
+            positionCategoryDropdown();
+        }
+    });
+    window.addEventListener('resize', () => {
+        if (categoryDropdown.classList.contains('custom-select__dropdown--open')) {
+            positionCategoryDropdown();
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (!submitModal.classList.contains('open')) return;
+        if (e.key === 'Escape') {
+            closeSubmitModal();
+            return;
+        }
+        /* 焦点陷阱：Tab / Shift+Tab 在 modal 内循环，不漏出到背景元素 */
+        if (e.key === 'Tab') {
+            var focusables = Array.prototype.slice.call(
+                submitModal.querySelectorAll(
+                    'button:not([disabled]), [href], input:not([disabled]),' +
+                    ' select:not([disabled]), textarea:not([disabled]),' +
+                    ' [tabindex]:not([tabindex="-1"])'
+                )
+            ).filter(function(el) {
+                /* 排除隐藏元素（如 type=hidden 不在 selector 内，但兜底过滤） */
+                return el.type !== 'hidden' && el.getClientRects().length > 0;
+            });
+            if (focusables.length === 0) return;
+            var first = focusables[0];
+            var last = focusables[focusables.length - 1];
+            if (e.shiftKey) {
+                if (document.activeElement === first || !submitModal.contains(document.activeElement)) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            } else {
+                if (document.activeElement === last || !submitModal.contains(document.activeElement)) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        }
+    });
+
+    /* ==================== 交互绑定 ==================== */
+    /* 双击屏幕任意位置点赞 / 取消点赞 */
+    document.addEventListener('dblclick', (e) => {
+        /* 忽略交互按钮与弹窗上的双击，避免与单击冲突 */
+        if (e.target.closest('.like-btn, .next-btn, .music-btn, .submit-btn, .submit-modal')) return;
+        const sel = window.getSelection && window.getSelection();
+        if (sel && sel.removeAllRanges) sel.removeAllRanges();
+        toggleLike(e.clientX, e.clientY);
+    });
+
+    /* 心形按钮单击点赞 / 取消点赞 */
+    document.getElementById('likeBtn').addEventListener('click', (e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        toggleLike(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    });
+
+    /* 下一句 */
+    document.getElementById('nextBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('nextBtn');
+        btn.disabled = true;
+        btn.classList.add('next-btn--loading');
+        try {
+            const s = await fetchNewSentence();
+            applySentence(s);
+        } catch (e) {
+            console.error('刷新失败', e);
+            showToast('刷新失败，请稍后再试');
+        } finally {
+            btn.disabled = false;
+            btn.classList.remove('next-btn--loading');
+        }
+    });
+
+    /* ==================== 樱花动画 ==================== */
+    /* 读取服务端配置决定是否启用花瓣动画 */
+    (function() {
+        var cfg = document.getElementById('templateConfig');
+        if (cfg && cfg.getAttribute('data-sakura') === 'false') return;
+        /* 尊重用户系统级减少动效偏好：跳过整个樱花物理引擎启动 */
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        var sakuraList = [];
+        var sakuraContainer = document.getElementById('sakura-container');
+        var isMobile = window.innerWidth < 640;
+        var SAKURA_MAX = isMobile ? 35 : 75;
+        var mouseX = -1000, mouseY = -1000;
+        var mouseActive = false;    /* 鼠标是否在页面内 */
+        var mouseDown = false;      /* 鼠标是否按住 */
+        var windAngle = (Math.random() - 0.5) * 0.6;    /* 全局风向 */
+        var windTimer = 0;
+        var SCREEN_H = window.innerHeight;
+        var SCREEN_W = window.innerWidth;
+
+        document.addEventListener('mousemove', function(e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            mouseActive = true;
+        }, { passive: true });
+        document.addEventListener('mouseleave', function() {
+            mouseActive = false;
+            mouseDown = false;
+        });
+        document.addEventListener('mousedown', function() {
+            mouseDown = true;
+        });
+        document.addEventListener('mouseup', function() {
+            mouseDown = false;
+        });
+        document.addEventListener('touchstart', function(e) {
+            mouseX = e.touches[0].clientX;
+            mouseY = e.touches[0].clientY;
+            mouseActive = true;
+            mouseDown = true;
+        }, { passive: true });
+        document.addEventListener('touchmove', function(e) {
+            mouseX = e.touches[0].clientX;
+            mouseY = e.touches[0].clientY;
+            mouseActive = true;
+        }, { passive: true });
+        document.addEventListener('touchend', function() {
+            mouseActive = false;
+            mouseDown = false;
+        });
+        document.addEventListener('touchcancel', function() {
+            mouseActive = false;
+            mouseDown = false;
+        }, { passive: true });
+        window.addEventListener('resize', function() {
+            SCREEN_H = window.innerHeight;
+            SCREEN_W = window.innerWidth;
+        });
+
+        /**
+         * 三层深度系统：
+         *   layer 0 (远): 小、慢、半透明
+         *   layer 1 (中): 默认尺寸和速度
+         *   layer 2 (近): 大、快、轻微模糊（景深效果）
+         */
+        function createSakura() {
+            if (sakuraList.length >= SAKURA_MAX) return;
+
+            var sakura = document.createElement('div');
+            sakura.className = 'sakura';
+            var petal = document.createElement('span');
+            sakura.appendChild(petal);
+
+            /* 深度分层 — 高密度下加大远层比例 */
+            var layer = Math.random();
+            var depth;
+            if (layer < 0.35) depth = 0;      /* 远层 35% */
+            else if (layer < 0.85) depth = 1;  /* 中层 50% */
+            else depth = 2;                     /* 近层 15% */
+
+            var size, baseSpeed, baseOpacity, blur;
+            if (depth === 0) {
+                size = Math.random() * 3 + 5;               /* 5-8px */
+                baseSpeed = Math.random() * 0.24 + 0.18;    /* 0.18-0.42（优雅极慢） */
+                baseOpacity = Math.random() * 0.18 + 0.18;  /* 0.18-0.36 */
+                blur = 0;
+            } else if (depth === 2) {
+                size = Math.random() * 6 + 10;              /* 10-16px */
+                baseSpeed = Math.random() * 0.38 + 0.46;    /* 0.46-0.84（优雅慢速） */
+                baseOpacity = Math.random() * 0.18 + 0.58;  /* 0.58-0.76 */
+                blur = Math.random() * 1.5 + 0.5;            /* 0.5-2px 景深模糊 */
+            } else {
+                size = Math.random() * 4 + 7;               /* 7-11px */
+                baseSpeed = Math.random() * 0.31 + 0.32;    /* 0.32-0.63（优雅中速） */
+                baseOpacity = Math.random() * 0.22 + 0.4;   /* 0.4-0.62 */
+                blur = 0;
+            }
+
+            /* 移动端减速 35%，飘落更从容 */
+            if (isMobile) baseSpeed *= 0.65;
+
+            petal.style.width = size + 'px';
+            petal.style.height = size + 'px';
+            if (blur > 0) petal.style.filter = 'blur(' + blur.toFixed(1) + 'px)';
+
+            /* 随机化花瓣形状 */
+            var rx = Math.random() * 30 + 45;    /* 45-75% 圆角化程度 */
+            var shape = Math.random();
+            if (shape < 0.5) {
+                petal.style.borderRadius = '50% 0 50% 50%';           /* 经典花瓣 */
+            } else if (shape < 0.75) {
+                petal.style.borderRadius = rx + '% 0 ' + rx + '% ' + rx + '%';  /* 变体 */
+            } else {
+                petal.style.borderRadius = '50% 50% 50% 0';           /* 反向 */
+            }
+
+            /* X轴集中分布：使用三次随机数之和（中心极限），
+             * 约 75% 的花瓣落在中央 40% 的视口区域，
+             * 剩余 25% 均匀分布在全宽，提供自然的环境氛围。 */
+            var x;
+            if (Math.random() < 0.78) {
+                var u = (Math.random() + Math.random() + Math.random()) / 3;
+                x = (u * 0.5 + 0.25) * SCREEN_W;  /* 25%-75% 高斯集中 */
+            } else {
+                x = Math.random() * SCREEN_W;       /* 边缘点缀 */
+            }
+            /* 所有花瓣统一从屏幕顶部上方飘入 */
+            var y = -size * 2 - Math.random() * 120;
+            var wobbleSpeed = Math.random() * 0.012 + 0.006;
+            var wobbleAmountX = Math.random() * 45 + 20;      /* 20-65（更大摇摆幅度） */
+            var wobbleAmountY = Math.random() * 15 + 5;       /* 5-20（垂直波动增强） */
+            var rotSpeedZ = (Math.random() - 0.5) * 2.5;
+
+            /* 初始水平漂移速度（风） */
+            var driftVx = (Math.random() - 0.5) * 0.3;
+
+            var data = {
+                element: sakura,
+                x: x, y: y,
+                baseX: x,
+                speed: baseSpeed,
+                wobbleSpeed: wobbleSpeed,
+                wobbleAmountX: wobbleAmountX,
+                wobbleAmountY: wobbleAmountY,
+                rotationZ: Math.random() * 360,           /* 平面旋转 */
+                rotSpeedZ: rotSpeedZ,
+                time: Math.random() * Math.PI * 2,
+                size: size,
+                vx: driftVx,
+                vy: 0,
+                opacity: baseOpacity,
+                depth: depth,
+                age: 0,
+                scale: 1,
+                burstFrames: 0,
+                _lastOpacity: -1,
+                _lastTransform: ''
+            };
+
+            petal.style.opacity = data.opacity;
+            sakura.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0) rotateZ(' + data.rotationZ.toFixed(1) + 'deg) scale(1)';
+            sakura.style.opacity = '0';
+            sakuraContainer.appendChild(sakura);
+
+            /* 淡入 */
+            requestAnimationFrame(function() {
+                sakura.style.opacity = '1';
+            });
+
+            sakuraList.push(data);
+        }
+
+        function animateSakura() {
+            /* 风向周期性微调 */
+            windTimer++;
+            if (windTimer > 300) {
+                windTimer = 0;
+                windAngle += (Math.random() - 0.5) * 0.5;
+                windAngle = Math.max(-0.8, Math.min(0.8, windAngle));
+            }
+
+            var GRAVITY = 0.005;   /* 降低重力（0.008→0.005），飘落更优雅 */
+            var WIND_FACTOR = windAngle * 0.15 * 0.02;
+            var FADE_START = 0.85;
+            var FADE_END = 1.02;
+
+            for (var i = sakuraList.length - 1; i >= 0; i--) {
+                var s = sakuraList[i];
+                s.age++;
+
+                /* 鼠标按住吸引：按住时花瓣朝光标方向聚拢 */
+                if (mouseDown && mouseActive) {
+                    var dx = s.x - mouseX;
+                    var dy = s.y - mouseY;
+                    var distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 250) {
+                        var angle = Math.atan2(dy, dx);
+                        var cosA = Math.cos(angle);
+                        var sinA = Math.sin(angle);
+                        var strength = (250 - distance) / 250;   /* 0→1，越近越强 */
+                        var pull = strength * 1.6;
+                        s.vx -= cosA * pull;
+                        s.vy -= sinA * pull;
+                        s.rotationZ += (Math.random() - 0.5) * strength * 12;
+                    }
+                }
+
+                /* 重力 + 阻尼 */
+                s.vy += GRAVITY;
+                s.vx *= 0.99;
+                s.vy *= 0.995;
+
+                /* 风速（按深度加权） */
+                var wf = s.depth === 0 ? 0.6 : (s.depth === 2 ? 1.4 : 1.0);
+                s.vx += WIND_FACTOR * wf;
+
+                /* 主运动 */
+                s.y += s.speed + s.vy;
+                s.x += s.vx;
+
+                /* 波浪摆动 — 合并三角函数调用 */
+                s.time += s.wobbleSpeed;
+                var sinTime = Math.sin(s.time * 1.3);
+                var cosTime = Math.cos(s.time * 0.7);
+                s.x += sinTime * s.wobbleAmountX * 0.06;
+                s.y += cosTime * s.wobbleAmountY * 0.04;
+
+                /* 旋转 */
+                s.rotationZ += s.rotSpeedZ;
+
+                /* 屏幕边界环绕 */
+                if (s.x < -s.size) s.x = SCREEN_W + s.size;
+                if (s.x > SCREEN_W + s.size) s.x = -s.size;
+
+                /* 绽放生长阶段：scale 0→1 渐显，同时受重力/风/摆动影响 */
+                if (s.burstFrames > 0) {
+                    s.burstFrames--;
+                    s.scale += s.burstScaleStep;
+                    if (s.scale > 1) s.scale = 1;
+                }
+
+                /* 淡出 — 避免重复 DOM 写入 */
+                var fadeProgress = s.y / SCREEN_H;
+                var targetOpacity = s.opacity;
+                if (fadeProgress > FADE_START) {
+                    var fadeRatio = Math.min(1, (fadeProgress - FADE_START) / (FADE_END - FADE_START));
+                    targetOpacity = s.opacity * (1 - fadeRatio);
+                }
+                /* 绽放阶段：opacity 随 scale 渐显 */
+                if (s.burstFrames > 0) {
+                    targetOpacity *= s.scale;
+                }
+                if (Math.abs(targetOpacity - s._lastOpacity) > 0.012) {
+                    s.element.style.opacity = targetOpacity;
+                    s._lastOpacity = targetOpacity;
+                }
+
+                /* GPU 加速变换 — 平面旋转 + 绽放缩放 */
+                var newTransform =
+                    'translate3d(' + s.x.toFixed(1) + 'px,' + s.y.toFixed(1) + 'px,0)' +
+                    ' rotateZ(' + s.rotationZ.toFixed(1) + 'deg)' +
+                    ' scale(' + s.scale.toFixed(2) + ')';
+                if (newTransform !== s._lastTransform) {
+                    s.element.style.transform = newTransform;
+                    s._lastTransform = newTransform;
+                }
+
+                /* 生命周期结束 */
+                if (s.y > SCREEN_H + s.size * 3 || fadeProgress > FADE_END) {
+                    s.element.remove();
+                    sakuraList.splice(i, 1);
+                }
+            }
+            requestAnimationFrame(animateSakura);
+        }
+
+        /* 点击绽放可配置参数 */
+        var BURST_COUNT = 10;       /* 基础花瓣数（实际 ±3 随机） */
+        var BURST_DIST_MIN = 50;   /* 最小扩散半径 (px) */
+        var BURST_DIST_MAX = 130;  /* 最大扩散半径 (px) */
+
+        /**
+         * 鼠标点击绽放特效（纯 JS 驱动，无缝融入飘落系统）：
+         *   花瓣从点击位置以高速扩散 → 阻尼减速 → 重力接管 → 自然飘落，
+         *   全程由 animateSakura 物理引擎统一驱动，零切换、零间隙。
+         */
+        function createBurst(x, y) {
+            var count = BURST_COUNT + Math.floor(Math.random() * 7);  /* 10-16 */
+            for (var i = 0; i < count; i++) {
+                (function() {
+                    var sakura = document.createElement('div');
+                    sakura.className = 'sakura';
+                    var petal = document.createElement('span');
+                    sakura.appendChild(petal);
+
+                    var angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
+                    var br = (Math.random() - 0.5) * 360;
+                    var size = Math.random() * 6 + 6;
+                    var burstSpeed = 2.5 + Math.random() * 2.5;  /* 2.5-5.0 px/帧 高速扩散 */
+
+                    petal.style.width = size + 'px';
+                    petal.style.height = size + 'px';
+
+                    /* 随机花瓣形状 */
+                    var shape = Math.random();
+                    if (shape < 0.5) {
+                        petal.style.borderRadius = '50% 0 50% 50%';
+                    } else if (shape < 0.75) {
+                        var rx = Math.random() * 30 + 45;
+                        petal.style.borderRadius = rx + '% 0 ' + rx + '% ' + rx + '%';
+                    } else {
+                        petal.style.borderRadius = '50% 50% 50% 0';
+                    }
+
+                    /* 初始状态：scale(0) 隐藏，位置在点击点 */
+                    sakura.style.transition = 'none';
+                    sakura.style.opacity = '0';
+                    sakura.style.transform =
+                        'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0)' +
+                        ' rotateZ(' + br.toFixed(1) + 'deg) scale(0)';
+                    sakuraContainer.appendChild(sakura);
+
+                    var BURST_GROW = 15;  /* 15 帧（0.25s）scale 0→1 */
+
+                    var data = {
+                        element: sakura,
+                        x: x, y: y,
+                        baseX: x,
+                        speed: Math.random() * 0.2 + 0.15,    /* 恒定下落分量（低，靠扩散动量） */
+                        wobbleSpeed: Math.random() * 0.012 + 0.006,
+                        wobbleAmountX: Math.random() * 45 + 20,
+                        wobbleAmountY: Math.random() * 15 + 5,
+                        rotationZ: br,
+                        rotSpeedZ: (Math.random() - 0.5) * 4,   /* 较快初始旋转 */
+                        time: Math.random() * Math.PI * 2,
+                        size: size,
+                        vx: Math.cos(angle) * burstSpeed,       /* 沿扩散方向高速射出 */
+                        vy: Math.sin(angle) * burstSpeed,
+                        opacity: Math.random() * 0.25 + 0.55,
+                        depth: 1,
+                        age: 0,
+                        scale: 0,
+                        burstFrames: BURST_GROW,
+                        burstScaleStep: 1 / BURST_GROW,
+                        _lastOpacity: -1,
+                        _lastTransform: ''
+                    };
+                    sakuraList.push(data);
+                })();
+            }
+        }
+
+        /* 点击触发绽放 */
+        document.addEventListener('click', function(e) {
+            /* 忽略交互元素上的点击 */
+            if (e.target.closest('.like-btn, .next-btn, .music-btn, .submit-btn, .submit-modal, .theme-toggle, button')) return;
+            createBurst(e.clientX, e.clientY);
+        });
+
+        /* 播种与密度管理 */
+        var seedCount = isMobile ? 18 : 35;
+        var spawnInterval = isMobile ? 1200 : 600;
+        for (var i = 0; i < seedCount; i++) {
+            setTimeout(createSakura, i * (isMobile ? 200 : 100));
+        }
+        setInterval(function() {
+            /* 根据当前数量动态调整创建速率 */
+            if (sakuraList.length < SAKURA_MAX * 0.7) {
+                createSakura();
+            }
+        }, spawnInterval);
+        animateSakura();
+    })();
+</script>
+</th:block>

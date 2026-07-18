@@ -10,18 +10,14 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.Contract;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerRequest;
@@ -32,7 +28,6 @@ import run.halo.app.core.extension.endpoint.CustomEndpoint;
 import run.halo.app.extension.GroupVersion;
 import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ListResult;
-import run.halo.app.extension.Metadata;
 import run.halo.app.extension.PageRequestImpl;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.Queries;
@@ -40,6 +35,11 @@ import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.extension.Sentence;
+import top.puresky.hitokotohub.utils.CategoryViewRecordFactory;
+import top.puresky.hitokotohub.utils.HttpUtils;
+import top.puresky.hitokotohub.utils.IpCooldownCache;
+import top.puresky.hitokotohub.utils.SimpleCooldownState;
+import top.puresky.hitokotohub.utils.TimeFormatUtils;
 
 @Component
 @RequiredArgsConstructor
@@ -51,7 +51,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
 
     private final SettingConfig settingConfig;
     private final ReactiveExtensionClient client;
-    private final Map<String, Long> likeCache = new ConcurrentHashMap<>();
+    private final IpCooldownCache<SimpleCooldownState> likeCache = new IpCooldownCache<>();
 
     @Override
     public @NonNull RouterFunction<ServerResponse> endpoint() {
@@ -201,16 +201,8 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                 sentence.getStatus().setViewCount(sentence.getStatus().getViewCount() + 1);
 
                 // 记录分类浏览（同时记录句子名称以支持按句子维度统计）
-                CategoryViewRecord record = new CategoryViewRecord();
-                record.setMetadata(new Metadata());
-                record.getMetadata().setGenerateName("cvr-");
-                record.setSpec(new CategoryViewRecord.Spec());
-                record.getSpec().setCategoryName(sentence.getSpec().getCategoryName());
-                record.getSpec().setEventType(CategoryViewRecord.EventType.VIEW);
-                if (sentence.getMetadata() != null
-                    && sentence.getMetadata().getName() != null) {
-                    record.getSpec().setSentenceName(sentence.getMetadata().getName());
-                }
+                CategoryViewRecord record = CategoryViewRecordFactory.create(sentence,
+                    CategoryViewRecord.EventType.VIEW, null);
 
                 return client.update(sentence)
                     .then(client.create(record))
@@ -222,20 +214,20 @@ public class SentencePublicEndpoint implements CustomEndpoint {
     private @NonNull Mono<ServerResponse> toggleLike(@NonNull ServerRequest request) {
         String name = request.queryParam("name").orElse("");
         String action = request.queryParam("action").orElse("like");
-        String ip = getClientIp(request.exchange().getRequest());
+        String ip = HttpUtils.getClientIp(request.exchange().getRequest());
         String likeKey = ip + ":like:" + name;
         String unlikeKey = ip + ":unlike:" + name;
         return settingConfig.getBasicConfig().flatMap(config -> {
             boolean isUnlike = "unlike".equals(action);
             String checkKey = isUnlike ? unlikeKey : likeKey;
-            Long lastTime = likeCache.get(checkKey);
+            SimpleCooldownState state = likeCache.get(checkKey);
             long now = System.currentTimeMillis();
             long likeCooldown = Duration.ofHours(config.getLikeCooldown()).toMillis();
-            if (lastTime != null && (now - lastTime) < likeCooldown) {
-                long remainingSeconds = likeCooldown / 1000 - ((now - lastTime) / 1000);
+            if (state != null && state.isCoolingDown(likeCooldown, now)) {
+                long remainingSeconds = state.remainingMillis(likeCooldown, now) / 1000;
                 return client.get(Sentence.class, name).map(
                         sentence -> buildLikeResponse(sentence, false,
-                            "请在 " + formatRemainingTime(remainingSeconds) + " 后再" + (isUnlike
+                            "请在 " + TimeFormatUtils.formatRemainingTime(remainingSeconds) + " 后再" + (isUnlike
                                 ? "取消点赞" : "点赞"), "rate_limited"))
                     .defaultIfEmpty(buildErrorResponse())
                     .flatMap(response -> ServerResponse.ok().bodyValue(response));
@@ -254,7 +246,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
 
                     return client.update(sentence)
                         .flatMap(updated -> {
-                            likeCache.put(checkKey, System.currentTimeMillis());
+                            likeCache.put(checkKey, new SimpleCooldownState(System.currentTimeMillis()));
                             likeCache.remove(oppositeKey);
 
                             if (isUnlike) {
@@ -280,14 +272,8 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                             }
 
                             // 点赞：创建点赞记录
-                            CategoryViewRecord record = new CategoryViewRecord();
-                            record.setMetadata(new Metadata());
-                            record.getMetadata().setGenerateName("cvr-");
-                            record.setSpec(new CategoryViewRecord.Spec());
-                            record.getSpec().setCategoryName(sentence.getSpec().getCategoryName());
-                            record.getSpec().setSentenceName(name);
-                            record.getSpec().setIp(ip);
-                            record.getSpec().setEventType(CategoryViewRecord.EventType.LIKE);
+                            CategoryViewRecord record = CategoryViewRecordFactory.forLike(
+                                sentence.getSpec().getCategoryName(), name, ip);
                             return client.create(record)
                                 .thenReturn(buildLikeResponse(updated, true,
                                     "点赞成功", "ok"));
@@ -329,36 +315,14 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         return item;
     }
 
-    @Contract(pure = true)
-    private @NonNull String formatRemainingTime(long seconds) {
-        if (seconds < 60) {
-            return seconds + " 秒";
-        }
-        if (seconds < 3600) {
-            return (seconds / 60) + " 分钟";
-        }
-        return (seconds / 3600) + " 小时";
-    }
-
-    private String getClientIp(@NonNull ServerHttpRequest request) {
-        String forwardedFor = request.getHeaders().getFirst("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddress() != null ? request.getRemoteAddress().getAddress()
-                                                    .getHostAddress() : "unknown";
-    }
-
     // 清理过期的点赞缓存方法
     public void cleanExpiredLikeCache() {
         settingConfig.getBasicConfig().doOnNext(config -> {
             long now = System.currentTimeMillis();
             long cooldown = Duration.ofHours(config.getLikeCooldown()).toMillis();
-            int before = likeCache.size();
-            likeCache.entrySet().removeIf(entry -> (now - entry.getValue()) > cooldown);
-            int after = likeCache.size();
-            if (before != after) {
-                log.info("清理过期点赞缓存: {} -> {}", before, after);
+            int removed = likeCache.cleanIf(state -> state.isExpired(cooldown, now));
+            if (removed > 0) {
+                log.info("清理过期点赞缓存: 移除 {} 项", removed);
             }
         }).subscribe();
     }

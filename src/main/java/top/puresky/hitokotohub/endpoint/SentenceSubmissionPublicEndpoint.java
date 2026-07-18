@@ -9,13 +9,11 @@ import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Duration;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.server.RouterFunction;
@@ -29,6 +27,10 @@ import run.halo.app.extension.ReactiveExtensionClient;
 import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.SentenceSubmission;
+import top.puresky.hitokotohub.utils.BatchCooldownState;
+import top.puresky.hitokotohub.utils.HttpUtils;
+import top.puresky.hitokotohub.utils.IpCooldownCache;
+import top.puresky.hitokotohub.utils.TimeFormatUtils;
 
 @Component
 @RequiredArgsConstructor
@@ -44,16 +46,7 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
 
     private final SettingConfig settingConfig;
     private final ReactiveExtensionClient client;
-    private final Map<String, SubmissionCooldownState> submitCache = new ConcurrentHashMap<>();
-
-    private static class SubmissionCooldownState {
-        long firstSubmitTime;
-        int count;
-        SubmissionCooldownState(long firstSubmitTime) {
-            this.firstSubmitTime = firstSubmitTime;
-            this.count = 1;
-        }
-    }
+    private final IpCooldownCache<BatchCooldownState> submitCache = new IpCooldownCache<>();
 
     @Override
     public @NonNull RouterFunction<ServerResponse> endpoint() {
@@ -92,7 +85,7 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
     }
 
     private @NonNull Mono<ServerResponse> submitSentence(@NonNull ServerRequest request) {
-        String ip = getClientIp(request.exchange().getRequest());
+        String ip = HttpUtils.getClientIp(request.exchange().getRequest());
         return settingConfig.getSubmissionConfig()
             .flatMap(config -> {
                 if (!Boolean.TRUE.equals(config.getEnableSubmission())) {
@@ -108,22 +101,22 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
                 long cooldownMs = Duration.ofMinutes(cooldownMinutes).toMillis();
 
                 if (cooldownMinutes > 0) {
-                    SubmissionCooldownState state = submitCache.get(ip);
+                    BatchCooldownState state = submitCache.get(ip);
                     if (state != null) {
-                        long elapsed = now - state.firstSubmitTime;
+                        long elapsed = now - state.getFirstSubmitTime();
                         // 冷却周期已过，重置状态
                         if (elapsed >= cooldownMs) {
                             submitCache.remove(ip);
                             state = null;
                         }
                     }
-                    if (state != null && state.count >= batchLimit) {
+                    if (state != null && state.reachedBatchLimit(batchLimit)) {
                         // 已达连续提交上限，进入冷却
-                        long remainingMs = cooldownMs - (now - state.firstSubmitTime);
+                        long remainingMs = cooldownMs - (now - state.getFirstSubmitTime());
                         long remainingSeconds = remainingMs / 1000;
                         return ServerResponse.status(HttpStatus.TOO_MANY_REQUESTS)
                             .bodyValue(buildResponse(false, "rate_limited",
-                                "已达到连续提交上限，请在 " + formatRemainingTime(remainingSeconds)
+                                "已达到连续提交上限，请在 " + TimeFormatUtils.formatRemainingTime(remainingSeconds)
                                     + " 后再试"));
                     }
                 }
@@ -131,17 +124,17 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
                     .flatMap(submitRequest -> validateAndCreate(submitRequest, config, ip))
                     .doOnSuccess(v -> {
                         if (cooldownMinutes > 0) {
-                            SubmissionCooldownState state = submitCache.get(ip);
+                            BatchCooldownState state = submitCache.get(ip);
                             long currentTime = System.currentTimeMillis();
                             if (state == null) {
-                                submitCache.put(ip, new SubmissionCooldownState(currentTime));
+                                submitCache.put(ip, new BatchCooldownState(currentTime));
                             } else {
-                                long elapsed = currentTime - state.firstSubmitTime;
+                                long elapsed = currentTime - state.getFirstSubmitTime();
                                 if (elapsed >= cooldownMs) {
                                     // 冷却周期已过，重置计数
-                                    submitCache.put(ip, new SubmissionCooldownState(currentTime));
+                                    submitCache.put(ip, new BatchCooldownState(currentTime));
                                 } else {
-                                    state.count++;
+                                    state.increment();
                                 }
                             }
                         }
@@ -218,25 +211,6 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
         response.setCode(code);
         response.setMessage(message);
         return response;
-    }
-
-    private String getClientIp(@NonNull ServerHttpRequest request) {
-        String forwardedFor = request.getHeaders().getFirst("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddress() != null
-            ? request.getRemoteAddress().getAddress().getHostAddress() : "unknown";
-    }
-
-    private @NonNull String formatRemainingTime(long seconds) {
-        if (seconds < 60) {
-            return seconds + " 秒";
-        }
-        if (seconds < 3600) {
-            return (seconds / 60) + " 分钟";
-        }
-        return (seconds / 3600) + " 小时";
     }
 
     @Data

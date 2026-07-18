@@ -8,11 +8,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +30,7 @@ import run.halo.app.extension.GroupVersion;
 import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.Queries;
+import top.puresky.hitokotohub.endpoint.overview.EchartsDataBuilder;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.extension.Sentence;
@@ -45,6 +44,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
     private static final String GROUP_VERSION = "console.api.hitokotohub.puresky.top/v1alpha1";
 
     private final ReactiveExtensionClient client;
+    private final EchartsDataBuilder echartsDataBuilder;
 
     @Override
     public @NonNull RouterFunction<ServerResponse> endpoint() {
@@ -189,18 +189,14 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
 
                 if (!records.isEmpty()) {
                     Map<String, Map<String, Long>> aggregatedData =
-                        aggregateByGranularity(records, granularity);
+                        echartsDataBuilder.aggregateByGranularity(records, granularity);
                     List<ViewStatisticsResponse.TimePoint> timePoints =
-                        buildTimePoints(aggregatedData, nameMap);
+                        echartsDataBuilder.buildTimePoints(aggregatedData, nameMap);
                     response.setTimeSeries(timePoints);
-                    response.setEchartsData(buildEchartsData(timePoints));
+                    response.setEchartsData(echartsDataBuilder.buildEchartsData(timePoints));
                 } else {
                     response.setTimeSeries(new ArrayList<>());
-                    ViewStatisticsResponse.EChartsData emptyECharts =
-                        new ViewStatisticsResponse.EChartsData();
-                    emptyECharts.setXAxis(new ArrayList<>());
-                    emptyECharts.setSeries(new ArrayList<>());
-                    response.setEchartsData(emptyECharts);
+                    response.setEchartsData(echartsDataBuilder.buildEchartsData(new ArrayList<>()));
                 }
 
                 return ServerResponse.ok().bodyValue(response);
@@ -330,107 +326,6 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
                     });
             })
             ;
-    }
-
-    private Map<String, Map<String, Long>> aggregateByGranularity(List<CategoryViewRecord> records,
-        String granularity) {
-        DateTimeFormatter formatter = switch (granularity) {
-            case "week" -> DateTimeFormatter.ofPattern("yyyy-'W'ww");
-            case "month" -> DateTimeFormatter.ofPattern("yyyy-MM");
-            default -> DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        };
-
-        return records.stream()
-            .collect(Collectors.groupingBy(
-                record -> {
-                    Instant timestamp = record.getMetadata().getCreationTimestamp();
-                    LocalDate date = timestamp.atZone(ZoneId.systemDefault()).toLocalDate();
-                    return formatter.format(date);
-                },
-                LinkedHashMap::new,
-                Collectors.groupingBy(
-                    record -> record.getSpec().getCategoryName() != null ? record.getSpec()
-                        .getCategoryName() : "未知分类",
-                    Collectors.counting()
-                )
-            ));
-    }
-
-    private List<ViewStatisticsResponse.TimePoint> buildTimePoints(
-        Map<String, Map<String, Long>> aggregatedData,
-        Map<String, String> nameMap) {
-        List<ViewStatisticsResponse.TimePoint> timePoints = new ArrayList<>();
-        for (Map.Entry<String, Map<String, Long>> entry : aggregatedData.entrySet()) {
-            ViewStatisticsResponse.TimePoint point = new ViewStatisticsResponse.TimePoint();
-            point.setTime(entry.getKey());
-            long totalCount = entry.getValue().values().stream().mapToLong(Long::longValue).sum();
-            point.setTotalCount(totalCount);
-            List<ViewStatisticsResponse.CategoryDetail> details = new ArrayList<>();
-            for (Map.Entry<String, Long> categoryEntry : entry.getValue().entrySet()) {
-                ViewStatisticsResponse.CategoryDetail detail =
-                    new ViewStatisticsResponse.CategoryDetail();
-                detail.setCategoryName(categoryEntry.getKey());
-                detail.setDisplayName(
-                    nameMap.getOrDefault(categoryEntry.getKey(), categoryEntry.getKey()));
-                detail.setCount(categoryEntry.getValue());
-                details.add(detail);
-            }
-            point.setDetails(details);
-            timePoints.add(point);
-        }
-        return timePoints;
-    }
-
-    private ViewStatisticsResponse.EChartsData buildEchartsData(
-        List<ViewStatisticsResponse.TimePoint> timePoints) {
-        if (timePoints.isEmpty()) {
-            ViewStatisticsResponse.EChartsData empty = new ViewStatisticsResponse.EChartsData();
-            empty.setXAxis(new ArrayList<>());
-            empty.setSeries(new ArrayList<>());
-            return empty;
-        }
-
-        Set<String> allCategories = new LinkedHashSet<>();
-        for (ViewStatisticsResponse.TimePoint point : timePoints) {
-            for (ViewStatisticsResponse.CategoryDetail detail : point.getDetails()) {
-                allCategories.add(detail.getCategoryName());
-            }
-        }
-
-        List<String> xAxis = timePoints.stream()
-            .map(ViewStatisticsResponse.TimePoint::getTime)
-            .collect(Collectors.toList());
-
-        List<ViewStatisticsResponse.EChartsSeries> series = new ArrayList<>();
-        for (String categoryName : allCategories) {
-            ViewStatisticsResponse.EChartsSeries serie = new ViewStatisticsResponse.EChartsSeries();
-            serie.setName(categoryName);
-            serie.setType("line");
-            String displayName = timePoints.stream()
-                .flatMap(point -> point.getDetails().stream())
-                .filter(d -> d.getCategoryName().equals(categoryName))
-                .map(ViewStatisticsResponse.CategoryDetail::getDisplayName)
-                .findFirst()
-                .orElse(categoryName);
-            serie.setDisplayName(displayName);
-            List<Long> data = new ArrayList<>();
-            for (ViewStatisticsResponse.TimePoint point : timePoints) {
-                long count = point.getDetails().stream()
-                    .filter(d -> d.getCategoryName().equals(categoryName))
-                    .mapToLong(ViewStatisticsResponse.CategoryDetail::getCount)
-                    .findFirst()
-                    .orElse(0L);
-                data.add(count);
-            }
-            serie.setData(data);
-            serie.setSmooth(true);
-            series.add(serie);
-        }
-
-        ViewStatisticsResponse.EChartsData echartsData = new ViewStatisticsResponse.EChartsData();
-        echartsData.setXAxis(xAxis);
-        echartsData.setSeries(series);
-        return echartsData;
     }
 
     @Data

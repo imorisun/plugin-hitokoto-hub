@@ -344,7 +344,6 @@
 import {
   Dialog,
   IconRefreshLine,
-  Toast,
   VButton,
   VCard,
   VDropdownItem,
@@ -362,6 +361,9 @@ import {utils} from '@halo-dev/ui-shared'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import {axiosInstance} from '@halo-dev/api-client'
 import {categoryCoreApiClient} from '@/api'
+import {useToast} from '@/composables/useToast'
+
+const toast = useToast()
 
 interface SentenceSubmission {
   apiVersion: string
@@ -476,7 +478,7 @@ const fetchSubmissions = async () => {
     total.value = data.total || 0
   } catch (e) {
     console.error('获取访客提交列表失败', e)
-    Toast.error('加载访客提交列表失败')
+    toast.error('加载访客提交列表失败')
   } finally {
     loading.value = false
   }
@@ -567,11 +569,11 @@ const handleDetailReject = () => {
 const handleSubmitApprove = async () => {
   if (!reviewingSubmission.value) return
   if (!approveForm.value.content.trim()) {
-    Toast.error('请输入句子内容')
+    toast.error('请输入句子内容')
     return
   }
   if (!approveForm.value.categoryName) {
-    Toast.error('请选择分类')
+    toast.error('请选择分类')
     return
   }
   reviewing.value = true
@@ -594,12 +596,12 @@ const handleSubmitApprove = async () => {
       `/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence-submissions/${name}/approve`,
       body,
     )
-    Toast.success('已通过并加入句子库')
+    toast.success('已通过并加入句子库')
     showApproveModal.value = false
     await fetchSubmissions()
   } catch (e: any) {
     const msg = e?.response?.data?.message || '审核操作失败'
-    Toast.error(msg)
+    toast.error(msg)
   } finally {
     reviewing.value = false
   }
@@ -618,12 +620,12 @@ const handleSubmitReject = async () => {
       `/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence-submissions/${name}/reject`,
       body,
     )
-    Toast.success('已拒绝该提交')
+    toast.success('已拒绝该提交')
     showRejectModal.value = false
     await fetchSubmissions()
   } catch (e: any) {
     const msg = e?.response?.data?.message || '审核操作失败'
-    Toast.error(msg)
+    toast.error(msg)
   } finally {
     reviewing.value = false
   }
@@ -641,12 +643,12 @@ const handleDelete = (submission: SentenceSubmission) => {
         await axiosInstance.delete(
           `/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence-submissions/${submission.metadata.name}`,
         )
-        Toast.success('删除成功')
+        toast.success('删除成功')
         await fetchSubmissionsSilently()
         startDeletionRefetch()
       } catch (e: any) {
         const msg = e?.response?.data?.message || '删除失败'
-        Toast.error(msg)
+        toast.error(msg)
       }
     },
   })
@@ -711,7 +713,8 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '../styles/variables.scss' as *;
 .sentence-card-header {
   display: flex;
   flex: 1 1 auto;
@@ -748,7 +751,7 @@ onUnmounted(() => {
 }
 
 .submission-content:hover {
-  color: #fb7185;
+  color: $rose-500;
 }
 
 .detail-grid {

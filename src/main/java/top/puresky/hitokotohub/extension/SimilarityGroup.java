@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import top.puresky.hitokotohub.service.similarity.SentenceProfile;
+import top.puresky.hitokotohub.service.similarity.SentenceScorer;
 
 /**
  * 相似句子分组结果（非 Extension，仅用于 API 响应）
@@ -41,58 +43,22 @@ public class SimilarityGroup {
 
     /**
      * 对句子进行综合质量评分，用于选出组内最优句子。
-     * 
-     * 评分规则：
+     *
+     * <p>评分规则：
      * - 已发布：+40
      * - 点赞数 * 2（社区认可）
      * - 浏览量 / 10（受欢迎程度）
      * - 内容长度 15~80 字：+15（"一言"理想长度），>80 字：+8
      * - 有作者（非匿名）：+10
      * - 有来源（非未知）：+5
+     *
+     * @deprecated 评分逻辑已迁至 {@link SentenceScorer#score(SentenceProfile)}，
+     *             此方法仅保留向后兼容，内部委托 SentenceScorer 实现。
+     *             新代码应直接使用 {@code SentenceScorer.score(SentenceProfile.from(sentence))}。
      */
+    @Deprecated
     public static double scoreSentence(Sentence sentence) {
-        double score = 0;
-
-        // 发布状态
-        if (sentence.getStatus() != null && sentence.getStatus().isPublished()) {
-            score += 40;
-        }
-
-        // 点赞数
-        if (sentence.getStatus() != null && sentence.getStatus().getLikeCount() > 0) {
-            score += sentence.getStatus().getLikeCount() * 2;
-        }
-
-        // 浏览量
-        if (sentence.getStatus() != null && sentence.getStatus().getViewCount() > 0) {
-            score += (double) sentence.getStatus().getViewCount() / 10;
-        }
-
-        // 内容长度
-        if (sentence.getSpec() != null && sentence.getSpec().getContent() != null) {
-            int len = sentence.getSpec().getContent().trim().length();
-            if (len >= 15 && len <= 80) {
-                score += 15;
-            } else if (len > 80) {
-                score += 8;
-            }
-        }
-
-        // 有作者
-        if (sentence.getSpec() != null && sentence.getSpec().getAuthor() != null
-            && !sentence.getSpec().getAuthor().isBlank()
-            && !"匿名".equals(sentence.getSpec().getAuthor())) {
-            score += 10;
-        }
-
-        // 有来源
-        if (sentence.getSpec() != null && sentence.getSpec().getSource() != null
-            && !sentence.getSpec().getSource().isBlank()
-            && !"未知".equals(sentence.getSpec().getSource())) {
-            score += 5;
-        }
-
-        return Math.round(score * 100.0) / 100.0;
+        return SentenceScorer.score(SentenceProfile.from(sentence));
     }
 
     // ==================== 内嵌类 ====================

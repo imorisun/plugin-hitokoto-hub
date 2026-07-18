@@ -165,7 +165,7 @@
               </div>
               <!-- 加载中 -->
               <div v-if="groupLoading" class="sim-loading">
-                <el-icon :size="24" class="is-loading" color="#fb7185"><Loading/></el-icon>
+                <el-icon :size="24" class="is-loading rose-icon"><Loading/></el-icon>
                 <p class="sim-loading-text">正在加载分组数据...</p>
               </div>
               <!-- 分组列表 -->
@@ -291,7 +291,7 @@
     <!-- 检查中 -->
     <VCard v-else-if="latestLog && latestLog.spec.status === 'RUNNING'" :body-class="['!p-0']">
       <div class="sim-loading">
-        <el-icon :size="32" class="is-loading" color="#fb7185"><Loading/></el-icon>
+        <el-icon :size="32" class="is-loading rose-icon"><Loading/></el-icon>
         <p class="sim-loading-text">正在执行相似度检查...</p>
       </div>
     </VCard>
@@ -319,7 +319,6 @@
 <script setup lang="ts">
 import {
   Dialog,
-  Toast,
   VButton,
   VCard,
   VTag,
@@ -344,6 +343,9 @@ import {GridComponent, TooltipComponent, VisualMapComponent} from 'echarts/compo
 import {CanvasRenderer} from 'echarts/renderers'
 import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
 import type {Category} from '@/api/generated'
+import {useToast} from '@/composables/useToast'
+
+const toast = useToast()
 
 use([HeatmapChart, GridComponent, TooltipComponent, VisualMapComponent, CanvasRenderer])
 
@@ -591,11 +593,11 @@ const handleTriggerCheck = async () => {
       null,
       {params: {algorithm: checkAlgorithm.value, threshold: checkThreshold.value}},
     )
-    Toast.success('检查任务已触发')
+    toast.success('检查任务已触发')
     await fetchLatestLog()
     startCheckPolling()
   } catch (e: any) {
-    Toast.error(e?.response?.data?.message || '触发检查失败')
+    toast.error(e?.response?.data?.message || '触发检查失败')
   } finally {
     triggering.value = false
   }
@@ -638,12 +640,12 @@ const handleDeleteSentence = (name: string, content: string) => {
       deletingSentence.value = name
       try {
         await sentenceCoreApiClient.sentence.deleteSentence({name})
-        Toast.success('删除成功')
+        toast.success('删除成功')
         // 乐观更新：直接从本地 groups 中移除该句子，保持排序不变
         removeSentenceFromGroups(name)
       } catch (e) {
         console.error('删除失败', e)
-        Toast.error('删除失败')
+        toast.error('删除失败')
       } finally {
         deletingSentence.value = null
       }
@@ -706,7 +708,7 @@ const removeSentenceFromGroups = (name: string) => {
 
 const handleBatchDeleteNonOptimal = () => {
   if (groupTotal.value === 0) {
-    Toast.info('没有可删除的非最优句子')
+    toast.info('没有可删除的非最优句子')
     return
   }
   Dialog.warning({
@@ -721,13 +723,13 @@ const handleBatchDeleteNonOptimal = () => {
         const {data} = await axiosInstance.post<{message: string; deleted: number}>(
           `${BASE}/similarity-check-groups/-/delete-nonoptimal`,
         )
-        Toast.success(data.message || '批量删除完成')
+        toast.success(data.message || '批量删除完成')
         // 重新加载数据
         groupPage.value = 1
         await fetchLatestLog()
         await fetchGroups()
       } catch (e: any) {
-        Toast.error(e?.response?.data?.message || '批量删除失败')
+        toast.error(e?.response?.data?.message || '批量删除失败')
       } finally {
         batchDeleting.value = false
       }
@@ -784,8 +786,12 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '../styles/variables.scss' as *;
 /* ============================ 基础 ============================ */
+.rose-icon {
+  color: $rose-500;
+}
 .sim-page {
   display: flex;
   flex-direction: column;
@@ -886,7 +892,7 @@ onUnmounted(() => {
   min-width: 30px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: #fb7185;
+  background: $rose-500;
   color: #fff;
   font-size: 11px;
   font-weight: 600;
@@ -928,7 +934,7 @@ onUnmounted(() => {
 .sim-progress-fill {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, #fb7185, #f43f5e, #fb7185);
+  background: linear-gradient(90deg, $rose-500, #f43f5e, $rose-500);
   background-size: 200% 100%;
   animation: sim-shimmer 1.5s linear infinite;
   border-radius: 2px;
@@ -1062,7 +1068,7 @@ onUnmounted(() => {
 
 .sim-tab.active {
   background: #fff;
-  color: #fb7185;
+  color: $rose-500;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
@@ -1206,7 +1212,7 @@ onUnmounted(() => {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #fb7185;
+  background: $rose-500;
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -1419,12 +1425,12 @@ onUnmounted(() => {
 }
 
 :deep(.el-slider__bar) {
-  background: #fb7185;
+  background: $rose-500;
   height: 4px;
 }
 
 :deep(.el-slider__button) {
-  border-color: #fb7185;
+  border-color: $rose-500;
   width: 14px;
   height: 14px;
 }

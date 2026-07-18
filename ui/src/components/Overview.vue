@@ -407,10 +407,13 @@ import {use} from 'echarts/core'
 import {BarChart, LineChart, PieChart} from 'echarts/charts'
 import {GridComponent, LegendComponent, TitleComponent, TooltipComponent} from 'echarts/components'
 import {CanvasRenderer} from 'echarts/renderers'
-import {Toast, VButton, VCard, VModal} from "@halo-dev/components"
+import {VButton, VCard, VModal} from "@halo-dev/components"
 import {overviewV1alpha1ApiClient} from "@/api"
 import IconLike from '~icons/my-icons/like';
 import {axiosInstance} from "@halo-dev/api-client";
+import {useToast} from "@/composables/useToast"
+
+const toast = useToast()
 
 // 注册 ECharts 组件
 use([PieChart, BarChart, LineChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
@@ -684,7 +687,7 @@ const fetchViewStats = async () => {
     viewStatsData.value = response.data as any
   } catch (error) {
     console.error('获取浏览量统计数据失败:', error)
-    Toast.error('获取浏览量统计数据失败')
+    toast.error('获取浏览量统计数据失败')
   } finally {
     viewStatsLoading.value = false
   }
@@ -692,9 +695,9 @@ const fetchViewStats = async () => {
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).then(() => {
-    Toast.success("已复制到剪贴板");
+    toast.success("已复制到剪贴板");
   }).catch(() => {
-    Toast.error("复制失败");
+    toast.error("复制失败");
   });
 }
 
@@ -873,7 +876,7 @@ const loadDetailByMetric = async (metricType: MetricType) => {
     }
   } catch (error) {
     console.error('获取详细统计数据失败:', error)
-    Toast.error('获取详细统计数据失败')
+    toast.error('获取详细统计数据失败')
   } finally {
     detailLoading.value = false
   }
@@ -886,7 +889,8 @@ const handleStatClick = async (metricType: MetricType) => {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '../styles/variables.scss' as *;
 @media (min-width: 1024px) {
   .charts-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -1112,7 +1116,7 @@ const handleStatClick = async (metricType: MetricType) => {
 }
 
 .detail-breakdown-row:first-child .detail-breakdown-rank {
-  background: #fb7185;
+  background: $rose-500;
   color: #fff;
 }
 
@@ -1286,7 +1290,7 @@ const handleStatClick = async (metricType: MetricType) => {
 
 /* 排名徽章额外样式 */
 .detail-breakdown-rank.is-first {
-  background: #fb7185;
+  background: $rose-500;
   color: #fff;
 }
 
@@ -1296,7 +1300,7 @@ const handleStatClick = async (metricType: MetricType) => {
 
 .detail-breakdown-row:first-child .detail-breakdown-rank,
 .detail-breakdown-rank.is-first {
-  background: #fb7185;
+  background: $rose-500;
   color: #fff;
 }
 

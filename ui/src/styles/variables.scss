@@ -1,0 +1,20 @@
+// Rose 配色（项目硬约束：暗色 + rose #fb7185 + 玻璃拟态）
+$rose-300: #fda4af;
+$rose-500: #fb7185;
+$rose-600: #e11d48;
+$rose-700: #be123c;
+
+// z-index 层级（项目硬约束：modal 300, dropdown 400, toast 500）
+$z-index-modal: 300;
+$z-index-dropdown: 400;
+$z-index-toast: 500;
+
+// :root CSS 变量（供 JS 与原生 CSS 使用，与 hitokoto.html 步骤 8 共享）
+:root {
+  --hitokoto-rose-300: #{$rose-300};
+  --hitokoto-rose-500: #{$rose-500};
+  --hitokoto-rose-600: #{$rose-600};
+  --z-modal: #{$z-index-modal};
+  --z-dropdown: #{$z-index-dropdown};
+  --z-toast: #{$z-index-toast};
+}
