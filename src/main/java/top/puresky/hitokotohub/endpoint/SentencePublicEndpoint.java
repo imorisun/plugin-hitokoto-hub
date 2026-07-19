@@ -84,7 +84,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         return GroupVersion.parseAPIVersion(GROUP_VERSION);
     }
 
-    private Mono<ServerResponse> getRandomSentences(ServerRequest request) {
+    Mono<ServerResponse> getRandomSentences(ServerRequest request) {
         return settingConfig.getBasicConfig().flatMap(config -> {
             String categoryNameParam = request.queryParam("categoryName")
                 .filter(StringUtils::isNotBlank).orElse(null);
@@ -211,7 +211,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
             .then(Mono.just(sentences));
     }
 
-    private @NonNull Mono<ServerResponse> toggleLike(@NonNull ServerRequest request) {
+    @NonNull Mono<ServerResponse> toggleLike(@NonNull ServerRequest request) {
         String name = request.queryParam("name").orElse("");
         String action = request.queryParam("action").orElse("like");
         String ip = HttpUtils.getClientIp(request.exchange().getRequest());

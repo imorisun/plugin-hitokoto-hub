@@ -60,7 +60,7 @@
                           v-tooltip="'删除中'"
                   />
                   <VTag>
-                    {{ category.status?.sentenceCount ?? 0 }} 条句子
+                    {{ category.sentenceCount ?? 0 }} 条句子
                   </VTag>
                 </div>
               </template>
@@ -103,7 +103,7 @@
               <template #description>
                 <div class="flex items-center gap-1.5">
                   <VTag>
-                    {{ uncategorizedCategory.status?.sentenceCount ?? 0 }} 条句子
+                    {{ uncategorizedCategory.sentenceCount ?? 0 }} 条句子
                   </VTag>
                 </div>
               </template>
@@ -186,6 +186,7 @@
 import {onMounted, onUnmounted, ref, watch, computed} from 'vue'
 import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
 import type {Category} from '@/api/generated'
+import type {CategoryWithCount} from '@/api'
 import {
   Dialog,
   IconAddCircle,
@@ -208,7 +209,7 @@ import {useToast} from '@/composables/useToast'
 const toast = useToast()
 
 const loading = ref(false)
-const categories = ref<Category[]>([])
+const categories = ref<CategoryWithCount[]>([])
 const saving = ref(false)
 
 // 存储正在删除的分类名称（本地标记，避免重复调用 API）
@@ -270,7 +271,7 @@ const stopPolling = () => {
 // 静默刷新（不显示 loading）
 async function fetchCategoriesSilently() {
   try {
-    const { data } = await categoryCoreApiClient.category.listCategory({
+    const { data } = await categoryCoreApiClient.listCategoriesWithCounts({
       page: page.value,
       size: size.value,
     })
@@ -306,7 +307,7 @@ async function fetchCategoriesSilently() {
 async function fetchCategories() {
   loading.value = true
   try {
-    const { data } = await categoryCoreApiClient.category.listCategory({
+    const { data } = await categoryCoreApiClient.listCategoriesWithCounts({
       page: page.value,
       size: size.value,
     })

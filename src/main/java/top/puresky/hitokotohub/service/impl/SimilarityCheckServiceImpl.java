@@ -12,12 +12,14 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+import reactor.util.retry.Retry;
 import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.Metadata;
 import run.halo.app.extension.ReactiveExtensionClient;
 import top.puresky.hitokotohub.extension.Sentence;
 import top.puresky.hitokotohub.extension.SimilarityCheckLog;
 import top.puresky.hitokotohub.service.SimilarityCheckService;
+import top.puresky.hitokotohub.service.dto.BatchDeleteResult;
 import top.puresky.hitokotohub.service.similarity.SentencePair;
 import top.puresky.hitokotohub.service.similarity.SentencePairJsonCodec;
 import top.puresky.hitokotohub.service.similarity.SentenceProfile;
@@ -34,7 +36,7 @@ import top.puresky.hitokotohub.service.similarity.SimilarityGroupBuilder;
  *   <li>按句子质量评分选出每组最优句子，支持批量删除非最优句子</li>
  * </ul>
  *
- * <p>本类仅保留编排逻辑（日志管理、数据访问、串行删除），算法实现已迁出至
+ * <p>本类仅保留编排逻辑（日志管理、数据访问、批量并发删除），算法实现已迁出至
  * {@code service.similarity} 包，保持算法层零 Spring/Extension 依赖。
  *
  * <p>性能特征：
@@ -95,6 +97,10 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
      * {@inheritDoc}
      *
      * <p>从最新成功日志中解析相似对，使用并查集分组，过滤已删除句子后分页返回。
+     *
+     * <p>容错设计：批量删除后 Halo 索引可能短暂未就绪，
+     * 使用指数退避重试（3 次，200ms 起，1s 上限）自动等待索引恢复后返回正确数据。
+     * 重试耗尽后降级为空结果，避免阻塞前端渲染。
      */
     @Override
     public Mono<Map<String, Object>> getGroups(int page, int size) {
@@ -102,7 +108,14 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
             .flatMap(latestLog -> Mono.fromCallable(() ->
                 buildGroupsResult(latestLog, page, size))
                 .subscribeOn(Schedulers.boundedElastic()))
-            .switchIfEmpty(Mono.just(groupBuilder.emptyResult(page, size)));
+            .switchIfEmpty(Mono.just(groupBuilder.emptyResult(page, size)))
+            .retryWhen(Retry.backoff(3, Duration.ofMillis(200))
+                .maxBackoff(Duration.ofSeconds(1))
+                .onRetryExhaustedThrow((spec, signal) -> signal.failure()))
+            .onErrorResume(e -> {
+                log.warn("获取分组结果失败（已重试3次），返回空分组", e);
+                return Mono.just(groupBuilder.emptyResult(page, size));
+            });
     }
 
     /**
@@ -113,28 +126,41 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
      *   <li>从最新成功日志获取算法和阈值</li>
      *   <li>重新计算完整相似对列表（不受 {@link #MAX_STORED_PAIRS} 限制）</li>
      *   <li>并查集分组，每组保留评分最高的句子</li>
-     *   <li>串行删除非最优句子（避免 Category 乐观锁冲突）</li>
+     *   <li>批量并发删除非最优句子（concurrency=16）</li>
      * </ol>
+     *
+     * <p>注意：删除句子不会修改 SimilarityCheckLog。日志作为检查时刻的快照，
+     * similarPairCount / similarPairs 保持原值直到下次相似度检查重算。
+     * 前端分组视图通过 SimilarityGroupBuilder 的 profileMap 自动过滤已删除句子。
      */
     @Override
-    public Mono<Integer> deleteNonOptimalSentences() {
+    public Mono<BatchDeleteResult> deleteNonOptimalSentences() {
         return getLatestSuccessLog()
             .flatMap(latestLog -> {
-                if (latestLog == null) {
-                    return Mono.just(0);
-                }
                 String algorithm = latestLog.getSpec().getAlgorithm();
                 double threshold = latestLog.getSpec().getThreshold();
-                return fetchAllSentences().flatMap(sentences -> {
-                    if (sentences.isEmpty()) {
-                        return Mono.just(0);
-                    }
-                    return Mono.fromCallable(() ->
-                        collectNonOptimalNames(sentences, algorithm, threshold))
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .flatMap(this::deleteSentencesSerially);
-                });
-            });
+                String logName = latestLog.getMetadata().getName();
+                log.info("批量删除：开始处理，log={}, algorithm={}, threshold={}",
+                    logName, algorithm, threshold);
+                return fetchAllSentences()
+                    .doOnError(e -> log.error("获取句子列表失败, log={}", logName, e))
+                    .flatMap(sentences -> {
+                        if (sentences.isEmpty()) {
+                            log.info("批量删除：无句子可处理, log={}", logName);
+                            return Mono.just(BatchDeleteResult.empty("无句子可处理"));
+                        }
+                        return Mono.fromCallable(() ->
+                            collectNonOptimalNames(sentences, algorithm, threshold))
+                            .subscribeOn(Schedulers.boundedElastic())
+                            .doOnError(e ->
+                                log.error("收集非最优句子名称失败, log={}", logName, e))
+                            .flatMap(names -> deleteSentencesInBatch(names, logName));
+                    });
+            })
+            .switchIfEmpty(Mono.fromSupplier(() -> {
+                log.info("批量删除：无 SUCCESS 状态的检查日志，跳过");
+                return BatchDeleteResult.empty("无相似度检查日志，请先触发检查");
+            }));
     }
 
     // ===================== 检查执行 =====================
@@ -254,29 +280,107 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
     }
 
     /**
-     * 串行删除句子，避免并发触发 reconciler 导致 Category 乐观锁冲突。
+     * 批量并发删除句子（concurrency=16，与 StatsCleanupScheduler 一致）。
      *
-     * <p>单条删除失败时跳过，不中断整体流程（项目硬约束）。
+     * <p>不再串行：SentenceReconciler 已不再维护 Category.Status 缓存，
+     * 并发删除不会触发 Category 乐观锁冲突。
+     *
+     * <p>单条删除失败时跳过，不中断整体流程（项目硬约束）：
+     * <ul>
+     *   <li>{@code client.fetch} 返回 empty（句子已被并发删除）→ {@code defaultIfEmpty(false)} 计入 {@code failed}</li>
+     *   <li>{@code client.delete} 单条抛异常 → {@code onErrorResume} 跳过，计入 {@code failed}</li>
+     * </ul>
+     *
+     * <p>计数策略：用 {@code reduce(new int[]{0, 0}, ...)} 累加 {@code [deleted, failed]}，
+     * 通过 {@code thenReturn(true)} 不依赖 {@code client.delete} 的返回值类型
+     * （Halo 的 ReactiveExtensionClient.delete 可能返回 {@code Mono<Void>} 或被删对象）。
+     *
+     * @param names   待删除句子名称集合
+     * @param logName 触发本次删除的检查日志名称（仅用于日志关联，可为空）
+     * @return {@link BatchDeleteResult}，含 total/deleted/failed/message
      */
-    private Mono<Integer> deleteSentencesSerially(Set<String> names) {
-        if (names.isEmpty()) {
-            return Mono.just(0);
+    private Mono<BatchDeleteResult> deleteSentencesInBatch(Set<String> names, String logName) {
+        int total = names.size();
+        if (total == 0) {
+            log.info("批量删除：无非最优句子待删除, log={}", logName);
+            return Mono.just(BatchDeleteResult.empty("无非最优句子需要删除"));
         }
-        log.info("批量删除非最优句子，共 {} 个待删除", names.size());
+        log.info("批量删除：共 {} 个待删除, log={}", total, logName);
 
         return Flux.fromIterable(names)
-            .concatMap(name -> client.fetch(Sentence.class, name)
+            .flatMap(name -> client.fetch(Sentence.class, name)
                 .flatMap(s -> client.delete(s)
+                    .thenReturn(Map.entry(name, true))
                     .onErrorResume(e -> {
                         log.warn("删除句子 {} 失败: {}", name, e.getMessage());
-                        return Mono.empty();
+                        return Mono.just(Map.entry(name, false));
                     }))
-                .switchIfEmpty(Mono.empty()))
-            .count()
-            .map(Long::intValue)
-            .delayElement(Duration.ofSeconds(1))
-            .doOnSuccess(count ->
-                log.info("批量删除非最优句子完成，共删除 {} 个句子", count));
+                .defaultIfEmpty(Map.entry(name, false)), 16)
+            .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+            .flatMap(nameToSuccess -> {
+                long deletedCount = nameToSuccess.values().stream()
+                    .filter(Boolean.TRUE::equals).count();
+                long failedCount = total - deletedCount;
+                log.info("批量删除完成：log={}, total={}, deleted={}, failed={}",
+                    logName, total, deletedCount, failedCount);
+                BatchDeleteResult result =
+                    BatchDeleteResult.of(total, (int) deletedCount, (int) failedCount);
+
+                // 只验证真正删除成功的句子，跳过删除失败的
+                Set<String> deletedNames = nameToSuccess.entrySet().stream()
+                    .filter(Map.Entry::getValue)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet());
+                if (deletedNames.isEmpty()) {
+                    return Mono.just(result);
+                }
+                return ensureSentencesGone(deletedNames, logName).thenReturn(result);
+            });
+    }
+
+    /**
+     * 验证被删句子是否已从存储中消失。
+     *
+     * <p>Halo 扩展存储在批量并发删除后索引更新存在短暂延迟，
+     * 若 {@link #fetchAllSentences()} 仍返回已删句子，说明索引尚未同步完成。
+     * 通过指数退避重试（最多 10 次，100ms 起，500ms 上限）等待索引就绪，
+     * 确保 {@code deleteNonOptimalSentences} 返回时被删数据已不可见。
+     *
+     * @param names   被删句子名称集合
+     * @param logName 关联的检查日志名称
+     * @return 验证完成（无数据）Mono
+     */
+    private Mono<Void> ensureSentencesGone(Set<String> names, String logName) {
+        return Mono.defer(() -> fetchAllSentences()
+                .flatMap(sentences -> {
+                    long remaining = sentences.stream()
+                        .filter(s -> names.contains(s.getMetadata().getName()))
+                        .count();
+                    if (remaining == 0) {
+                        return Mono.empty();
+                    }
+                    log.debug("等待 Halo 索引同步，仍有 {} 个句子未消失, log={}",
+                        remaining, logName);
+                    return Mono.error(new IndexNotReadyException(
+                        remaining + " 个句子索引尚未更新"));
+                }))
+            .retryWhen(Retry.backoff(10, Duration.ofMillis(100))
+                .maxBackoff(Duration.ofMillis(500))
+                .onRetryExhaustedThrow((spec, signal) -> {
+                    log.warn("索引同步超时（已重试10次），仍有句子未消失, log={}", logName);
+                    return signal.failure();
+                }))
+            .then();
+    }
+
+    /**
+     * 内部异常：表示 Halo 扩展存储索引尚未完成更新。
+     * 用于 {@link #ensureSentencesGone} 的重试控制，不对外暴露。
+     */
+    private static final class IndexNotReadyException extends RuntimeException {
+        IndexNotReadyException(String message) {
+            super(message);
+        }
     }
 
     // ===================== 数据访问 =====================

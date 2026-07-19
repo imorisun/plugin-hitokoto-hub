@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,8 @@ import top.puresky.hitokotohub.endpoint.overview.EchartsDataBuilder;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.extension.Sentence;
+import top.puresky.hitokotohub.service.CategoryCountService;
+import top.puresky.hitokotohub.service.dto.CategoryStats;
 
 @Component
 @RequiredArgsConstructor
@@ -45,6 +48,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
 
     private final ReactiveExtensionClient client;
     private final EchartsDataBuilder echartsDataBuilder;
+    private final CategoryCountService categoryCountService;
 
     @Override
     public @NonNull RouterFunction<ServerResponse> endpoint() {
@@ -72,68 +76,90 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
         return GroupVersion.parseAPIVersion(GROUP_VERSION);
     }
 
+    /**
+     * 获取概览信息(优化版,消除 N+1 查询)。
+     *
+     * <p>原实现:3 次 countBy + 每分类 3 次 countBy = 3+3C 次查询(C=分类数)。
+     * <p>现实现:3 次并行 listAll(Category/Sentence/CategoryViewRecord) + 内存聚合 = 3 次查询。
+     * <p>对 C=20 分类场景,查询数从 63 降至 3(约 21x),且全部并行。
+     */
     private @NonNull Mono<ServerResponse> getOverview(ServerRequest request) {
-        Mono<Long> sentenceCount = client.countBy(Sentence.class, ListOptions.builder().build());
-        Mono<Long> categoryCount = client.countBy(Category.class, ListOptions.builder().build());
-        Mono<Long> publishedSentenceCount = client.countBy(Sentence.class,
-            ListOptions.builder().fieldQuery(Queries.equal("status.isPublished", true)).build());
-        Mono<List<OverviewResponse.CategoryDistribution>> categoryDistribution =
-            client.listAll(Category.class, ListOptions.builder().build(), Sort.unsorted())
-                .flatMap(category -> {
-                    OverviewResponse.CategoryDistribution dist =
-                        new OverviewResponse.CategoryDistribution();
-                    String categoryName = category.getMetadata().getName();
-                    String displayName = category.getSpec().getName();
-                    long totalCount = category.getStatus().getSentenceCount();
+        // 3 个并行查询,消除 N+1:
+        // 1. listAll(Category) → 分类列表 + 显示名
+        // 2. categoryCountService.getCategoryStats() → 每分类 {total, published}(内含单次 listAll(Sentence))
+        // 3. listAll(CategoryViewRecord) → 内存按 (categoryName, eventType) 分组得 view/like 计数
+        Mono<List<Category>> categoriesMono = client.listAll(Category.class,
+            ListOptions.builder().build(), Sort.unsorted()).collectList();
+        Mono<Map<String, CategoryStats>> statsMono = categoryCountService.getCategoryStats();
+        Mono<List<CategoryViewRecord>> viewRecordsMono = client.listAll(CategoryViewRecord.class,
+            ListOptions.builder().build(), Sort.unsorted()).collectList();
 
-                    dist.setCategoryName(categoryName);
-                    dist.setDisplayName(displayName);
-                    dist.setCount(totalCount);
+        return Mono.zip(categoriesMono, statsMono, viewRecordsMono)
+            .map(tuple -> buildOverviewResponse(tuple.getT1(), tuple.getT2(), tuple.getT3()))
+            .flatMap(response -> ServerResponse.ok().bodyValue(response));
+    }
 
-                    return client.countBy(Sentence.class, ListOptions.builder()
-                            .fieldQuery(Queries.and(
-                                Queries.equal("spec.categoryName", categoryName),
-                                Queries.equal("status.isPublished", true)))
-                            .build())
-                        .flatMap(count -> {
-                            dist.setPublishedCount(count);
-                            dist.setNotPublishedCount(totalCount - count);
+    /**
+     * 纯函数:基于分类列表、句子统计、浏览记录构建 OverviewResponse。
+     *
+     * <p>提取为独立方法便于单元测试,无需 mock ReactiveExtensionClient。
+     */
+    private OverviewResponse buildOverviewResponse(List<Category> categories,
+                                                     Map<String, CategoryStats> stats,
+                                                     List<CategoryViewRecord> viewRecords) {
+        // 内存按 (categoryName, eventType) 分组得 view/like 计数
+        // long[]{viewCount, likeCount}
+        Map<String, long[]> viewStats = new HashMap<>(categories.size() + 8);
+        for (CategoryViewRecord r : viewRecords) {
+            if (r.getSpec() == null) {
+                continue;
+            }
+            String cat = r.getSpec().getCategoryName();
+            if (cat == null || cat.isBlank()) {
+                continue;
+            }
+            long[] arr = viewStats.computeIfAbsent(cat, k -> new long[2]);
+            CategoryViewRecord.EventType type = r.getSpec().getEventType();
+            if (type == CategoryViewRecord.EventType.VIEW) {
+                arr[0]++;
+            } else if (type == CategoryViewRecord.EventType.LIKE) {
+                arr[1]++;
+            }
+        }
 
-                            Mono<Long> viewCountMono = client.countBy(
-                                    CategoryViewRecord.class, ListOptions.builder()
-                                        .fieldQuery(Queries.equal("spec.categoryName",
-                                            categoryName))
-                                        .build())
-                                .defaultIfEmpty(0L);
+        // 构建分类分布,同时累加总数
+        List<OverviewResponse.CategoryDistribution> distribution =
+            new ArrayList<>(categories.size());
+        for (Category category : categories) {
+            String categoryName = category.getMetadata().getName();
+            String displayName = category.getSpec() != null
+                ? category.getSpec().getName() : categoryName;
+            CategoryStats stat = stats.getOrDefault(categoryName, new CategoryStats(0, 0));
+            long[] viewArr = viewStats.getOrDefault(categoryName, new long[]{0, 0});
 
-                            Mono<Long> likeCountMono = client.countBy(
-                                    CategoryViewRecord.class, ListOptions.builder()
-                                        .fieldQuery(Queries.and(
-                                            Queries.equal("spec.categoryName", categoryName),
-                                            Queries.equal("spec.eventType", "LIKE")))
-                                        .build())
-                                .defaultIfEmpty(0L);
+            OverviewResponse.CategoryDistribution dist =
+                new OverviewResponse.CategoryDistribution();
+            dist.setCategoryName(categoryName);
+            dist.setDisplayName(displayName);
+            dist.setCount(stat.total());
+            dist.setPublishedCount(stat.published());
+            dist.setNotPublishedCount(stat.notPublished());
+            dist.setViewCount(viewArr[0]);
+            dist.setLikeCount(viewArr[1]);
+            distribution.add(dist);
+        }
 
-                            return Mono.zip(viewCountMono, likeCountMono)
-                                .doOnNext(tuple -> {
-                                    dist.setViewCount(tuple.getT1());
-                                    dist.setLikeCount(tuple.getT2());
-                                })
-                                .thenReturn(dist);
-                        });
-                })
-                .collectList();
+        // 汇总总数(包含未注册分类的句子,与原 countBy 行为一致)
+        long totalSentences = stats.values().stream().mapToLong(CategoryStats::total).sum();
+        long totalPublished = stats.values().stream().mapToLong(CategoryStats::published).sum();
 
-        return Mono.zip(sentenceCount, categoryCount, publishedSentenceCount, categoryDistribution)
-            .map(tuple -> {
-                OverviewResponse response = new OverviewResponse();
-                response.setSentenceCount(tuple.getT1());
-                response.setCategoryCount(tuple.getT2());
-                response.setPublishedSentenceCount(tuple.getT3());
-                response.setNotPublishedSentenceCount(tuple.getT1() - tuple.getT3());
-                response.setCategoryDistribution(tuple.getT4());
-                return response;
-            }).flatMap(response -> ServerResponse.ok().bodyValue(response));
+        OverviewResponse response = new OverviewResponse();
+        response.setSentenceCount(totalSentences);
+        response.setCategoryCount(categories.size());
+        response.setPublishedSentenceCount(totalPublished);
+        response.setNotPublishedSentenceCount(totalSentences - totalPublished);
+        response.setCategoryDistribution(distribution);
+        return response;
     }
 
     private @NonNull Mono<ServerResponse> getViewStatistics(ServerRequest request) {

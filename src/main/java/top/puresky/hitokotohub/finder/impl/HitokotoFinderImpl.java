@@ -23,6 +23,7 @@ import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.extension.Sentence;
 import top.puresky.hitokotohub.finder.HitokotoFinder;
+import top.puresky.hitokotohub.service.CategoryCountService;
 
 @Finder("hitokotoFinder")
 @Component
@@ -31,6 +32,7 @@ public class HitokotoFinderImpl implements HitokotoFinder {
 
     private final ReactiveExtensionClient client;
     private final SettingConfig settingConfig;
+    private final CategoryCountService categoryCountService;
 
     @Override
     public Flux<SentenceVo> randomSentences(int size, String categoryName) {
@@ -122,9 +124,20 @@ public class HitokotoFinderImpl implements HitokotoFinder {
 
     @Override
     public Flux<CategoryVo> listCategories() {
-        return client.listAll(Category.class, new ListOptions(), Sort.unsorted())
-            .filter(c -> c.getStatus() != null && c.getStatus().getSentenceCount() > 0)
-            .map(this::toCategoryVo);
+        // 并行：分类列表 + 实时计数 map（单次 listAll + 内存分组，O(N)）
+        var categoriesMono = client.listAll(Category.class, new ListOptions(), Sort.unsorted()).collectList();
+        var countsMono = categoryCountService.getAllCounts();
+
+        return Mono.zip(categoriesMono, countsMono)
+            .flatMapMany(tuple -> {
+                var categories = tuple.getT1();
+                var counts = tuple.getT2();
+                // 仅展示 sentenceCount > 0 的分类（保留原行为）
+                return Flux.fromIterable(categories.stream()
+                    .filter(c -> counts.getOrDefault(c.getMetadata().getName(), 0L) > 0)
+                    .map(c -> toCategoryVo(c, counts.getOrDefault(c.getMetadata().getName(), 0L)))
+                    .toList());
+            });
     }
 
 
@@ -138,11 +151,10 @@ public class HitokotoFinderImpl implements HitokotoFinder {
             .viewCount(status != null ? status.getViewCount() : 0).build();
     }
 
-    private CategoryVo toCategoryVo(@NonNull Category c) {
+    private CategoryVo toCategoryVo(@NonNull Category c, long sentenceCount) {
         var spec = c.getSpec();
-        var status = c.getStatus();
         return CategoryVo.builder().name(c.getMetadata().getName()).displayName(spec.getName())
             .description(spec.getDescription())
-            .sentenceCount(status != null ? status.getSentenceCount() : 0).build();
+            .sentenceCount(sentenceCount).build();
     }
 }

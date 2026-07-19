@@ -2,21 +2,26 @@ package top.puresky.hitokotohub.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import reactor.util.retry.Retry;
 import run.halo.app.extension.ReactiveExtensionClient;
 import top.puresky.hitokotohub.extension.Sentence;
 import top.puresky.hitokotohub.extension.SimilarityCheckLog;
 import top.puresky.hitokotohub.extension.SimilarityGroup;
+import top.puresky.hitokotohub.service.dto.BatchDeleteResult;
 import top.puresky.hitokotohub.service.similarity.SentencePair;
 import top.puresky.hitokotohub.service.similarity.SentencePairJsonCodec;
 import top.puresky.hitokotohub.service.similarity.SimilarityGroupBuilder;
@@ -155,10 +160,47 @@ class SimilarityCheckServiceImplTest {
             .verifyComplete();
     }
 
+    @Test
+    @DisplayName("getGroups：3 次重试均失败 → 降级返回 emptyResult")
+    void getGroupsWhenListAllFails_returnsEmptyResult() {
+        ReactiveExtensionClient client = mock(ReactiveExtensionClient.class);
+        // 所有调用均返回错误，retryWhen 重试 3 次后 onErrorResume 兜底
+        when(client.listAll(any(), any(), any()))
+            .thenReturn(Flux.error(new RuntimeException("索引未就绪")));
+
+        SimilarityCheckServiceImpl service = new SimilarityCheckServiceImpl(client, groupBuilder, codec);
+
+        StepVerifier.create(service.getGroups(1, 10))
+            .assertNext(result -> {
+                assertThat(result.get("total")).isEqualTo(0);
+                assertThat(result.get("groups")).isEqualTo(List.of());
+            })
+            .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Retry.backoff 机制验证：首次 Mono.error 后自动重试并成功")
+    void retryBackoffRecoversAfterError() {
+        AtomicInteger callCount = new AtomicInteger(0);
+        Mono<String> mono = Mono.fromCallable(() -> {
+                if (callCount.getAndIncrement() < 1) {
+                    throw new RuntimeException("瞬时错误");
+                }
+                return "正确数据";
+            })
+            .retryWhen(Retry.backoff(3, Duration.ofMillis(10))
+                .maxBackoff(Duration.ofMillis(100)));
+
+        StepVerifier.withVirtualTime(() -> mono)
+            .thenAwait(Duration.ofMillis(500))
+            .expectNext("正确数据")
+            .verifyComplete();
+    }
+
     // ==================== deleteNonOptimalSentences ====================
 
     @Test
-    @DisplayName("deleteNonOptimalSentences：2 组相似，删除非最优后剩余 3 个句子")
+    @DisplayName("deleteNonOptimalSentences：2 组相似，删除非最优后 deleted=2, failed=0")
     void deleteNonOptimalSentences() {
         // 组1：s1-s2 相同内容，s1 评分更高（应保留 s1，删除 s2）
         Sentence s1 = TestFixtures.sentence("s1", "人生如梦，岁月如歌", true, 10, 100);
@@ -177,10 +219,138 @@ class SimilarityCheckServiceImplTest {
         SimilarityCheckServiceImpl service = new SimilarityCheckServiceImpl(client, groupBuilder, codec);
 
         StepVerifier.create(service.deleteNonOptimalSentences())
-            .assertNext(deletedCount -> {
+            .assertNext(result -> {
                 // s2 和 s4 应被删除（非最优），s1/s3/s5 保留
-                assertThat(deletedCount).isEqualTo(2);
+                assertThat(result.total()).isEqualTo(2);
+                assertThat(result.deleted()).isEqualTo(2);
+                assertThat(result.failed()).isZero();
             })
             .verifyComplete();
     }
+
+    @Test
+    @DisplayName("deleteNonOptimalSentences：无 SUCCESS 日志 → BatchDeleteResult.empty（不返回 empty Mono 导致 500）")
+    void deleteNonOptimalSentencesWithoutLog() {
+        // 有句子但无 SUCCESS 日志（曾经导致端点返回 empty Mono → 500）
+        Sentence s1 = TestFixtures.sentence("s1", "人生如梦", true, 10, 100);
+        ReactiveExtensionClient client = MockExtensionClient.builder()
+            .with(s1).build();
+        SimilarityCheckServiceImpl service = new SimilarityCheckServiceImpl(client, groupBuilder, codec);
+
+        StepVerifier.create(service.deleteNonOptimalSentences())
+            .assertNext(result -> {
+                assertThat(result.deleted()).isZero();
+                assertThat(result.message()).contains("无相似度检查日志");
+            })
+            .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("deleteNonOptimalSentences：有 SUCCESS 日志但无句子 → deleted=0, message 含「无句子」")
+    void deleteNonOptimalSentencesWithEmptySentences() {
+        SimilarityCheckLog log = TestFixtures.successLog("log-1", "COSINE", 0.3, "[]");
+        ReactiveExtensionClient client = MockExtensionClient.builder().with(log).build();
+        SimilarityCheckServiceImpl service = new SimilarityCheckServiceImpl(client, groupBuilder, codec);
+
+        StepVerifier.create(service.deleteNonOptimalSentences())
+            .assertNext(result -> {
+                assertThat(result.deleted()).isZero();
+                assertThat(result.message()).contains("无句子");
+            })
+            .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("deleteNonOptimalSentences：有日志+句子但无相似对 → total=0, deleted=0, failed=0")
+    void deleteNonOptimalSentencesWithNoSimilarPairs() {
+        // threshold=0.99，两句子内容完全不同，不会形成相似对
+        Sentence s1 = TestFixtures.sentence("s1", "人生如梦", true, 10, 100);
+        Sentence s2 = TestFixtures.sentence("s2", "完全不同的内容", true, 5, 50);
+        SimilarityCheckLog log = TestFixtures.successLog("log-1", "COSINE", 0.99, "[]");
+
+        ReactiveExtensionClient client = MockExtensionClient.builder()
+            .with(s1).with(s2).with(log).build();
+        SimilarityCheckServiceImpl service = new SimilarityCheckServiceImpl(client, groupBuilder, codec);
+
+        StepVerifier.create(service.deleteNonOptimalSentences())
+            .assertNext(result -> {
+                assertThat(result.total()).isZero();
+                assertThat(result.deleted()).isZero();
+                assertThat(result.failed()).isZero();
+            })
+            .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("deleteNonOptimalSentences：listAll(Sentence) 失败 → 异常传播到端点兜底")
+    void deleteNonOptimalSentencesWhenListSentencesFails() {
+        SimilarityCheckLog log = TestFixtures.successLog("log-1", "COSINE", 0.3, "[]");
+        ReactiveExtensionClient client = mock(ReactiveExtensionClient.class);
+        // 第 1 次 listAll 返回 SimilarityCheckLog，第 2 次 listAll（Sentence）抛异常
+        when(client.listAll(any(), any(), any())).thenReturn(
+            Flux.just(log),
+            Flux.error(new RuntimeException("数据访问失败"))
+        );
+
+        SimilarityCheckServiceImpl service = new SimilarityCheckServiceImpl(client, groupBuilder, codec);
+
+        StepVerifier.create(service.deleteNonOptimalSentences())
+            .verifyError(RuntimeException.class);
+    }
+
+    @Test
+    @DisplayName("deleteNonOptimalSentences：单条删除失败 → total=1, deleted=0, failed=1")
+    void deleteNonOptimalSentencesWhenSingleDeleteFails() {
+        // s1-s2 相同内容，s1 评分更高（保留 s1，删除 s2）
+        Sentence s1 = TestFixtures.sentence("s1", "人生如梦，岁月如歌", true, 10, 100);
+        Sentence s2 = TestFixtures.sentence("s2", "人生如梦，岁月如歌", true, 5, 50);
+        SimilarityCheckLog log = TestFixtures.successLog("log-1", "COSINE", 0.3, "[]");
+
+        ReactiveExtensionClient client = mock(ReactiveExtensionClient.class);
+        when(client.listAll(any(), any(), any())).thenReturn(
+            Flux.just(log),     // SimilarityCheckLog
+            Flux.just(s1, s2)   // Sentence
+        );
+        when(client.fetch(eq(Sentence.class), eq("s2"))).thenReturn(Mono.just(s2));
+        when(client.delete(any(Sentence.class)))
+            .thenReturn(Mono.error(new RuntimeException("删除失败")));
+
+        SimilarityCheckServiceImpl service = new SimilarityCheckServiceImpl(client, groupBuilder, codec);
+
+        StepVerifier.create(service.deleteNonOptimalSentences())
+            .assertNext(result -> {
+                assertThat(result.total()).isEqualTo(1);
+                assertThat(result.deleted()).isZero();
+                assertThat(result.failed()).isEqualTo(1);
+            })
+            .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("deleteNonOptimalSentences：句子已被并发删除（fetch 返回 empty）→ total=1, deleted=0, failed=1")
+    void deleteNonOptimalSentencesWhenSentenceAlreadyGone() {
+        // s1-s2 相同内容，s1 评分更高（保留 s1，删除 s2）
+        Sentence s1 = TestFixtures.sentence("s1", "人生如梦，岁月如歌", true, 10, 100);
+        Sentence s2 = TestFixtures.sentence("s2", "人生如梦，岁月如歌", true, 5, 50);
+        SimilarityCheckLog log = TestFixtures.successLog("log-1", "COSINE", 0.3, "[]");
+
+        ReactiveExtensionClient client = mock(ReactiveExtensionClient.class);
+        when(client.listAll(any(), any(), any())).thenReturn(
+            Flux.just(log),     // SimilarityCheckLog
+            Flux.just(s1, s2)   // Sentence
+        );
+        // fetch 返回 empty（模拟 s2 在 listAll 之后、delete 之前已被并发删除）
+        when(client.fetch(eq(Sentence.class), eq("s2"))).thenReturn(Mono.empty());
+
+        SimilarityCheckServiceImpl service = new SimilarityCheckServiceImpl(client, groupBuilder, codec);
+
+        StepVerifier.create(service.deleteNonOptimalSentences())
+            .assertNext(result -> {
+                assertThat(result.total()).isEqualTo(1);
+                assertThat(result.deleted()).isZero();
+                assertThat(result.failed()).isEqualTo(1);
+            })
+            .verifyComplete();
+    }
+
 }

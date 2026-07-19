@@ -65,14 +65,6 @@ public final class TestFixtures {
         spec.setName(displayName);
         spec.setDescription("测试分类");
         c.setSpec(spec);
-        c.setStatus(new Category.Status());
-        return c;
-    }
-
-    /** 构造带句子数的 Category。 */
-    public static Category category(String name, String displayName, long sentenceCount) {
-        Category c = category(name, displayName);
-        c.getStatus().setSentenceCount(sentenceCount);
         return c;
     }
 

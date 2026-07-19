@@ -1,6 +1,8 @@
 package top.puresky.hitokotohub.extension;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -25,15 +27,21 @@ public class Sentence extends AbstractExtension {
     @Data
     @Schema(name = "SentenceSpec")
     public static class Spec {
+        @NotBlank
+        @Size(max = 100)
         @Schema(description = "分类名称", requiredMode = Schema.RequiredMode.REQUIRED)
         private String categoryName;
 
+        @NotBlank
+        @Size(max = 500)
         @Schema(description = "句子内容", requiredMode = Schema.RequiredMode.REQUIRED, maxLength = 500)
         private String content;
 
+        @Size(max = 50)
         @Schema(description = "作者", maxLength = 50, defaultValue = "匿名")
         private String author = "匿名";
 
+        @Size(max = 100)
         @Schema(description = "来源", maxLength = 100, defaultValue = "未知")
         private String source = "未知";
 

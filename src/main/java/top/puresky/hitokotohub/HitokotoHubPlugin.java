@@ -57,7 +57,6 @@ public class HitokotoHubPlugin extends BasePlugin {
             spec.setName(UncategorizedConstants.DISPLAY_NAME);
             spec.setDescription(UncategorizedConstants.DESCRIPTION);
             category.setSpec(spec);
-            category.setStatus(new Category.Status());
             client.create(category);
             return null;
         });
@@ -87,18 +86,9 @@ public class HitokotoHubPlugin extends BasePlugin {
             }
         }
 
-        // 更新"未分类"的句子计数
-        client.fetch(Category.class, name).ifPresent(category -> {
-            var countOptions = ListOptions.builder()
-                .fieldQuery(Queries.and(
-                    Queries.equal("spec.categoryName", name),
-                    Queries.isNull("metadata.deletionTimestamp")
-                ))
-                .build();
-            long count = client.countBy(Sentence.class, countOptions);
-            category.getStatus().setSentenceCount(count);
-            client.update(category);
-        });
+        // 注：不再更新 Category.Status.sentenceCount 缓存。
+        // 分类计数已改为通过 CategoryCountService 实时查询（listAll + 内存分组），
+        // 从源头消除缓存一致性问题。详见 SentenceReconciler 重构方案。
 
         if (fixed > 0) {
             log.info("已迁移 {} 条句子到「未分类」", fixed);

@@ -50,10 +50,17 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
     private volatile ScheduledTask aiGenerateTask;
     private volatile ScheduledTask similarityCheckTask;
 
+    /**
+     * AI Cron 表达式缓存。由 {@link #refreshAiConfigAndSchedule()} 异步刷新,
+     * {@link #scheduleAiGenerateTask()} 同步读取,避免 synchronized 方法内阻塞 I/O。
+     */
+    private volatile String cachedAiCron;
+
     @Override
     public void configureTasks(@NonNull ScheduledTaskRegistrar taskRegistrar) {
         this.taskRegistrar = taskRegistrar;
-        scheduleAiGenerateTask();
+        // 异步刷新 AI 配置并注册任务(完成后回调 scheduleAiGenerateTask)
+        refreshAiConfigAndSchedule();
         scheduleSimilarityCheckTask();
     }
 
@@ -63,11 +70,28 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
     @EventListener
     public void onPluginConfigUpdated(PluginConfigUpdatedEvent event) {
         if (event.getNewSettingValues().containsKey(SettingConfig.AiConfig.GROUP)) {
-            scheduleAiGenerateTask();
+            refreshAiConfigAndSchedule();
         }
         if (event.getNewSettingValues().containsKey(SettingConfig.SimilarityConfig.GROUP)) {
             scheduleSimilarityCheckTask();
         }
+    }
+
+    /**
+     * 异步读取 AI 配置并刷新缓存,完成后注册定时任务。
+     *
+     * <p>替代原 {@code scheduleAiGenerateTask()} 内直接 {@code .block()} 的阻塞模式,
+     * 避免 synchronized 方法内持锁等待 I/O。
+     */
+    private void refreshAiConfigAndSchedule() {
+        if (taskRegistrar == null) {
+            return;
+        }
+        settingConfig.getAiConfig()
+            .doOnNext(config -> cachedAiCron = extractValidAiCron(config))
+            .doOnError(e -> log.warn("刷新 AI Cron 配置失败,使用默认值: {}", DEFAULT_AI_CRON, e))
+            .doFinally(signal -> scheduleAiGenerateTask())
+            .subscribe();
     }
 
     private synchronized void scheduleAiGenerateTask() {
@@ -84,16 +108,25 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
         log.info("AI 生成句子定时任务已注册，Cron 表达式: {}", cron);
     }
 
+    /**
+     * 从缓存读取 AI Cron 表达式,无 I/O 阻塞。
+     *
+     * <p>缓存为空时返回默认值(启动初期或刷新失败的场景)。
+     */
     private String resolveAiCron() {
-        try {
-            SettingConfig.AiConfig aiConfig = settingConfig.getAiConfig().block();
-            if (aiConfig != null && StringUtils.hasText(aiConfig.getAiCron())) {
-                // 验证 Cron 表达式是否合法
+        String cron = cachedAiCron;
+        return StringUtils.hasText(cron) ? cron : DEFAULT_AI_CRON;
+    }
+
+    /** 从配置对象提取并校验 Cron 表达式,无效时返回默认值。 */
+    private String extractValidAiCron(SettingConfig.AiConfig aiConfig) {
+        if (aiConfig != null && StringUtils.hasText(aiConfig.getAiCron())) {
+            try {
                 new CronTrigger(aiConfig.getAiCron());
                 return aiConfig.getAiCron();
+            } catch (Exception e) {
+                log.warn("AI Cron 表达式无效: {}，使用默认值: {}", aiConfig.getAiCron(), DEFAULT_AI_CRON);
             }
-        } catch (Exception e) {
-            log.warn("读取或验证 AI Cron 设置失败，使用默认值: {}", DEFAULT_AI_CRON, e);
         }
         return DEFAULT_AI_CRON;
     }
@@ -139,7 +172,7 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
                         }
                         int deleteCount = records.size() - maxKeep;
                         return Flux.fromIterable(records.subList(0, deleteCount))
-                            .flatMap(client::delete)
+                            .flatMap(client::delete, 16)
                             .count()
                             .doOnNext(count -> {
                                 if (count > 0) {
@@ -189,7 +222,7 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
                         }
                         int deleteCount = logs.size() - maxKeep;
                         return Flux.fromIterable(logs.subList(0, deleteCount))
-                            .flatMap(client::delete)
+                            .flatMap(client::delete, 16)
                             .count()
                             .doOnNext(count -> {
                                 if (count > 0) {

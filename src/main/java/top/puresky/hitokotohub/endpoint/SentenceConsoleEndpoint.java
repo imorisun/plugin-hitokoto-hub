@@ -20,11 +20,14 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.dhatim.fastexcel.reader.ReadableWorkbook;
 import org.dhatim.fastexcel.reader.Row;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.http.codec.multipart.FormFieldPart;
@@ -48,6 +51,7 @@ import run.halo.app.extension.router.selector.FieldSelector;
 import top.puresky.hitokotohub.UncategorizedConstants;
 import top.puresky.hitokotohub.extension.Sentence;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class SentenceConsoleEndpoint implements CustomEndpoint {
@@ -55,6 +59,9 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
     private static final String TAG = "SentenceV1alpha1";
     private static final String GROUP_VERSION = "console.api.hitokotohub.puresky.top/v1alpha1";
     private static final int MAX_IMPORT_COLUMNS = 128;
+    private static final int MAX_CONTENT_LENGTH = 500;
+    /** Excel 导入文件大小上限(10MB),防止 OOM */
+    private static final long MAX_EXCEL_FILE_SIZE = 10 * 1024 * 1024L;
 
     private final ReactiveExtensionClient client;
     private final RoleService roleService;
@@ -97,7 +104,7 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
         return GroupVersion.parseAPIVersion(GROUP_VERSION);
     }
 
-    private @NonNull Mono<ServerResponse> batchCreateSentence(@NonNull ServerRequest request) {
+    @NonNull Mono<ServerResponse> batchCreateSentence(@NonNull ServerRequest request) {
         return request.principal().map(Principal::getName).flatMap(username -> {
             var sentenceFlux = request.bodyToFlux(Sentence.class);
             return createSentences(sentenceFlux, username);
@@ -114,6 +121,11 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
                 if (!filePart.filename().toLowerCase().endsWith(".xlsx")) {
                     return Mono.error(new IllegalArgumentException("仅支持 .xlsx 文件"));
                 }
+                long contentLength = filePart.headers().getContentLength();
+                if (contentLength > MAX_EXCEL_FILE_SIZE) {
+                    return Mono.error(new IllegalArgumentException(
+                        "Excel 文件不能超过 " + MAX_EXCEL_FILE_SIZE / 1024 / 1024 + "MB"));
+                }
                 var categoryName = formValue(parts.getFirst("categoryName"));
                 if (categoryName == null || categoryName.isBlank()) {
                     return Mono.error(new IllegalArgumentException("请选择目标分类"));
@@ -126,6 +138,11 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
                         byte[] bytes = new byte[dataBuffer.readableByteCount()];
                         dataBuffer.read(bytes);
                         DataBufferUtils.release(dataBuffer);
+                        // 防御性检查:Content-Length 可能缺失,读入内存后再次校验
+                        if (bytes.length > MAX_EXCEL_FILE_SIZE) {
+                            return Mono.<List<Sentence>>error(new IllegalArgumentException(
+                                "Excel 文件超过大小限制"));
+                        }
                         return Mono.fromCallable(
                             () -> parseExcelSentences(bytes, categoryName, contentField,
                                 authorField,
@@ -148,6 +165,7 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
 
             return sentenceFlux.flatMap(sentence -> {
                 sentence.getSpec().setCreatedBy(username);
+                sanitizeSentenceInput(sentence);
                 if (sentence.getStatus() == null) {
                     sentence.setStatus(new Sentence.Status());
                 }
@@ -244,10 +262,41 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
         var spec = new Sentence.Spec();
         spec.setCategoryName(categoryName);
         spec.setContent(content);
-        spec.setAuthor(author == null || author.isBlank() ? "匿名" : author);
-        spec.setSource(source == null || source.isBlank() ? "未知" : source);
+        spec.setAuthor(author);
+        spec.setSource(source);
         sentence.setSpec(spec);
         sentence.setStatus(new Sentence.Status());
+        return sanitizeSentenceInput(sentence);
+    }
+
+    /**
+     * 清洗 sentence 输入：trim、null 处理、默认值填充、长度截断。
+     *
+     * <p>注意：不在此处做 categoryName 归一化（null/不存在 → uncategorized），
+     * 那是 SentenceReconciler 的职责。此处仅做"输入净化"。
+     *
+     * <p>应用范围：{@code createSentences}（批量创建）与 {@code buildSentence}（Excel 导入），
+     * 保证两条路径行为一致。
+     */
+    private @NonNull Sentence sanitizeSentenceInput(Sentence sentence) {
+        Sentence.Spec spec = sentence.getSpec();
+        if (spec == null) {
+            return sentence; // 异常输入，交由 reconciler 兜底
+        }
+        // content: trim + 长度截断（500）
+        String content = StringUtils.trimToEmpty(spec.getContent());
+        if (content.length() > MAX_CONTENT_LENGTH) {
+            content = content.substring(0, MAX_CONTENT_LENGTH);
+        }
+        spec.setContent(content);
+        // categoryName: trim（不归一化，由 reconciler 处理）
+        spec.setCategoryName(StringUtils.trimToEmpty(spec.getCategoryName()));
+        // author: trim + 空则填默认值
+        String author = StringUtils.trimToNull(spec.getAuthor());
+        spec.setAuthor(author != null ? author : "匿名");
+        // source: trim + 空则填默认值
+        String source = StringUtils.trimToNull(spec.getSource());
+        spec.setSource(source != null ? source : "未知");
         return sentence;
     }
 
@@ -255,27 +304,40 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
         return part instanceof FormFieldPart formFieldPart ? formFieldPart.value() : null;
     }
 
-    private @NonNull Mono<ServerResponse> querySentences(ServerRequest request) {
-        var query = new SentenceQuery(request);
-        return client.listBy(Sentence.class, query.toListOptions(), query.toPageRequest())
+    @NonNull Mono<ServerResponse> querySentences(ServerRequest request) {
+        return listSentences(request)
             .flatMap(sentences -> ServerResponse.ok().bodyValue(sentences));
     }
 
-    private @NonNull Mono<ServerResponse> searchSentence(ServerRequest request) {
-        var query = new SentenceQuery(request);
-        return client.listBy(Sentence.class, query.toListOptions(), query.toPageRequest())
+    @NonNull Mono<ServerResponse> searchSentence(ServerRequest request) {
+        return listSentences(request)
             .map(ListResult::getItems)
             .flatMap(sentences -> ServerResponse.ok().bodyValue(sentences));
     }
 
-    private @NonNull Mono<ServerResponse> clearUncategorizedSentences(ServerRequest request) {
+    /**
+     * 共用的句子分页查询逻辑，供 {@link #querySentences} 和 {@link #searchSentence} 复用。
+     */
+    private Mono<ListResult<Sentence>> listSentences(ServerRequest request) {
+        var query = new SentenceQuery(request);
+        return client.listBy(Sentence.class, query.toListOptions(), query.toPageRequest());
+    }
+
+    @NonNull Mono<ServerResponse> clearUncategorizedSentences(ServerRequest request) {
         var listOptions = new ListOptions();
         listOptions.setFieldSelector(
             FieldSelector.of(Queries.equal("spec.categoryName",
                 UncategorizedConstants.METADATA_NAME)));
 
-        return client.listAll(Sentence.class, listOptions, org.springframework.data.domain.Sort.unsorted())
-            .flatMap(sentence -> client.delete(sentence).onErrorResume(e -> Mono.empty()))
+        // 使用 concatMap 串行删除，避免并发触发 SentenceReconciler 导致脏数据清理压力
+        // （与 SimilarityCheckServiceImpl.deleteSentencesSerially 风格一致）
+        return client.listAll(Sentence.class, listOptions, Sort.unsorted())
+            .concatMap(sentence -> client.delete(sentence)
+                .onErrorResume(e -> {
+                    log.warn("删除未分类句子 [{}] 失败: {}",
+                        sentence.getMetadata().getName(), e.getMessage());
+                    return Mono.empty();
+                }))
             .count()
             .flatMap(count -> ServerResponse.ok().bodyValue(count));
     }

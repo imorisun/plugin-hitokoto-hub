@@ -706,6 +706,26 @@ const removeSentenceFromGroups = (name: string) => {
   groups.value = newGroups
 }
 
+/**
+ * 乐观更新：批量移除所有非最优句子（仅保留每组最优）
+ * - 每组仅保留最优句子，similarSentences 清空 → 组内不足 2 句 → 移除整个组
+ * - 直接修改 groups.value，触发响应式更新，无需等待后端返回
+ */
+const removeAllNonOptimalFromGroups = () => {
+  const newGroups: SimilarityGroup[] = []
+  let removed = 0
+  for (const group of groups.value) {
+    if (group.similarSentences.length > 0) {
+      removed++
+      continue
+    }
+    newGroups.push(group)
+  }
+  groups.value = newGroups
+  groupTotal.value = newGroups.length
+  return removed
+}
+
 const handleBatchDeleteNonOptimal = () => {
   if (groupTotal.value === 0) {
     toast.info('没有可删除的非最优句子')
@@ -724,7 +744,7 @@ const handleBatchDeleteNonOptimal = () => {
           `${BASE}/similarity-check-groups/-/delete-nonoptimal`,
         )
         toast.success(data.message || '批量删除完成')
-        // 重新加载数据
+        removeAllNonOptimalFromGroups()
         groupPage.value = 1
         await fetchLatestLog()
         await fetchGroups()

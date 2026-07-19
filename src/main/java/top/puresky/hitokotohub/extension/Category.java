@@ -22,8 +22,6 @@ public class Category extends AbstractExtension {
     @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
     private Spec spec;
 
-    private Status status = new Status();
-
     @Data
     @Schema(name = "CategorySpec")
     public static class Spec {
@@ -32,12 +30,5 @@ public class Category extends AbstractExtension {
 
         @Schema(description = "分类描述", maxLength = 200)
         private String description;
-    }
-
-    @Data
-    @Schema(name = "CategoryStatus")
-    public static class Status {
-        @Schema(description = "句子数量", defaultValue = "0")
-        private long sentenceCount = 0;
     }
 }

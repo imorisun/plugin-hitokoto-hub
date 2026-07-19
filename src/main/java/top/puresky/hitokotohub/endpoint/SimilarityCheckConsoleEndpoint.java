@@ -6,6 +6,7 @@ import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ import run.halo.app.extension.index.query.Queries;
 import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.extension.SimilarityCheckLog;
 import top.puresky.hitokotohub.service.SimilarityCheckService;
+import top.puresky.hitokotohub.service.dto.BatchDeleteResult;
 
 @Slf4j
 @Component
@@ -86,7 +88,7 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
                 builder -> builder.operationId("deleteNonOptimalSentences")
                     .summary("批量删除每个相似组中的非最优句子")
                     .tag(TAG)
-                    .response(responseBuilder().implementation(Map.class)))
+                    .response(responseBuilder().implementation(BatchDeleteResult.class)))
             .build();
     }
 
@@ -178,16 +180,27 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
             .flatMap(config -> ServerResponse.ok().bodyValue(config));
     }
 
-    private @NonNull Mono<ServerResponse> listGroups(@NonNull ServerRequest request) {
+    @NonNull Mono<ServerResponse> listGroups(@NonNull ServerRequest request) {
         int page = Integer.parseInt(request.queryParam("page").orElse("1"));
         int size = Integer.parseInt(request.queryParam("size").orElse("10"));
         return similarityCheckService.getGroups(page, size)
-            .flatMap(result -> ServerResponse.ok().bodyValue(result));
+            .flatMap(result -> ServerResponse.ok().bodyValue(result))
+            .onErrorResume(e -> {
+                log.error("获取相似度分组失败", e);
+                return ServerResponse.ok()
+                    .bodyValue(Map.of("page", page, "size", size, "total", 0, "groups", List.of()));
+            });
     }
 
-    private @NonNull Mono<ServerResponse> deleteNonOptimal(@NonNull ServerRequest request) {
+    @NonNull Mono<ServerResponse> deleteNonOptimal(@NonNull ServerRequest request) {
         return similarityCheckService.deleteNonOptimalSentences()
-            .flatMap(count -> ServerResponse.ok()
-                .bodyValue(Map.of("message", "批量删除完成，共删除 " + count + " 个句子", "deleted", count)));
+            .flatMap(result -> ServerResponse.ok().bodyValue(result))
+            .onErrorResume(e -> {
+                log.error("批量删除非最优句子失败", e);
+                return ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .bodyValue(Map.of(
+                        "message", "批量删除失败：" + e.getMessage(),
+                        "total", 0, "deleted", 0, "failed", 0));
+            });
     }
 }

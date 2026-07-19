@@ -29,6 +29,11 @@ import top.puresky.hitokotohub.service.AiGenerateService;
 @ConditionalOnClass(name = "run.halo.aifoundation.AiModelService")
 public class AiGenerateServiceImpl implements AiGenerateService {
 
+    /** AI 返回 JSON 大小上限(512KB),防止解析 OOM */
+    private static final int MAX_AI_RESPONSE_SIZE = 512 * 1024;
+    /** 单条 AI 生成句子内容长度上限,与 SentenceConsoleEndpoint.MAX_CONTENT_LENGTH 一致 */
+    private static final int MAX_SENTENCE_CONTENT_LENGTH = 500;
+
     private final ExtensionGetter extensionGetter;
     private final ReactiveExtensionClient client;
     private final ObjectMapper objectMapper;
@@ -101,11 +106,20 @@ public class AiGenerateServiceImpl implements AiGenerateService {
                 .flatMap(model -> model.generateText(request))
                 .map(GenerateTextResult::getText)
                 .doOnNext(json -> {
-                    log.info("========== AI 返回的原始 JSON ==========");
-                    log.info(json);
-                    log.info("=========================================");
+                    if (json.length() > MAX_AI_RESPONSE_SIZE) {
+                        log.warn("AI 返回内容过大: {} 字符,超过限制 {}", json.length(), MAX_AI_RESPONSE_SIZE);
+                    } else if (log.isDebugEnabled()) {
+                        String preview = json.length() > 500
+                            ? json.substring(0, 500) + "...(truncated)"
+                            : json;
+                        log.debug("AI 返回 JSON 预览: {}", preview);
+                    }
                 })
                 .flatMap(json -> {
+                    if (json.length() > MAX_AI_RESPONSE_SIZE) {
+                        return Mono.<List<Map<String, Object>>>error(
+                            new RuntimeException("AI 输出超过大小限制: " + json.length() + " 字符"));
+                    }
                     try {
                         List<Map<String, Object>> sentenceList = objectMapper.readValue(json, new TypeReference<>() {});
                         // AI可能返回超过设置数量的句子，只取设置的数量
@@ -122,15 +136,25 @@ public class AiGenerateServiceImpl implements AiGenerateService {
                 })
                 .flatMapMany(Flux::fromIterable)
                 .flatMap(map -> {
+                    String content = (String) map.get("content");
+                    if (content == null || content.isBlank()) {
+                        log.warn("AI 生成项缺少 content 字段,跳过");
+                        return Mono.<Sentence>empty();
+                    }
+                    if (content.length() > MAX_SENTENCE_CONTENT_LENGTH) {
+                        content = content.substring(0, MAX_SENTENCE_CONTENT_LENGTH);
+                    }
                     Sentence sentence = new Sentence();
                     sentence.setMetadata(new Metadata());
                     sentence.setSpec(new Sentence.Spec());
                     sentence.getMetadata().setGenerateName("sentence-");
                     sentence.getStatus().setPublished(aiSentenceAutoPublish);
 
-                    sentence.getSpec().setContent((String) map.get("content"));
-                    sentence.getSpec().setAuthor((String) map.get("author"));
-                    sentence.getSpec().setSource((String) map.get("source"));
+                    sentence.getSpec().setContent(content);
+                    Object authorObj = map.get("author");
+                    sentence.getSpec().setAuthor(authorObj != null ? String.valueOf(authorObj) : "匿名");
+                    Object sourceObj = map.get("source");
+                    sentence.getSpec().setSource(sourceObj != null ? String.valueOf(sourceObj) : "未知");
                     sentence.getSpec().setCategoryName(categoryName);
                     sentence.getSpec().setCreatedBy("AI");
 

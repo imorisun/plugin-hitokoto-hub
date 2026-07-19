@@ -1,5 +1,5 @@
 import {axiosInstance} from '@halo-dev/api-client'
-import type {SentenceList} from './generated'
+import type {Category, SentenceList} from './generated'
 import {
   CategoryV1alpha1Api,
   CategoryViewRecordV1alpha1Api,
@@ -16,8 +16,32 @@ interface QuerySentencesParams {
   sort?: string
 }
 
+/**
+ * 带实时句子数量的分类视图。
+ *
+ * <p>与后端 {@code CategoryConsoleEndpoint.CategoryWithCount} 对应，
+ * 替代已移除的 {@code Category.Status.sentenceCount} 缓存字段。
+ */
+export interface CategoryWithCount extends Category {
+  sentenceCount: number
+}
+
+/** 分页结果容器，与后端 ListResult 对应。 */
+export interface ListResultCategoryWithCount {
+  page: number
+  size: number
+  total: number
+  items: CategoryWithCount[]
+}
+
 const categoryCoreApiClient = {
   category: new CategoryV1alpha1Api(undefined, '', axiosInstance),
+  // 新增：带实时句子数量的分类列表查询（替代 listCategory + status.sentenceCount）
+  listCategoriesWithCounts: (params: { page?: number; size?: number }) =>
+    axiosInstance.get<ListResultCategoryWithCount>(
+      '/apis/console.api.hitokotohub.puresky.top/v1alpha1/categories',
+      {params}
+    ),
 }
 const sentenceCoreApiClient = {
   sentence: new SentenceV1alpha1Api(undefined, '', axiosInstance),

@@ -20,6 +20,7 @@ import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.Queries;
 import run.halo.app.extension.router.selector.FieldSelector;
 import top.puresky.hitokotohub.extension.Category;
+import top.puresky.hitokotohub.service.CategoryCountService;
 
 @Component
 @RequiredArgsConstructor
@@ -29,6 +30,7 @@ public class CategoryPublicEndpoint implements CustomEndpoint {
     private static final String GROUP_VERSION = "public.api.hitokotohub.puresky.top/v1alpha1";
 
     private final ReactiveExtensionClient client;
+    private final CategoryCountService categoryCountService;
 
     @Override
     public @NonNull RouterFunction<ServerResponse> endpoint() {
@@ -47,16 +49,25 @@ public class CategoryPublicEndpoint implements CustomEndpoint {
         listOptions.setFieldSelector(
             FieldSelector.of(Queries.isNull("metadata.deletionTimestamp")));
 
-        return client.listAll(Category.class, listOptions, Sort.unsorted()).collectList()
-            .map(categories -> categories.stream().map(category -> {
-                CategoryItem item = new CategoryItem();
-                item.setName(category.getMetadata().getName());
-                item.setDisplayName(category.getSpec().getName());
-                item.setDescription(category.getSpec().getDescription());
-                item.setSentenceCount(
-                    category.getStatus() != null ? category.getStatus().getSentenceCount() : 0);
-                return item;
-            }).toList()).flatMap(items -> ServerResponse.ok().bodyValue(items));
+        // 并行：分类列表 + 实时计数 map（单次 listAll + 内存分组，O(N)）
+        var categoriesMono = client.listAll(Category.class, listOptions, Sort.unsorted()).collectList();
+        var countsMono = categoryCountService.getAllCounts();
+
+        return Mono.zip(categoriesMono, countsMono)
+            .map(tuple -> {
+                var categories = tuple.getT1();
+                var counts = tuple.getT2();
+                return categories.stream().map(category -> {
+                    CategoryItem item = new CategoryItem();
+                    item.setName(category.getMetadata().getName());
+                    item.setDisplayName(category.getSpec().getName());
+                    item.setDescription(category.getSpec().getDescription());
+                    item.setSentenceCount(
+                        counts.getOrDefault(category.getMetadata().getName(), 0L));
+                    return item;
+                }).toList();
+            })
+            .flatMap(items -> ServerResponse.ok().bodyValue(items));
     }
 
     @Data

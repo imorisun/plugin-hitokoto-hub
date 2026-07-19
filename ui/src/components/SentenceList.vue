@@ -92,7 +92,7 @@
                   {{
                     isDeletingCategory(category)
                             ? '删除中'
-                            : `${category.status?.sentenceCount ?? 0} 条句子`
+                            : `${category.sentenceCount ?? 0} 条句子`
                   }}</span>
               </span>
                 <span v-if="!isDeletingCategory(category) && canManage"
@@ -128,7 +128,7 @@
               >
               <span class="category-nav__text">
                 <span class="category-nav__name">{{ uncategorizedCategory.spec.name }}</span>
-                <span class="category-nav__count">{{ uncategorizedCategory.status?.sentenceCount ?? 0 }} 条句子</span>
+                <span class="category-nav__count">{{ uncategorizedCategory.sentenceCount ?? 0 }} 条句子</span>
               </span>
                 <span class="category-nav__actions">
                 <button
@@ -629,6 +629,7 @@ import {utils} from '@halo-dev/ui-shared'
 import {Delete, EditPen, View} from '@element-plus/icons-vue'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
+import type {CategoryWithCount} from '@/api'
 import type {BatchCreateSentenceResult, Category, Sentence} from '@/api/generated'
 import IconLike from '~icons/my-icons/like';
 import * as XLSX from 'xlsx'
@@ -643,7 +644,7 @@ const total = ref(0)
 const keyword = ref('')
 const loading = ref(false)
 const sentences = ref<Sentence[]>([])
-const categories = ref<Category[]>([])
+const categories = ref<CategoryWithCount[]>([])
 let deletionRefetchTimer: ReturnType<typeof setInterval> | null = null
 
 const selectedCategory = ref<string | undefined>(undefined)
@@ -698,7 +699,7 @@ const getCategoryName = (categoryId: string): string => {
 }
 
 const totalCategorySentenceCount = computed(() =>
-        categories.value.reduce((sum, category) => sum + (category.status?.sentenceCount ?? 0), 0),
+        categories.value.reduce((sum, category) => sum + (category.sentenceCount ?? 0), 0),
 )
 
 const activeCategoryName = computed(() => {
@@ -837,12 +838,12 @@ const isUncategorizedSelected = computed(() =>
 )
 
 const uncategorizedSentenceCount = computed(() =>
-        uncategorizedCategory.value?.status?.sentenceCount ?? 0,
+        uncategorizedCategory.value?.sentenceCount ?? 0,
 )
 
 const initCategories = async () => {
   try {
-    const {data} = await categoryCoreApiClient.category.listCategory({page: 1, size: 100})
+    const {data} = await categoryCoreApiClient.listCategoriesWithCounts({page: 1, size: 100})
     categories.value = data.items || []
   } catch (e) {
     console.error('获取分类列表失败', e)
@@ -969,11 +970,7 @@ const hasFilters = computed(() => {
 
 // 分页和筛选变化时，根据是否有搜索关键词决定调用哪个方法
 watch(page, () => {
-  if (keyword.value.trim()) {
-    handleSearch()
-  } else {
-    fetchSentences()
-  }
+  fetchSentences()
 })
 
 watch(size, () => {
