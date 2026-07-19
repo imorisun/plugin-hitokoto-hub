@@ -12,6 +12,7 @@ import reactor.core.scheduler.Schedulers;
 import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.Queries;
+import top.puresky.hitokotohub.UncategorizedConstants;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.Sentence;
 import top.puresky.hitokotohub.service.CategoryCountService;
@@ -99,8 +100,9 @@ public class CategoryCountServiceImpl implements CategoryCountService {
     /**
      * 内存分组构建分类 → 句子数映射。
      *
-     * <p>确保所有已注册分类都出现在 map 中（即使计数为 0），
-     * 同时处理异常数据（categoryName 为 null/blank 的 sentence 不计入任何分类）。
+     * <p>确保所有已注册分类都出现在 map 中（即使计数为 0）。
+     * categoryName 为 null/blank 的 sentence 统一计入 {@code uncategorized}，
+     * 与 {@code SentenceReconciler.normalizeCategory} 行为保持一致。
      */
     private Map<String, Long> buildCountsMap(List<Category> categories, List<Sentence> sentences) {
         Map<String, Long> counts = new HashMap<>(categories.size() + 8);
@@ -113,7 +115,7 @@ public class CategoryCountServiceImpl implements CategoryCountService {
             }
         }
 
-        // 2. 内存分组计数（防御性：跳过 categoryName 异常的 sentence）
+        // 2. 内存分组计数
         for (Sentence s : sentences) {
             // 防御性检查（理论上 listAll 已过滤 deletionTimestamp，但 double-check 防御）
             if (s.getMetadata() != null && s.getMetadata().getDeletionTimestamp() != null) {
@@ -124,9 +126,9 @@ public class CategoryCountServiceImpl implements CategoryCountService {
             }
             String categoryName = s.getSpec().getCategoryName();
             if (categoryName == null || categoryName.isBlank()) {
-                // 异常数据：未指定分类的 sentence 不计入任何已知分类，
-                // 也不计入 uncategorized（避免与"未分类"实体下的真实 sentence 混淆）
-                continue;
+                // 空分类名句子会在 SentenceReconciler.normalizeCategory 中归入未分类，
+                // 此处统一计入 uncategorized 以保持统计一致性
+                categoryName = UncategorizedConstants.METADATA_NAME;
             }
             counts.merge(categoryName, 1L, Long::sum);
         }
@@ -137,7 +139,9 @@ public class CategoryCountServiceImpl implements CategoryCountService {
      * 内存分组构建分类 → {@link CategoryStats} 统计映射。
      *
      * <p>同时按 (categoryName, isPublished) 分组,一次遍历得到每个分类的总数和已发布数。
-     * 所有已注册分类都出现在 map 中(即使计数为 0);categoryName 异常的 sentence 不计入。
+     * 所有已注册分类都出现在 map 中(即使计数为 0)。
+     * categoryName 为 null/blank 的 sentence 统一计入 {@code uncategorized}，
+     * 与 {@code SentenceReconciler.normalizeCategory} 行为保持一致。
      */
     private Map<String, CategoryStats> buildStatsMap(List<Category> categories,
                                                        List<Sentence> sentences) {
@@ -162,7 +166,9 @@ public class CategoryCountServiceImpl implements CategoryCountService {
             }
             String categoryName = s.getSpec().getCategoryName();
             if (categoryName == null || categoryName.isBlank()) {
-                continue;
+                // 空分类名句子会在 SentenceReconciler.normalizeCategory 中归入未分类，
+                // 此处统一计入 uncategorized 以保持统计一致性
+                categoryName = UncategorizedConstants.METADATA_NAME;
             }
             long[] entry = acc.computeIfAbsent(categoryName, k -> new long[]{0L, 0L});
             entry[0]++; // total

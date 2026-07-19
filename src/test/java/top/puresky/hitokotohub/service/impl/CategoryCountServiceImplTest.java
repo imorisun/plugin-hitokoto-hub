@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.test.StepVerifier;
 import run.halo.app.extension.ReactiveExtensionClient;
+import top.puresky.hitokotohub.UncategorizedConstants;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.Sentence;
 import top.puresky.hitokotohub.support.MockExtensionClient;
@@ -19,7 +20,7 @@ import top.puresky.hitokotohub.support.TestFixtures;
  * <ul>
  *   <li>正常计数（单分类、多分类、空分类）</li>
  *   <li>已删除句子不计入（验证 {@code buildCountsMap} 中的 double-check 防御）</li>
- *   <li>异常数据（categoryName 为 null/blank）不计入任何分类</li>
+ *   <li>异常数据（categoryName 为 null/blank）统一计入 uncategorized</li>
  *   <li>{@code getCount} 边界处理（入参 null/blank）</li>
  * </ul>
  *
@@ -114,8 +115,8 @@ class CategoryCountServiceImplTest {
     }
 
     @Test
-    @DisplayName("getAllCounts：异常数据（categoryName 为 null/blank）→ 不计入任何分类")
-    void getAllCounts_invalidCategoryName_notCounted() {
+    @DisplayName("getAllCounts：异常数据（categoryName 为 null/blank）→ 统一计入 uncategorized")
+    void getAllCounts_invalidCategoryName_countedAsUncategorized() {
         Category catA = TestFixtures.category("cat-a", "分类A");
         // categoryName=null
         Sentence nullCat = TestFixtures.sentence("invalid-1", "内容", true);
@@ -131,9 +132,10 @@ class CategoryCountServiceImplTest {
 
         StepVerifier.create(serviceWith(client).getAllCounts())
             .assertNext(counts -> {
-                // 仅 valid 计入 cat-a
+                // valid 计入 cat-a，null/blank 计入 uncategorized
                 assertThat(counts).containsEntry("cat-a", 1L);
-                assertThat(counts).hasSize(1);
+                assertThat(counts).containsEntry(UncategorizedConstants.METADATA_NAME, 2L);
+                assertThat(counts).hasSize(2);
             })
             .verifyComplete();
     }
