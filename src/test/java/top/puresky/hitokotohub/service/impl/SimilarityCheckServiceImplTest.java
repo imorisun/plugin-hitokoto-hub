@@ -21,7 +21,6 @@ import run.halo.app.extension.ReactiveExtensionClient;
 import top.puresky.hitokotohub.extension.Sentence;
 import top.puresky.hitokotohub.extension.SimilarityCheckLog;
 import top.puresky.hitokotohub.extension.SimilarityGroup;
-import top.puresky.hitokotohub.service.dto.BatchDeleteResult;
 import top.puresky.hitokotohub.service.similarity.SentencePair;
 import top.puresky.hitokotohub.service.similarity.SentencePairJsonCodec;
 import top.puresky.hitokotohub.service.similarity.SimilarityGroupBuilder;

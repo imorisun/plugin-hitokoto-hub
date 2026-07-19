@@ -628,8 +628,8 @@ import {
 import {utils} from '@halo-dev/ui-shared'
 import {Delete, EditPen, View} from '@element-plus/icons-vue'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
-import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
 import type {CategoryWithCount} from '@/api'
+import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
 import type {BatchCreateSentenceResult, Category, Sentence} from '@/api/generated'
 import IconLike from '~icons/my-icons/like';
 import * as XLSX from 'xlsx'

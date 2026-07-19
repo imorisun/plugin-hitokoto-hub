@@ -1,10 +1,8 @@
 package top.puresky.hitokotohub.service;
 
-import java.util.List;
 import java.util.Map;
 import reactor.core.publisher.Mono;
 import top.puresky.hitokotohub.extension.SimilarityCheckLog;
-import top.puresky.hitokotohub.extension.SimilarityGroup;
 import top.puresky.hitokotohub.service.dto.BatchDeleteResult;
 
 /**

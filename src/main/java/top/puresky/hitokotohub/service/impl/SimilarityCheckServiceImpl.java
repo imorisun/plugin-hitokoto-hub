@@ -23,8 +23,8 @@ import top.puresky.hitokotohub.service.dto.BatchDeleteResult;
 import top.puresky.hitokotohub.service.similarity.SentencePair;
 import top.puresky.hitokotohub.service.similarity.SentencePairJsonCodec;
 import top.puresky.hitokotohub.service.similarity.SentenceProfile;
-import top.puresky.hitokotohub.service.similarity.SimilarityPairFinder;
 import top.puresky.hitokotohub.service.similarity.SimilarityGroupBuilder;
+import top.puresky.hitokotohub.service.similarity.SimilarityPairFinder;
 
 /**
  * 句子相似度检查服务实现。

@@ -183,10 +183,10 @@
 </template>
 
 <script setup lang="ts">
-import {onMounted, onUnmounted, ref, watch, computed} from 'vue'
+import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
+import type {CategoryWithCount} from '@/api'
 import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
 import type {Category} from '@/api/generated'
-import type {CategoryWithCount} from '@/api'
 import {
   Dialog,
   IconAddCircle,

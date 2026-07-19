@@ -9,10 +9,10 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import run.halo.app.extension.Metadata;
 import top.puresky.hitokotohub.endpoint.OverviewConsoleEndpoint.ViewStatisticsResponse;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
 import top.puresky.hitokotohub.extension.CategoryViewRecord.EventType;
-import run.halo.app.extension.Metadata;
 
 /**
  * {@link EchartsDataBuilder} 单元测试。

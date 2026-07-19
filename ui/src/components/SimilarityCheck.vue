@@ -317,12 +317,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  Dialog,
-  VButton,
-  VCard,
-  VTag,
-} from '@halo-dev/components'
+import {Dialog, VButton, VCard, VTag,} from '@halo-dev/components'
 import {
   CircleCheckFilled,
   CircleCloseFilled,

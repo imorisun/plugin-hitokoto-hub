@@ -1,6 +1,5 @@
 package top.puresky.hitokotohub.endpoint;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -19,7 +18,6 @@ import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ListResult;
 import run.halo.app.extension.PageRequest;
 import run.halo.app.extension.ReactiveExtensionClient;
-import top.puresky.hitokotohub.endpoint.CategoryConsoleEndpoint.CategoryWithCount;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.service.CategoryCountService;
 import top.puresky.hitokotohub.support.TestFixtures;
