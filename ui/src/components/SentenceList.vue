@@ -177,6 +177,85 @@
             </div>
           </div>
 
+          <!-- 批量操作工具栏：选择状态反馈 + 批量操作按钮（遵循 Halo 设计规范：VSpace 间距、VButton ghost、Halo 标准色板） -->
+          <div
+                  v-if="canManage && sentences.length > 0"
+                  class="sentence-batch-bar"
+          >
+            <VSpace spacing="sm" align="center">
+              <el-checkbox
+                      :model-value="isAllSelectedOnPage"
+                      :indeterminate="isIndeterminateOnPage"
+                      :disabled="batchOperating"
+                      @change="toggleAllOnPage"
+              >
+                <span class="batch-count">
+                  <template v-if="selectedCount > 0">已选择 {{ selectedCount }} 项</template>
+                  <template v-else>全选当前页</template>
+                </span>
+              </el-checkbox>
+              <VButton
+                      v-if="hasSelection"
+                      size="sm"
+                      type="secondary"
+                      :disabled="batchOperating"
+                      @click="clearSelection"
+              >
+                取消选择
+              </VButton>
+            </VSpace>
+            <VSpace spacing="sm" align="center" wrap>
+              <el-select
+                      v-model="batchMoveCategory"
+                      placeholder="选择目标分类"
+                      size="small"
+                      class="batch-category-select"
+                      :disabled="batchOperating"
+                      filterable
+              >
+                <el-option
+                        v-for="c in categories"
+                        :key="c.metadata.name"
+                        :label="c.spec.name"
+                        :value="c.metadata.name"
+                />
+              </el-select>
+              <VButton
+                      size="sm"
+                      :disabled="!canBatchMove || batchOperating"
+                      :loading="batchOperating && batchOperatingType === 'move'"
+                      @click="handleBatchMove"
+              >
+                移动到分类
+              </VButton>
+              <VButton
+                      size="sm"
+                      :disabled="!hasSelection || batchOperating"
+                      :loading="batchOperating && batchOperatingType === 'publish'"
+                      @click="handleBatchPublish(true)"
+              >
+                发布
+              </VButton>
+              <VButton
+                      size="sm"
+                      :disabled="!hasSelection || batchOperating"
+                      :loading="batchOperating && batchOperatingType === 'unpublish'"
+                      @click="handleBatchPublish(false)"
+              >
+                取消发布
+              </VButton>
+              <VButton
+                      size="sm"
+                      type="danger"
+                      :disabled="!hasSelection || batchOperating"
+                      :loading="batchOperating && batchOperatingType === 'delete'"
+                      @click="handleBatchDelete"
+              >
+                删除
+              </VButton>
+            </VSpace>
+          </div>
+
           <div>
             <div v-if="loading" class="flex items-center justify-center py-20">
               <VLoading/>
@@ -191,6 +270,14 @@
               <VEntityContainer>
                 <VEntity v-for="sentence in sentences" :key="sentence.metadata.name">
                   <template #start>
+                    <div v-if="canManage" class="sentence-row-checkbox">
+                      <el-checkbox
+                              :model-value="isSelected(sentence.metadata.name)"
+                              :disabled="batchOperating || isDeleting(sentence)"
+                              @change="toggle(sentence.metadata.name)"
+                              @click.stop
+                      />
+                    </div>
                     <VEntityField max-width="620px">
                       <template #title>
                     <span :title="sentence.spec.content"
@@ -622,6 +709,7 @@ import {
   VLoading,
   VModal,
   VPagination,
+  VSpace,
   VStatusDot,
   VTag,
 } from '@halo-dev/components'
@@ -634,6 +722,11 @@ import type {BatchCreateSentenceResult, Category, Sentence} from '@/api/generate
 import IconLike from '~icons/my-icons/like';
 import * as XLSX from 'xlsx'
 import {useToast} from '@/composables/useToast'
+import {
+  runWithConcurrency,
+  summarizeBatchResult,
+  useBatchSelection,
+} from '@/composables/useBatchSelection'
 
 const toast = useToast()
 
@@ -650,6 +743,31 @@ let deletionRefetchTimer: ReturnType<typeof setInterval> | null = null
 const selectedCategory = ref<string | undefined>(undefined)
 const selectedSort = ref<string | undefined>(undefined)
 const canManage = computed(() => utils.permission.has(['plugin:hitokoto-hub:manage']))
+
+// 批量选择状态：使用 Set 存储 ID，O(1) 查找/增删。
+// resetWatch 监听分页/筛选/排序变化时自动清空选择，避免"看不到却已选"的混淆。
+const {
+  selectedIdList,
+  selectedCount,
+  hasSelection,
+  isSelected,
+  isAllSelectedOnPage,
+  isIndeterminateOnPage,
+  toggle,
+  toggleAllOnPage,
+  clear: clearSelection,
+} = useBatchSelection<Sentence>({
+  getId: (s) => s.metadata.name,
+  items: sentences,
+  resetWatch: [page, size, selectedCategory, selectedSort],
+})
+
+// 批量操作状态
+const batchMoveCategory = ref('')
+const batchOperating = ref(false)
+const batchOperatingType = ref<'move' | 'publish' | 'unpublish' | 'delete' | ''>('')
+
+const canBatchMove = computed(() => hasSelection.value && !!batchMoveCategory.value)
 
 const showFormModal = ref(false)
 const isEditing = ref(false)
@@ -938,12 +1056,14 @@ const fetchSentences = async () => {
 watch(keyword, (newVal) => {
   if (!newVal.trim()) {
     page.value = 1
+    clearSelection()
     fetchSentences()
   }
 })
 
 const handleSearch = async () => {
   page.value = 1
+  clearSelection()
   await fetchSentences()
 }
 
@@ -960,6 +1080,7 @@ const handleClearFilters = () => {
   selectedCategory.value = undefined
   selectedSort.value = undefined
   keyword.value = ''
+  clearSelection()
   page.value = 1
   fetchSentences()
 }
@@ -1321,6 +1442,168 @@ const handleDelete = (sentence: Sentence) => {
   })
 }
 
+/**
+ * 批量操作完成后的统一收尾：
+ * 1. 清空选择（避免脏数据） 2. 刷新句子列表 3. 刷新分类计数。
+ */
+const refreshAfterBatch = async () => {
+  clearSelection()
+  batchMoveCategory.value = ''
+  await fetchSentences()
+  await initCategories()
+}
+
+/**
+ * 批量移动到分类。
+ * 对每个选中项：先获取最新数据（防乐观锁），再更新 categoryName。
+ * 使用并发 16（项目约定），单个失败不中断整体流程。
+ */
+const handleBatchMove = () => {
+  if (!hasSelection.value) {
+    toast.warning('请先选择要移动的句子')
+    return
+  }
+  if (!batchMoveCategory.value) {
+    toast.warning('请选择目标分类')
+    return
+  }
+  const targetCategory = categories.value.find((c) => c.metadata.name === batchMoveCategory.value)
+  const targetName = targetCategory?.spec.name || batchMoveCategory.value
+  const count = selectedCount.value
+  Dialog.warning({
+    title: '批量移动确认',
+    description: `确定将选中的 ${count} 条句子移动到分类「${targetName}」吗？`,
+    confirmText: '移动',
+    cancelText: '取消',
+    onConfirm: () => executeBatch(
+      'move',
+      async () => {
+        const targetCategoryName = batchMoveCategory.value
+        const ids = [...selectedIdList.value]
+        const tasks = ids.map((name) => async () => {
+          const {data: latest} = await sentenceCoreApiClient.sentence.getSentence({name})
+          const updated: Sentence = {
+            ...latest,
+            spec: {...latest.spec, categoryName: targetCategoryName},
+          }
+          await sentenceCoreApiClient.sentence.updateSentence({name, sentence: updated})
+        })
+        return {ids, results: await runWithConcurrency(tasks, 16)}
+      },
+      '移动',
+    ),
+  })
+}
+
+/**
+ * 批量发布/取消发布。
+ * 不弹确认框（操作可逆），直接执行。
+ */
+const handleBatchPublish = (published: boolean) => {
+  if (!hasSelection.value) {
+    toast.warning('请先选择要操作的句子')
+    return
+  }
+  const count = selectedCount.value
+  const action = published ? '发布' : '取消发布'
+  Dialog.warning({
+    title: `批量${action}确认`,
+    description: `确定将选中的 ${count} 条句子${action}吗？`,
+    confirmText: action,
+    cancelText: '取消',
+    onConfirm: () => executeBatch(
+      published ? 'publish' : 'unpublish',
+      async () => {
+        const ids = [...selectedIdList.value]
+        const tasks = ids.map((name) => async () => {
+          const {data: latest} = await sentenceCoreApiClient.sentence.getSentence({name})
+          const updated: Sentence = {
+            ...latest,
+            status: {...latest.status, published},
+          }
+          await sentenceCoreApiClient.sentence.updateSentence({name, sentence: updated})
+        })
+        return {ids, results: await runWithConcurrency(tasks, 16)}
+      },
+      action,
+    ),
+  })
+}
+
+/**
+ * 批量删除（危险操作，二次确认）。
+ * 单个失败不中断整体流程，失败项的选择 ID 会被清理。
+ */
+const handleBatchDelete = () => {
+  if (!hasSelection.value) {
+    toast.warning('请先选择要删除的句子')
+    return
+  }
+  const count = selectedCount.value
+  Dialog.warning({
+    title: '批量删除确认',
+    description: `确定要删除选中的 ${count} 条句子吗？该操作不可撤销。`,
+    confirmType: 'danger',
+    confirmText: '删除',
+    cancelText: '取消',
+    onConfirm: () => executeBatch(
+      'delete',
+      async () => {
+        const ids = [...selectedIdList.value]
+        const tasks = ids.map((name) => async () => {
+          await sentenceCoreApiClient.sentence.deleteSentence({name})
+        })
+        return {ids, results: await runWithConcurrency(tasks, 16)}
+      },
+      '删除',
+    ),
+  })
+}
+
+/**
+ * 批量操作统一执行器。
+ *
+ * <p>错误处理策略（与 project_memory 约定一致）：
+ * <ul>
+ *   <li>单个项失败不中断整体流程（runWithConcurrency 已隔离）</li>
+ *   <li>汇总成功/失败数，失败数 > 0 时使用 warning toast</li>
+ *   <li>整体异常（如网络错误）使用 error toast</li>
+ * </ul>
+ *
+ * @param type 操作类型（用于 loading 状态标记）
+ * @param executor 实际执行函数，返回 {ids, results}
+ * @param actionLabel 操作名称（用于 toast 提示）
+ */
+const executeBatch = async (
+  type: 'move' | 'publish' | 'unpublish' | 'delete',
+  executor: () => Promise<{
+    ids: string[]
+    results: PromiseSettledResult<unknown>[]
+  }>,
+  actionLabel: string,
+) => {
+  batchOperating.value = true
+  batchOperatingType.value = type
+  try {
+    const {results} = await executor()
+    const {success, failed} = summarizeBatchResult(results)
+    if (failed === 0) {
+      toast.success(`成功${actionLabel} ${success} 条句子`)
+    } else if (success === 0) {
+      toast.error(`${actionLabel}失败：${failed} 条全部失败`)
+    } else {
+      toast.warning(`${actionLabel}完成：成功 ${success} 条，失败 ${failed} 条`)
+    }
+    await refreshAfterBatch()
+  } catch (e) {
+    console.error(`批量${actionLabel}失败`, e)
+    toast.error(`批量${actionLabel}失败`)
+  } finally {
+    batchOperating.value = false
+    batchOperatingType.value = ''
+  }
+}
+
 onMounted(() => {
   initCategories()
   fetchSentences()
@@ -1466,6 +1749,38 @@ onUnmounted(() => {
   background: #f9fafb;
 }
 
+/* 批量操作工具栏（遵循 Halo 设计规范：与 sentence-list-toolbar 一致的灰白背景、标准边框） */
+.sentence-batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #eaecf0;
+  background: #f9fafb;
+}
+
+.batch-count {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 500;
+  user-select: none;
+}
+
+.batch-category-select {
+  width: 160px;
+}
+
+/* 行内复选框 */
+.sentence-row-checkbox {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 4px;
+  height: 100%;
+}
+
 .sentence-list-pagination {
   padding: 12px 16px;
   border-top: 1px solid #eaecf0;
@@ -1487,6 +1802,11 @@ onUnmounted(() => {
   }
 
   .sentence-list-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sentence-batch-bar {
     align-items: stretch;
     flex-direction: column;
   }
