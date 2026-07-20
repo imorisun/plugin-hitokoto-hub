@@ -401,7 +401,7 @@ const fetchLogsSilently = async () => {
     logs.value = data.items || []
     total.value = data.total || 0
   } catch (e) {
-    console.error('Silent fetch failed', e)
+    console.error('静默刷新日志列表失败', e)
   }
 }
 

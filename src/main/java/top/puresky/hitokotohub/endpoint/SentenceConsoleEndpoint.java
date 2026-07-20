@@ -335,7 +335,7 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
             .concatMap(sentence -> client.delete(sentence)
                 .onErrorResume(e -> {
                     log.warn("删除未分类句子 [{}] 失败: {}",
-                        sentence.getMetadata().getName(), e.getMessage());
+                        sentence.getMetadata().getName(), e.getMessage(), e);
                     return Mono.empty();
                 }))
             .count()

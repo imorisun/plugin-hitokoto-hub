@@ -261,7 +261,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                                         Sort.by("metadata.creationTimestamp").descending())
                                     .next()
                                     .flatMap(client::delete)
-                                    .doOnNext(deleted -> log.info("删除点赞记录: {}",
+                                    .doOnNext(deleted -> log.debug("删除点赞记录: {}",
                                         deleted.getMetadata().getName()))
                                     .onErrorResume(e -> {
                                         log.warn("删除点赞记录失败", e);

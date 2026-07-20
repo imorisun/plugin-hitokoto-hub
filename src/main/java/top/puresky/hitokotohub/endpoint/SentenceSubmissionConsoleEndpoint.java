@@ -14,7 +14,6 @@ import java.time.Instant;
 import java.util.Map;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -38,7 +37,6 @@ import top.puresky.hitokotohub.extension.SentenceSubmission;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
 
     private static final String TAG = "SentenceSubmissionV1alpha1";

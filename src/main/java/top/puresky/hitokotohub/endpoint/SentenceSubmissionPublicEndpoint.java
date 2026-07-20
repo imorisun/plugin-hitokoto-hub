@@ -11,7 +11,6 @@ import java.time.Duration;
 import java.util.Map;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -34,7 +33,6 @@ import top.puresky.hitokotohub.utils.TimeFormatUtils;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
 
     private static final String TAG = "SentenceSubmissionPublicV1alpha1";

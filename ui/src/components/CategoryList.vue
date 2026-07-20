@@ -299,7 +299,7 @@ async function fetchCategoriesSilently() {
     }
   } catch (e) {
     // 静默失败，不影响用户
-    console.error('Silent fetch failed', e)
+    console.error('静默刷新分类列表失败', e)
   }
 }
 
@@ -329,7 +329,7 @@ async function fetchCategories() {
       stopPolling()
     }
   } catch (e) {
-    console.error('Failed to fetch categories', e)
+    console.error('获取分类列表失败', e)
     toast.error('加载分类列表失败')
   } finally {
     loading.value = false
@@ -412,7 +412,7 @@ async function handleSave() {
     showFormModal.value = false
     await fetchCategories()
   } catch (e) {
-    console.error('Failed to save category', e)
+    console.error('保存分类失败', e)
     toast.error(isEditing.value ? '更新分类失败' : '创建分类失败')
   } finally {
     saving.value = false
@@ -441,7 +441,7 @@ function handleDelete(category: Category) {
           startPolling()
         }
       } catch (e) {
-        console.error('Failed to delete category', e)
+        console.error('删除分类失败', e)
         toast.error('删除分类失败')
       }
     },

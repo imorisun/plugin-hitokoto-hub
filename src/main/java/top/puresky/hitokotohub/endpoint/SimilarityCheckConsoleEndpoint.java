@@ -152,7 +152,8 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
                             username,
                             finalAlgorithm,
                             finalThreshold)
-                        .doOnError(e -> log.error("手动触发相似度检查失败", e))
+                        .doOnError(e -> log.error("手动触发相似度检查失败, user={}, algorithm={}, threshold={}",
+                            username, finalAlgorithm, finalThreshold, e))
                         .subscribe();
                     return ServerResponse.ok()
                         .bodyValue(Map.of("message", "相似度检查任务已触发，请稍后查看结果"));
@@ -186,7 +187,7 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
         return similarityCheckService.getGroups(page, size)
             .flatMap(result -> ServerResponse.ok().bodyValue(result))
             .onErrorResume(e -> {
-                log.error("获取相似度分组失败", e);
+                log.error("获取相似度分组失败, page={}, size={}", page, size, e);
                 return ServerResponse.ok()
                     .bodyValue(Map.of("page", page, "size", size, "total", 0, "groups", List.of()));
             });

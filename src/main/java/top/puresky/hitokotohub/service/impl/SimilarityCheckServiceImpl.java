@@ -113,7 +113,8 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
                 .maxBackoff(Duration.ofSeconds(1))
                 .onRetryExhaustedThrow((spec, signal) -> signal.failure()))
             .onErrorResume(e -> {
-                log.warn("获取分组结果失败（已重试3次），返回空分组", e);
+                log.error("获取分组结果失败（已重试3次），返回空分组, page={}, size={}",
+                    page, size, e);
                 return Mono.just(groupBuilder.emptyResult(page, size));
             });
     }
@@ -312,7 +313,7 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
                 .flatMap(s -> client.delete(s)
                     .thenReturn(Map.entry(name, true))
                     .onErrorResume(e -> {
-                        log.warn("删除句子 {} 失败: {}", name, e.getMessage());
+                        log.warn("删除句子 [{}] 失败: {}", name, e.getMessage(), e);
                         return Mono.just(Map.entry(name, false));
                     }))
                 .defaultIfEmpty(Map.entry(name, false)), 16)

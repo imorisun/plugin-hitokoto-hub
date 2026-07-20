@@ -36,8 +36,6 @@ public class UncategorizedCategoryInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         client.fetch(Category.class, UncategorizedConstants.METADATA_NAME)
             .switchIfEmpty(createUncategorized())
-            .doOnError(e -> log.error("初始化「未分类」Category 失败", e))
-            .onErrorResume(e -> reactor.core.publisher.Mono.empty())
             .subscribe(
                 existing -> { /* 已存在或创建成功 */ },
                 e -> log.error("初始化「未分类」Category 失败", e));

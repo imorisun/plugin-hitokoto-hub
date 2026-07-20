@@ -497,7 +497,7 @@ const fetchSubmissionsSilently = async () => {
     submissions.value = data.items || []
     total.value = data.total || 0
   } catch (e) {
-    console.error('Silent fetch failed', e)
+    console.error('静默刷新提交列表失败', e)
   }
 }
 

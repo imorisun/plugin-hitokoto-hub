@@ -18,7 +18,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
@@ -40,7 +39,6 @@ import top.puresky.hitokotohub.service.dto.CategoryStats;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class OverviewConsoleEndpoint implements CustomEndpoint {
 
     private static final String TAG = "OverviewV1alpha1";

@@ -129,7 +129,9 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
                         aiConfig.getAiSentenceCount(),
                         aiConfig.getAiSentenceCategory(),
                         aiConfig.getAiSentenceAutoPublish())
-                    .doOnError(e -> log.error("手动触发AI生成失败", e))
+                    .doOnError(e -> log.error("手动触发AI生成失败, model={}, topic={}, count={}, category={}",
+                        aiConfig.getLanguageModelName(), aiConfig.getAiTopic(),
+                        aiConfig.getAiSentenceCount(), aiConfig.getAiSentenceCategory(), e))
                     .subscribe();
                 return ServerResponse.ok()
                     .bodyValue(Map.of("message", "AI生成任务已触发，请稍后查看日志"));
