@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -98,8 +99,8 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
     }
 
     private @NonNull Mono<ServerResponse> listLogs(@NonNull ServerRequest request) {
-        int page = Integer.parseInt(request.queryParam("page").orElse("1"));
-        int size = Integer.parseInt(request.queryParam("size").orElse("20"));
+        int page = NumberUtils.toInt(request.queryParam("page").orElse("1"), 1);
+        int size = NumberUtils.toInt(request.queryParam("size").orElse("20"), 20);
         String status = request.queryParam("status").orElse(null);
 
         var optionsBuilder = ListOptions.builder();
@@ -140,7 +141,7 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
                         algorithm = paramAlgorithm;
                     }
                     if (paramThreshold != null) {
-                        threshold = Double.parseDouble(paramThreshold);
+                        threshold = NumberUtils.toDouble(paramThreshold, threshold);
                     }
 
                     final String finalAlgorithm = algorithm;
@@ -182,8 +183,8 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
     }
 
     @NonNull Mono<ServerResponse> listGroups(@NonNull ServerRequest request) {
-        int page = Integer.parseInt(request.queryParam("page").orElse("1"));
-        int size = Integer.parseInt(request.queryParam("size").orElse("10"));
+        int page = NumberUtils.toInt(request.queryParam("page").orElse("1"), 1);
+        int size = NumberUtils.toInt(request.queryParam("size").orElse("10"), 10);
         return similarityCheckService.getGroups(page, size)
             .flatMap(result -> ServerResponse.ok().bodyValue(result))
             .onErrorResume(e -> {

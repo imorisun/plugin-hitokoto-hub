@@ -14,6 +14,8 @@ import java.time.Instant;
 import java.util.Map;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -97,8 +99,8 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
     }
 
     private @NonNull Mono<ServerResponse> listSubmissions(@NonNull ServerRequest request) {
-        int page = Integer.parseInt(request.queryParam("page").orElse("1"));
-        int size = Integer.parseInt(request.queryParam("size").orElse("20"));
+        int page = NumberUtils.toInt(request.queryParam("page").orElse("1"), 1);
+        int size = NumberUtils.toInt(request.queryParam("size").orElse("20"), 20);
         String status = request.queryParam("status").orElse(null);
 
         var optionsBuilder = ListOptions.builder();

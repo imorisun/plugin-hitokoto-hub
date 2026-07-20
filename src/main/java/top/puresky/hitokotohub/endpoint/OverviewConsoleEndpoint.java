@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
@@ -161,7 +162,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
     }
 
     private @NonNull Mono<ServerResponse> getViewStatistics(ServerRequest request) {
-        int days = Integer.parseInt(request.queryParam("days").orElse("30"));
+        int days = NumberUtils.toInt(request.queryParam("days").orElse("30"), 30);
         String granularity = request.queryParam("granularity").orElse("day");
         String eventType = request.queryParam("eventType").orElse("VIEW");
 

@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Sort;
@@ -78,8 +79,8 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
     }
 
     private @NonNull Mono<ServerResponse> listLogs(@NonNull ServerRequest request) {
-        int page = Integer.parseInt(request.queryParam("page").orElse("1"));
-        int size = Integer.parseInt(request.queryParam("size").orElse("20"));
+        int page = NumberUtils.toInt(request.queryParam("page").orElse("1"), 1);
+        int size = NumberUtils.toInt(request.queryParam("size").orElse("20"), 20);
         String status = request.queryParam("status").orElse(null);
 
         var optionsBuilder = ListOptions.builder();
