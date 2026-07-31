@@ -15,5 +15,9 @@ rules:
       - "sentence"
       - "category"
       - "sentence-submission"
+    verbs: [ "get", "list" ]
+  - apiGroups: [ "public.api.hitokotohub.puresky.top" ]
+    resources:
       - "sentence-submission/submit"
-    verbs: [ "get", "list", "create" ]
+    resourceNames: [ "-" ]
+    verbs: [ "create" ]

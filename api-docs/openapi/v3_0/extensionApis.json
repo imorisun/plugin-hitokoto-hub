@@ -2,10 +2,10 @@
   "openapi" : "3.0.1",
   "info" : {
     "title" : "Halo",
-    "version" : "2.24.1"
+    "version" : "2.25.4"
   },
   "servers" : [ {
-    "url" : "http://localhost:62213",
+    "url" : "http://localhost:37872",
     "description" : "Generated server url"
   } ],
   "security" : [ {
@@ -13,6 +13,132 @@
     "bearerAuth" : [ ]
   } ],
   "paths" : {
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs" : {
+      "get" : {
+        "operationId" : "listAiGenerateLogs",
+        "parameters" : [ {
+          "description" : "页码，从 1 开始",
+          "in" : "query",
+          "name" : "page",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "每页数量",
+          "in" : "query",
+          "name" : "size",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "按状态过滤：RUNNING / SUCCESS / PARTIAL_SUCCESS / FAILED",
+          "in" : "query",
+          "name" : "status",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AiGenerateLogList"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "查询AI生成日志列表",
+        "tags" : [ "AiGenerateLogV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs/-/trigger" : {
+      "post" : {
+        "operationId" : "triggerAiGenerate",
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "手动触发AI生成句子",
+        "tags" : [ "AiGenerateLogV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/ai-generate-logs/{name}" : {
+      "delete" : {
+        "operationId" : "deleteAiGenerateLog_1",
+        "parameters" : [ {
+          "description" : "日志名称",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "删除AI生成日志",
+        "tags" : [ "AiGenerateLogV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/categories" : {
+      "get" : {
+        "operationId" : "listCategoriesWithCounts",
+        "parameters" : [ {
+          "description" : "页码，从 1 开始",
+          "in" : "query",
+          "name" : "page",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "每页数量",
+          "in" : "query",
+          "name" : "size",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CategoryConsoleEndpoint.CategoryWithCountList"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "获取分类列表（含实时句子数量）",
+        "tags" : [ "CategoryConsoleV1alpha1" ]
+      }
+    },
     "/apis/console.api.hitokotohub.puresky.top/v1alpha1/overview" : {
       "get" : {
         "operationId" : "getOverview",
@@ -29,6 +155,25 @@
           }
         },
         "summary" : "获取概览信息",
+        "tags" : [ "OverviewV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/overview/today-sentence-details" : {
+      "get" : {
+        "operationId" : "getTodaySentenceDetails",
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TodaySentenceDetailsResponse"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "获取今日句子维度的浏览量/点赞量详情（按句子聚合）",
         "tags" : [ "OverviewV1alpha1" ]
       }
     },
@@ -131,6 +276,151 @@
         "tags" : [ "SentenceV1alpha1" ]
       }
     },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence-submissions" : {
+      "get" : {
+        "operationId" : "listSentenceSubmissions",
+        "parameters" : [ {
+          "description" : "页码，从 1 开始",
+          "in" : "query",
+          "name" : "page",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "每页数量",
+          "in" : "query",
+          "name" : "size",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "按状态过滤：PENDING / APPROVED / REJECTED",
+          "in" : "query",
+          "name" : "status",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SentenceSubmissionList"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "查询访客提交句子列表",
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence-submissions/{name}" : {
+      "delete" : {
+        "operationId" : "deleteSentenceSubmission_1",
+        "parameters" : [ {
+          "description" : "提交记录名称",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "删除访客提交记录",
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence-submissions/{name}/approve" : {
+      "post" : {
+        "operationId" : "approveSentenceSubmission",
+        "parameters" : [ {
+          "description" : "提交记录名称",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApproveRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SentenceSubmission"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "审核通过访客提交的句子",
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence-submissions/{name}/reject" : {
+      "post" : {
+        "operationId" : "rejectSentenceSubmission",
+        "parameters" : [ {
+          "description" : "提交记录名称",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RejectRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SentenceSubmission"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "拒绝访客提交的句子",
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      }
+    },
     "/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence/-/batch" : {
       "post" : {
         "operationId" : "batchCreateSentence",
@@ -160,6 +450,26 @@
           }
         },
         "summary" : "批量创建句子",
+        "tags" : [ "SentenceV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence/-/clear-uncategorized" : {
+      "delete" : {
+        "operationId" : "clearUncategorizedSentences",
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "integer",
+                  "format" : "int64"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "清空未分类的所有句子",
         "tags" : [ "SentenceV1alpha1" ]
       }
     },
@@ -226,6 +536,381 @@
         },
         "summary" : "搜索句子",
         "tags" : [ "SentenceV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/similarity-check-config" : {
+      "get" : {
+        "operationId" : "getSimilarityCheckConfig",
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "获取相似度检查配置",
+        "tags" : [ "SimilarityCheckV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/similarity-check-groups" : {
+      "get" : {
+        "operationId" : "listSimilarityGroups",
+        "parameters" : [ {
+          "description" : "页码，从 1 开始",
+          "in" : "query",
+          "name" : "page",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "每页数量",
+          "in" : "query",
+          "name" : "size",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "查询相似句子分组结果（分页）",
+        "tags" : [ "SimilarityCheckV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/similarity-check-groups/-/delete-nonoptimal" : {
+      "post" : {
+        "operationId" : "deleteNonOptimalSentences",
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BatchDeleteResult"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "批量删除每个相似组中的非最优句子",
+        "tags" : [ "SimilarityCheckV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/similarity-check-logs" : {
+      "get" : {
+        "operationId" : "listSimilarityCheckLogs",
+        "parameters" : [ {
+          "description" : "页码，从 1 开始",
+          "in" : "query",
+          "name" : "page",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "每页数量",
+          "in" : "query",
+          "name" : "size",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "按状态过滤：RUNNING / SUCCESS / FAILED",
+          "in" : "query",
+          "name" : "status",
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SimilarityCheckLogList"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "查询相似度检查日志列表",
+        "tags" : [ "SimilarityCheckV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/similarity-check-logs/-/trigger" : {
+      "post" : {
+        "operationId" : "triggerSimilarityCheck",
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "手动触发相似度检查",
+        "tags" : [ "SimilarityCheckV1alpha1" ]
+      }
+    },
+    "/apis/console.api.hitokotohub.puresky.top/v1alpha1/similarity-check-logs/{name}" : {
+      "get" : {
+        "operationId" : "getSimilarityCheckLog_1",
+        "parameters" : [ {
+          "description" : "日志名称",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SimilarityCheckLog"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "获取相似度检查日志详情",
+        "tags" : [ "SimilarityCheckV1alpha1" ]
+      }
+    },
+    "/apis/hitokotohub.puresky.top/v1alpha1/aigeneratelogs" : {
+      "get" : {
+        "description" : "List AiGenerateLog",
+        "operationId" : "listAiGenerateLog",
+        "parameters" : [ {
+          "description" : "Page number. Default is 0.",
+          "in" : "query",
+          "name" : "page",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "Size number. Default is 0.",
+          "in" : "query",
+          "name" : "size",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "Label selector. e.g.: hidden!=true",
+          "in" : "query",
+          "name" : "labelSelector",
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }, {
+          "description" : "Field selector. e.g.: metadata.name==halo",
+          "in" : "query",
+          "name" : "fieldSelector",
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }, {
+          "description" : "Sorting criteria in the format: property,(asc|desc). Default sort order is ascending. Multiple sort criteria are supported.",
+          "in" : "query",
+          "name" : "sort",
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AiGenerateLogList"
+                }
+              }
+            },
+            "description" : "Response aigeneratelogs"
+          }
+        },
+        "tags" : [ "AiGenerateLogV1alpha1" ]
+      },
+      "post" : {
+        "description" : "Create AiGenerateLog",
+        "operationId" : "createAiGenerateLog",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AiGenerateLog"
+              }
+            }
+          },
+          "description" : "Fresh aigeneratelog"
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AiGenerateLog"
+                }
+              }
+            },
+            "description" : "Response aigeneratelogs created just now"
+          }
+        },
+        "tags" : [ "AiGenerateLogV1alpha1" ]
+      }
+    },
+    "/apis/hitokotohub.puresky.top/v1alpha1/aigeneratelogs/{name}" : {
+      "delete" : {
+        "description" : "Delete AiGenerateLog",
+        "operationId" : "deleteAiGenerateLog",
+        "parameters" : [ {
+          "description" : "Name of aigeneratelog",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Response aigeneratelog deleted just now"
+          }
+        },
+        "tags" : [ "AiGenerateLogV1alpha1" ]
+      },
+      "get" : {
+        "description" : "Get AiGenerateLog",
+        "operationId" : "getAiGenerateLog",
+        "parameters" : [ {
+          "description" : "Name of aigeneratelog",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AiGenerateLog"
+                }
+              }
+            },
+            "description" : "Response single aigeneratelog"
+          }
+        },
+        "tags" : [ "AiGenerateLogV1alpha1" ]
+      },
+      "patch" : {
+        "description" : "Patch AiGenerateLog",
+        "operationId" : "patchAiGenerateLog",
+        "parameters" : [ {
+          "description" : "Name of aigeneratelog",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json-patch+json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/JsonPatch"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AiGenerateLog"
+                }
+              }
+            },
+            "description" : "Response aigeneratelog patched just now"
+          }
+        },
+        "tags" : [ "AiGenerateLogV1alpha1" ]
+      },
+      "put" : {
+        "description" : "Update AiGenerateLog",
+        "operationId" : "updateAiGenerateLog",
+        "parameters" : [ {
+          "description" : "Name of aigeneratelog",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AiGenerateLog"
+              }
+            }
+          },
+          "description" : "Updated aigeneratelog"
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AiGenerateLog"
+                }
+              }
+            },
+            "description" : "Response aigeneratelogs updated just now"
+          }
+        },
+        "tags" : [ "AiGenerateLogV1alpha1" ]
       }
     },
     "/apis/hitokotohub.puresky.top/v1alpha1/categories" : {
@@ -861,6 +1546,428 @@
         "tags" : [ "SentenceV1alpha1" ]
       }
     },
+    "/apis/hitokotohub.puresky.top/v1alpha1/sentencesubmissions" : {
+      "get" : {
+        "description" : "List SentenceSubmission",
+        "operationId" : "listSentenceSubmission",
+        "parameters" : [ {
+          "description" : "Page number. Default is 0.",
+          "in" : "query",
+          "name" : "page",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "Size number. Default is 0.",
+          "in" : "query",
+          "name" : "size",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "Label selector. e.g.: hidden!=true",
+          "in" : "query",
+          "name" : "labelSelector",
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }, {
+          "description" : "Field selector. e.g.: metadata.name==halo",
+          "in" : "query",
+          "name" : "fieldSelector",
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }, {
+          "description" : "Sorting criteria in the format: property,(asc|desc). Default sort order is ascending. Multiple sort criteria are supported.",
+          "in" : "query",
+          "name" : "sort",
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SentenceSubmissionList"
+                }
+              }
+            },
+            "description" : "Response sentencesubmissions"
+          }
+        },
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      },
+      "post" : {
+        "description" : "Create SentenceSubmission",
+        "operationId" : "createSentenceSubmission",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SentenceSubmission"
+              }
+            }
+          },
+          "description" : "Fresh sentencesubmission"
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SentenceSubmission"
+                }
+              }
+            },
+            "description" : "Response sentencesubmissions created just now"
+          }
+        },
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      }
+    },
+    "/apis/hitokotohub.puresky.top/v1alpha1/sentencesubmissions/{name}" : {
+      "delete" : {
+        "description" : "Delete SentenceSubmission",
+        "operationId" : "deleteSentenceSubmission",
+        "parameters" : [ {
+          "description" : "Name of sentencesubmission",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Response sentencesubmission deleted just now"
+          }
+        },
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      },
+      "get" : {
+        "description" : "Get SentenceSubmission",
+        "operationId" : "getSentenceSubmission",
+        "parameters" : [ {
+          "description" : "Name of sentencesubmission",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SentenceSubmission"
+                }
+              }
+            },
+            "description" : "Response single sentencesubmission"
+          }
+        },
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      },
+      "patch" : {
+        "description" : "Patch SentenceSubmission",
+        "operationId" : "patchSentenceSubmission",
+        "parameters" : [ {
+          "description" : "Name of sentencesubmission",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json-patch+json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/JsonPatch"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SentenceSubmission"
+                }
+              }
+            },
+            "description" : "Response sentencesubmission patched just now"
+          }
+        },
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      },
+      "put" : {
+        "description" : "Update SentenceSubmission",
+        "operationId" : "updateSentenceSubmission",
+        "parameters" : [ {
+          "description" : "Name of sentencesubmission",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SentenceSubmission"
+              }
+            }
+          },
+          "description" : "Updated sentencesubmission"
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SentenceSubmission"
+                }
+              }
+            },
+            "description" : "Response sentencesubmissions updated just now"
+          }
+        },
+        "tags" : [ "SentenceSubmissionV1alpha1" ]
+      }
+    },
+    "/apis/hitokotohub.puresky.top/v1alpha1/similaritychecklogs" : {
+      "get" : {
+        "description" : "List SimilarityCheckLog",
+        "operationId" : "listSimilarityCheckLog",
+        "parameters" : [ {
+          "description" : "Page number. Default is 0.",
+          "in" : "query",
+          "name" : "page",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "Size number. Default is 0.",
+          "in" : "query",
+          "name" : "size",
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "description" : "Label selector. e.g.: hidden!=true",
+          "in" : "query",
+          "name" : "labelSelector",
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }, {
+          "description" : "Field selector. e.g.: metadata.name==halo",
+          "in" : "query",
+          "name" : "fieldSelector",
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }, {
+          "description" : "Sorting criteria in the format: property,(asc|desc). Default sort order is ascending. Multiple sort criteria are supported.",
+          "in" : "query",
+          "name" : "sort",
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SimilarityCheckLogList"
+                }
+              }
+            },
+            "description" : "Response similaritychecklogs"
+          }
+        },
+        "tags" : [ "SimilarityCheckLogV1alpha1" ]
+      },
+      "post" : {
+        "description" : "Create SimilarityCheckLog",
+        "operationId" : "createSimilarityCheckLog",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SimilarityCheckLog"
+              }
+            }
+          },
+          "description" : "Fresh similaritychecklog"
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SimilarityCheckLog"
+                }
+              }
+            },
+            "description" : "Response similaritychecklogs created just now"
+          }
+        },
+        "tags" : [ "SimilarityCheckLogV1alpha1" ]
+      }
+    },
+    "/apis/hitokotohub.puresky.top/v1alpha1/similaritychecklogs/{name}" : {
+      "delete" : {
+        "description" : "Delete SimilarityCheckLog",
+        "operationId" : "deleteSimilarityCheckLog",
+        "parameters" : [ {
+          "description" : "Name of similaritychecklog",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Response similaritychecklog deleted just now"
+          }
+        },
+        "tags" : [ "SimilarityCheckLogV1alpha1" ]
+      },
+      "get" : {
+        "description" : "Get SimilarityCheckLog",
+        "operationId" : "getSimilarityCheckLog",
+        "parameters" : [ {
+          "description" : "Name of similaritychecklog",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SimilarityCheckLog"
+                }
+              }
+            },
+            "description" : "Response single similaritychecklog"
+          }
+        },
+        "tags" : [ "SimilarityCheckLogV1alpha1" ]
+      },
+      "patch" : {
+        "description" : "Patch SimilarityCheckLog",
+        "operationId" : "patchSimilarityCheckLog",
+        "parameters" : [ {
+          "description" : "Name of similaritychecklog",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json-patch+json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/JsonPatch"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SimilarityCheckLog"
+                }
+              }
+            },
+            "description" : "Response similaritychecklog patched just now"
+          }
+        },
+        "tags" : [ "SimilarityCheckLogV1alpha1" ]
+      },
+      "put" : {
+        "description" : "Update SimilarityCheckLog",
+        "operationId" : "updateSimilarityCheckLog",
+        "parameters" : [ {
+          "description" : "Name of similaritychecklog",
+          "in" : "path",
+          "name" : "name",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SimilarityCheckLog"
+              }
+            }
+          },
+          "description" : "Updated similaritychecklog"
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SimilarityCheckLog"
+                }
+              }
+            },
+            "description" : "Response similaritychecklogs updated just now"
+          }
+        },
+        "tags" : [ "SimilarityCheckLogV1alpha1" ]
+      }
+    },
     "/apis/public.api.hitokotohub.puresky.top/v1alpha1/category/list" : {
       "get" : {
         "operationId" : "listCategories",
@@ -881,6 +1988,54 @@
         },
         "summary" : "获取所有分类",
         "tags" : [ "CategoryPublicV1alpha1" ]
+      }
+    },
+    "/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence-submission/-/submit" : {
+      "post" : {
+        "operationId" : "submitSentence",
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SubmitRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SubmitResponse"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "访客提交句子",
+        "tags" : [ "SentenceSubmissionPublicV1alpha1" ]
+      }
+    },
+    "/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence-submission/config" : {
+      "get" : {
+        "operationId" : "getSubmissionConfig",
+        "responses" : {
+          "default" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "default response"
+          }
+        },
+        "summary" : "获取访客提交配置",
+        "tags" : [ "SentenceSubmissionPublicV1alpha1" ]
       }
     },
     "/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like" : {
@@ -975,6 +2130,102 @@
           }
         }
       },
+      "AiGenerateLog" : {
+        "required" : [ "apiVersion", "kind", "metadata", "spec" ],
+        "type" : "object",
+        "properties" : {
+          "apiVersion" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "metadata" : {
+            "$ref" : "#/components/schemas/Metadata"
+          },
+          "spec" : {
+            "$ref" : "#/components/schemas/Spec"
+          }
+        },
+        "description" : "A chunk of items."
+      },
+      "AiGenerateLogList" : {
+        "required" : [ "first", "hasNext", "hasPrevious", "items", "last", "page", "size", "total", "totalPages" ],
+        "type" : "object",
+        "properties" : {
+          "first" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page is the first page."
+          },
+          "hasNext" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page has previous page."
+          },
+          "hasPrevious" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page has previous page."
+          },
+          "items" : {
+            "type" : "array",
+            "description" : "A chunk of items.",
+            "items" : {
+              "$ref" : "#/components/schemas/AiGenerateLog"
+            }
+          },
+          "last" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page is the last page."
+          },
+          "page" : {
+            "type" : "integer",
+            "description" : "Page number, starts from 1. If not set or equal to 0, it means no pagination.",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "description" : "Size of each page. If not set or equal to 0, it means no pagination.",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "description" : "Total elements.",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "description" : "Indicates total pages.",
+            "format" : "int64"
+          }
+        }
+      },
+      "ApproveRequest" : {
+        "type" : "object",
+        "properties" : {
+          "author" : {
+            "maxLength" : 50,
+            "type" : "string",
+            "description" : "编辑后的作者（可选）"
+          },
+          "categoryName" : {
+            "type" : "string",
+            "description" : "编辑后的分类 metadata.name（可选）"
+          },
+          "content" : {
+            "maxLength" : 500,
+            "type" : "string",
+            "description" : "编辑后的句子内容（可选，不传则使用原始提交内容）"
+          },
+          "reviewNote" : {
+            "type" : "string",
+            "description" : "审核备注（可选，会展示给访客）"
+          },
+          "source" : {
+            "maxLength" : 100,
+            "type" : "string",
+            "description" : "编辑后的来源（可选）"
+          }
+        }
+      },
       "BatchCreateSentenceResult" : {
         "type" : "object",
         "properties" : {
@@ -989,6 +2240,30 @@
           "total" : {
             "type" : "integer",
             "format" : "int64"
+          }
+        }
+      },
+      "BatchDeleteResult" : {
+        "type" : "object",
+        "properties" : {
+          "deleted" : {
+            "type" : "integer",
+            "description" : "成功删除数",
+            "format" : "int32"
+          },
+          "failed" : {
+            "type" : "integer",
+            "description" : "失败数（含未找到）",
+            "format" : "int32"
+          },
+          "message" : {
+            "type" : "string",
+            "description" : "汇总消息"
+          },
+          "total" : {
+            "type" : "integer",
+            "description" : "候选删除总数",
+            "format" : "int32"
           }
         }
       },
@@ -1007,9 +2282,55 @@
           },
           "spec" : {
             "$ref" : "#/components/schemas/CategorySpec"
+          }
+        }
+      },
+      "CategoryConsoleEndpoint.CategoryWithCountList" : {
+        "required" : [ "first", "hasNext", "hasPrevious", "items", "last", "page", "size", "total", "totalPages" ],
+        "type" : "object",
+        "properties" : {
+          "first" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page is the first page."
           },
-          "status" : {
-            "$ref" : "#/components/schemas/CategoryStatus"
+          "hasNext" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page has previous page."
+          },
+          "hasPrevious" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page has previous page."
+          },
+          "items" : {
+            "type" : "array",
+            "description" : "A chunk of items.",
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryWithCount"
+            }
+          },
+          "last" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page is the last page."
+          },
+          "page" : {
+            "type" : "integer",
+            "description" : "Page number, starts from 1. If not set or equal to 0, it means no pagination.",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "description" : "Size of each page. If not set or equal to 0, it means no pagination.",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "description" : "Total elements.",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "description" : "Indicates total pages.",
+            "format" : "int64"
           }
         }
       },
@@ -1048,6 +2369,11 @@
             "type" : "string",
             "description" : "分类显示名称"
           },
+          "likeCount" : {
+            "type" : "integer",
+            "description" : "点赞量",
+            "format" : "int64"
+          },
           "notPublishedCount" : {
             "type" : "integer",
             "description" : "未公开的句子数量",
@@ -1056,6 +2382,11 @@
           "publishedCount" : {
             "type" : "integer",
             "description" : "公开的句子数量",
+            "format" : "int64"
+          },
+          "viewCount" : {
+            "type" : "integer",
+            "description" : "浏览量",
             "format" : "int64"
           }
         },
@@ -1146,18 +2477,8 @@
             "type" : "string",
             "description" : "分类名称"
           }
-        }
-      },
-      "CategoryStatus" : {
-        "type" : "object",
-        "properties" : {
-          "sentenceCount" : {
-            "type" : "integer",
-            "description" : "句子数量",
-            "format" : "int64",
-            "default" : 0
-          }
-        }
+        },
+        "description" : "分类规格"
       },
       "CategoryViewRecord" : {
         "required" : [ "apiVersion", "kind", "metadata", "spec" ],
@@ -1225,6 +2546,23 @@
             "format" : "int64"
           }
         }
+      },
+      "CategoryWithCount" : {
+        "type" : "object",
+        "properties" : {
+          "metadata" : {
+            "$ref" : "#/components/schemas/Metadata"
+          },
+          "sentenceCount" : {
+            "type" : "integer",
+            "description" : "该分类下的句子数量（实时查询）",
+            "format" : "int64"
+          },
+          "spec" : {
+            "$ref" : "#/components/schemas/CategorySpec"
+          }
+        },
+        "description" : "A chunk of items."
       },
       "CopyOperation" : {
         "required" : [ "op", "from", "path" ],
@@ -1476,6 +2814,15 @@
           }
         }
       },
+      "RejectRequest" : {
+        "type" : "object",
+        "properties" : {
+          "rejectionReason" : {
+            "type" : "string",
+            "description" : "拒绝理由（可选，会记录为审核备注）"
+          }
+        }
+      },
       "RemoveOperation" : {
         "required" : [ "op", "path" ],
         "type" : "object",
@@ -1623,16 +2970,20 @@
         "properties" : {
           "author" : {
             "maxLength" : 50,
+            "minLength" : 0,
             "type" : "string",
             "description" : "作者",
             "default" : "匿名"
           },
           "categoryName" : {
+            "maxLength" : 100,
+            "minLength" : 0,
             "type" : "string",
             "description" : "分类名称"
           },
           "content" : {
             "maxLength" : 500,
+            "minLength" : 0,
             "type" : "string",
             "description" : "句子内容"
           },
@@ -1642,6 +2993,7 @@
           },
           "source" : {
             "maxLength" : 100,
+            "minLength" : 0,
             "type" : "string",
             "description" : "来源",
             "default" : "未知"
@@ -1668,17 +3020,352 @@
           }
         }
       },
+      "SentenceSubmission" : {
+        "required" : [ "apiVersion", "kind", "metadata", "spec" ],
+        "type" : "object",
+        "properties" : {
+          "apiVersion" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "metadata" : {
+            "$ref" : "#/components/schemas/Metadata"
+          },
+          "spec" : {
+            "$ref" : "#/components/schemas/SentenceSubmissionSpec"
+          }
+        }
+      },
+      "SentenceSubmissionList" : {
+        "required" : [ "first", "hasNext", "hasPrevious", "items", "last", "page", "size", "total", "totalPages" ],
+        "type" : "object",
+        "properties" : {
+          "first" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page is the first page."
+          },
+          "hasNext" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page has previous page."
+          },
+          "hasPrevious" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page has previous page."
+          },
+          "items" : {
+            "type" : "array",
+            "description" : "A chunk of items.",
+            "items" : {
+              "$ref" : "#/components/schemas/SentenceSubmission"
+            }
+          },
+          "last" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page is the last page."
+          },
+          "page" : {
+            "type" : "integer",
+            "description" : "Page number, starts from 1. If not set or equal to 0, it means no pagination.",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "description" : "Size of each page. If not set or equal to 0, it means no pagination.",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "description" : "Total elements.",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "description" : "Indicates total pages.",
+            "format" : "int64"
+          }
+        }
+      },
+      "SentenceSubmissionSpec" : {
+        "required" : [ "categoryName", "content" ],
+        "type" : "object",
+        "properties" : {
+          "author" : {
+            "maxLength" : 50,
+            "type" : "string",
+            "description" : "作者",
+            "default" : "匿名"
+          },
+          "categoryName" : {
+            "type" : "string",
+            "description" : "访客选择的分类"
+          },
+          "content" : {
+            "maxLength" : 500,
+            "type" : "string",
+            "description" : "句子内容"
+          },
+          "reviewNote" : {
+            "type" : "string",
+            "description" : "审核备注"
+          },
+          "reviewedAt" : {
+            "type" : "string",
+            "description" : "审核时间"
+          },
+          "reviewedBy" : {
+            "type" : "string",
+            "description" : "审核人"
+          },
+          "sentenceName" : {
+            "type" : "string",
+            "description" : "审核通过后生成的句子名称"
+          },
+          "source" : {
+            "maxLength" : 100,
+            "type" : "string",
+            "description" : "来源",
+            "default" : "未知"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "审核状态",
+            "default" : "PENDING",
+            "enum" : [ "PENDING", "APPROVED", "REJECTED" ]
+          },
+          "submitterIp" : {
+            "type" : "string",
+            "description" : "提交者 IP"
+          },
+          "submitterName" : {
+            "maxLength" : 50,
+            "type" : "string",
+            "description" : "提交者昵称"
+          }
+        }
+      },
+      "SimilarityCheckLog" : {
+        "required" : [ "apiVersion", "kind", "metadata", "spec" ],
+        "type" : "object",
+        "properties" : {
+          "apiVersion" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "metadata" : {
+            "$ref" : "#/components/schemas/Metadata"
+          },
+          "spec" : {
+            "$ref" : "#/components/schemas/SimilarityCheckLogSpec"
+          }
+        }
+      },
+      "SimilarityCheckLogList" : {
+        "required" : [ "first", "hasNext", "hasPrevious", "items", "last", "page", "size", "total", "totalPages" ],
+        "type" : "object",
+        "properties" : {
+          "first" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page is the first page."
+          },
+          "hasNext" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page has previous page."
+          },
+          "hasPrevious" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page has previous page."
+          },
+          "items" : {
+            "type" : "array",
+            "description" : "A chunk of items.",
+            "items" : {
+              "$ref" : "#/components/schemas/SimilarityCheckLog"
+            }
+          },
+          "last" : {
+            "type" : "boolean",
+            "description" : "Indicates whether current page is the last page."
+          },
+          "page" : {
+            "type" : "integer",
+            "description" : "Page number, starts from 1. If not set or equal to 0, it means no pagination.",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "description" : "Size of each page. If not set or equal to 0, it means no pagination.",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "description" : "Total elements.",
+            "format" : "int64"
+          },
+          "totalPages" : {
+            "type" : "integer",
+            "description" : "Indicates total pages.",
+            "format" : "int64"
+          }
+        }
+      },
+      "SimilarityCheckLogSpec" : {
+        "type" : "object",
+        "properties" : {
+          "algorithm" : {
+            "type" : "string",
+            "description" : "使用的算法：COSINE / JACCARD"
+          },
+          "durationMs" : {
+            "type" : "integer",
+            "description" : "耗时（毫秒）",
+            "format" : "int64"
+          },
+          "errorMessage" : {
+            "type" : "string",
+            "description" : "错误信息"
+          },
+          "similarPairCount" : {
+            "type" : "integer",
+            "description" : "超过阈值的相似对数量",
+            "format" : "int32"
+          },
+          "similarPairs" : {
+            "type" : "string",
+            "description" : "相似句子对列表（JSON 字符串）"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "状态：RUNNING / SUCCESS / FAILED",
+            "enum" : [ "RUNNING", "SUCCESS", "FAILED" ]
+          },
+          "threshold" : {
+            "type" : "number",
+            "description" : "相似度阈值",
+            "format" : "double"
+          },
+          "totalPairs" : {
+            "type" : "integer",
+            "description" : "比较的句子对总数",
+            "format" : "int64"
+          },
+          "totalSentences" : {
+            "type" : "integer",
+            "description" : "检查的句子总数",
+            "format" : "int32"
+          },
+          "triggerType" : {
+            "type" : "string",
+            "description" : "触发类型：MANUAL / SCHEDULED",
+            "enum" : [ "MANUAL", "SCHEDULED" ]
+          },
+          "triggeredBy" : {
+            "type" : "string",
+            "description" : "触发者"
+          }
+        }
+      },
       "Spec" : {
         "type" : "object",
         "properties" : {
+          "autoPublish" : {
+            "type" : "boolean",
+            "description" : "是否自动发布"
+          },
           "categoryName" : {
             "type" : "string",
-            "description" : "分类名称（唯一标识）"
+            "description" : "目标分类"
           },
-          "eventType" : {
+          "durationMs" : {
+            "type" : "integer",
+            "description" : "耗时（毫秒）",
+            "format" : "int64"
+          },
+          "errorMessage" : {
             "type" : "string",
-            "description" : "事件类型：VIEW / LIKE / UNLIKE",
-            "enum" : [ "VIEW", "LIKE", "UNLIKE" ]
+            "description" : "错误信息"
+          },
+          "failedCount" : {
+            "type" : "integer",
+            "description" : "失败数量",
+            "format" : "int32"
+          },
+          "generatedData" : {
+            "type" : "string",
+            "description" : "AI生成的源数据（JSON字符串，包含生成的句子列表）"
+          },
+          "modelName" : {
+            "type" : "string",
+            "description" : "使用的模型名称"
+          },
+          "requestCount" : {
+            "type" : "integer",
+            "description" : "请求生成数量",
+            "format" : "int32"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "状态",
+            "enum" : [ "RUNNING", "SUCCESS", "PARTIAL_SUCCESS", "FAILED" ]
+          },
+          "successCount" : {
+            "type" : "integer",
+            "description" : "成功数量",
+            "format" : "int32"
+          },
+          "topic" : {
+            "type" : "string",
+            "description" : "生成主题"
+          }
+        }
+      },
+      "SubmitRequest" : {
+        "required" : [ "content" ],
+        "type" : "object",
+        "properties" : {
+          "author" : {
+            "maxLength" : 50,
+            "type" : "string",
+            "description" : "作者"
+          },
+          "categoryName" : {
+            "type" : "string",
+            "description" : "分类 metadata.name"
+          },
+          "content" : {
+            "maxLength" : 500,
+            "type" : "string",
+            "description" : "句子内容"
+          },
+          "source" : {
+            "maxLength" : 100,
+            "type" : "string",
+            "description" : "来源"
+          },
+          "submitterName" : {
+            "maxLength" : 50,
+            "type" : "string",
+            "description" : "提交者昵称"
+          }
+        }
+      },
+      "SubmitResponse" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "状态码：ok / invalid_param / rate_limited / submitted_disabled"
+          },
+          "message" : {
+            "type" : "string",
+            "description" : "提示信息"
+          },
+          "success" : {
+            "type" : "boolean",
+            "description" : "是否成功"
           }
         }
       },
@@ -1722,6 +3409,71 @@
           }
         },
         "description" : "时间序列数据"
+      },
+      "TodaySentenceDetail" : {
+        "type" : "object",
+        "properties" : {
+          "author" : {
+            "type" : "string",
+            "description" : "作者"
+          },
+          "categoryDisplayName" : {
+            "type" : "string",
+            "description" : "分类显示名称"
+          },
+          "categoryName" : {
+            "type" : "string",
+            "description" : "分类名称"
+          },
+          "content" : {
+            "type" : "string",
+            "description" : "句子内容"
+          },
+          "eventCount" : {
+            "type" : "integer",
+            "description" : "今日事件数（浏览量或点赞量）",
+            "format" : "int64"
+          },
+          "lastEventTime" : {
+            "type" : "string",
+            "description" : "最近一次事件时间",
+            "format" : "date-time"
+          },
+          "sentenceName" : {
+            "type" : "string",
+            "description" : "句子 metadata name"
+          },
+          "source" : {
+            "type" : "string",
+            "description" : "来源"
+          }
+        },
+        "description" : "句子详情列表（按事件数降序）"
+      },
+      "TodaySentenceDetailsResponse" : {
+        "type" : "object",
+        "properties" : {
+          "eventType" : {
+            "type" : "string",
+            "description" : "事件类型：VIEW / LIKE"
+          },
+          "sentences" : {
+            "type" : "array",
+            "description" : "句子详情列表（按事件数降序）",
+            "items" : {
+              "$ref" : "#/components/schemas/TodaySentenceDetail"
+            }
+          },
+          "success" : {
+            "type" : "boolean",
+            "description" : "是否成功"
+          },
+          "total" : {
+            "type" : "integer",
+            "description" : "今日有事件的句子总数（去重）",
+            "format" : "int64"
+          }
+        }
       },
       "ViewStatisticsResponse" : {
         "type" : "object",

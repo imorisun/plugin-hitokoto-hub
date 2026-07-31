@@ -12,19 +12,29 @@ metadata:
     rbac.authorization.halo.run/ui-permissions: |
       ["plugin:hitokoto-hub:manage"]
 rules:
-  - apiGroups: [ "hitokotohub.puresky.top" ]
-    resources: [ "sentences", "categories", "sentencesubmissions", "aigeneratelogs", "similaritychecklogs" ]
-    verbs: [ "create", "delete", "deletecollection", "get", "list", "patch", "update", "watch" ]
   - apiGroups: [ "console.api.hitokotohub.puresky.top" ]
     resources:
+      - "ai-generate-logs/trigger"
       - "sentence/batch"
       - "sentence/import-excel"
+      - "similarity-check-groups/delete-nonoptimal"
+      - "similarity-check-logs/trigger"
       - "sentence/clear-uncategorized"
+    resourceNames: [ "-" ]
+    verbs: [ "create", "delete" ]
+  - apiGroups: [ "console.api.hitokotohub.puresky.top" ]
+    resources:
       - "sentence-submissions"
       - "sentence-submissions/approve"
       - "sentence-submissions/reject"
       - "ai-generate-logs"
-      - "ai-generate-logs/trigger"
-      - "similarity-check-logs/trigger"
-      - "similarity-check-groups/delete-nonoptimal"
     verbs: [ "create", "delete" ]
+  - apiGroups: [ "hitokotohub.puresky.top" ]
+    resources:
+      - "categoryviewrecords"
+      - "sentences"
+      - "sentencesubmissions"
+      - "categories"
+      - "aigeneratelogs"
+      - "similaritychecklogs"
+    verbs: [ "create", "patch", "update", "delete", "deletecollection" ]
