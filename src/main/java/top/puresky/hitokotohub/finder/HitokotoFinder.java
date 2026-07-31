@@ -20,6 +20,7 @@ public interface HitokotoFinder {
         private String categoryName;
         private long likeCount;
         private long viewCount;
+        private String jumpUrl;
     }
 
     @Data

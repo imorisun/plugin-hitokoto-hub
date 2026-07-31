@@ -403,6 +403,51 @@
         >
           已发布
         </FormKit>
+
+        <FormKit
+          v-model="formData.linkType"
+          type="select"
+          label="跳转方式"
+          placeholder="请选择跳转方式"
+          help="设置后，前台展示该句子时点击可跳转到对应地址"
+          :options="[
+            { label: '不跳转', value: 'none' },
+            { label: '自定义链接', value: 'url' },
+            { label: '关联文章', value: 'post' },
+          ]"
+        />
+        <FormKit
+          v-if="formData.linkType === 'url'"
+          v-model="formData.linkUrl"
+          type="text"
+          label="链接地址"
+          placeholder="请输入完整 URL，如 https://example.com/article"
+        />
+        <div v-if="formData.linkType === 'post'" class="form-field-wrapper">
+          <label class="form-field-label">关联文章</label>
+          <el-select
+            v-model="formData.postName"
+            filterable
+            clearable
+            placeholder="选择文章（按发布时间倒序，支持搜索）"
+            :loading="postSearchLoading"
+            @visible-change="handlePostDropdownVisible"
+            class="w-full post-select"
+            size="default"
+          >
+            <el-option
+              v-for="post in postOptions"
+              :key="post.name"
+              :label="post.title"
+              :value="post.name"
+            />
+            <template #empty>
+              <div class="text-center text-xs text-gray-400 py-2">
+                {{ postSearchLoading ? '加载中...' : (postsLoaded ? '未找到匹配的文章' : '点击下拉加载文章列表') }}
+              </div>
+            </template>
+          </el-select>
+        </div>
       </div>
       <template #footer>
         <div class="modal-footer">
@@ -713,6 +758,7 @@ import {
   VStatusDot,
   VTag,
 } from '@halo-dev/components'
+import {axiosInstance} from '@halo-dev/api-client'
 import {utils} from '@halo-dev/ui-shared'
 import {Delete, EditPen, View} from '@element-plus/icons-vue'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
@@ -780,6 +826,83 @@ const formData = ref({
   author: '匿名',
   source: '未知',
   published: true,
+  linkType: 'none' as 'none' | 'url' | 'post',
+  linkUrl: '',
+  postName: '',
+})
+
+// 文章搜索相关状态
+const allPosts = ref<{ name: string; title: string }[]>([])
+const postOptions = ref<{ name: string; title: string }[]>([])
+const postSearchLoading = ref(false)
+const postsLoaded = ref(false)
+
+/**
+ * 分页拉取全部已发布文章（Content API），缓存到 allPosts
+ * Content API /apis/content.halo.run/v1alpha1/posts 不支持 keyword 搜索，
+ * 所以一次性加载全部文章到前端，由 el-select filterable 本地过滤。
+ */
+const fetchAllPosts = async () => {
+  if (postsLoaded.value) {
+    postOptions.value = allPosts.value
+    return
+  }
+  postSearchLoading.value = true
+  try {
+    const result: { name: string; title: string }[] = []
+    const pageSize = 100
+    let page = 1
+    let hasNext = true
+    while (hasNext) {
+      const { data } = await axiosInstance.get('/apis/content.halo.run/v1alpha1/posts', {
+        params: {
+          page,
+          size: pageSize,
+          sort: 'spec.publishTime,desc',
+        },
+      })
+      const items = data.items || []
+      for (const p of items) {
+        if (p.spec && p.status?.permalink) {
+          result.push({
+            name: p.metadata.name,
+            title: p.spec.title || '(无标题)',
+          })
+        }
+      }
+      hasNext = data.hasNext === true && items.length === pageSize
+      page++
+      /* 安全上限：最多拉取 20 页（2000 篇），防止极端情况死循环 */
+      if (page > 20) break
+    }
+    allPosts.value = result
+    postOptions.value = result
+    postsLoaded.value = true
+  } catch (e) {
+    console.error('加载文章列表失败', e)
+    toast.error('加载文章列表失败')
+  } finally {
+    postSearchLoading.value = false
+  }
+}
+
+const handlePostDropdownVisible = (visible: boolean) => {
+  if (visible && !postsLoaded.value) {
+    fetchAllPosts()
+  }
+}
+
+// 监听linkType变化，清空不相关字段，切换到"关联文章"时预加载文章列表
+watch(() => formData.value.linkType, (newType) => {
+  if (newType !== 'url') {
+    formData.value.linkUrl = ''
+  }
+  if (newType !== 'post') {
+    formData.value.postName = ''
+  } else {
+    // 切换到"关联文章"时自动加载文章列表
+    fetchAllPosts()
+  }
 })
 
 const showBatchImportModal = ref(false)
@@ -1122,6 +1245,15 @@ const handleCreate = () => {
     author: '匿名',
     source: '未知',
     published: true,
+    linkType: 'none',
+    linkUrl: '',
+    postName: '',
+  }
+  // 新建时如果已有缓存，直接使用；切换到"关联文章"时watch会自动填充
+  if (postsLoaded.value) {
+    postOptions.value = allPosts.value
+  } else {
+    postOptions.value = []
   }
   showFormModal.value = true
 }
@@ -1276,11 +1408,20 @@ const buildSentence = (
         categoryName: string,
         author?: string,
         source?: string,
+        linkUrl?: string,
+        postName?: string,
 ): Sentence => ({
   apiVersion: 'hitokotohub.puresky.top/v1alpha1',
   kind: 'Sentence',
   metadata: {generateName: 'sentence-', name: ''},
-  spec: {content, categoryName, author: author || '匿名', source: source || '未知'},
+  spec: {
+    content,
+    categoryName,
+    author: author || '匿名',
+    source: source || '未知',
+    linkUrl: linkUrl || undefined,
+    postName: postName || undefined,
+  } as any,
 })
 
 const batchCreate = async (sentenceList: Sentence[]): Promise<BatchCreateSentenceResult> => {
@@ -1323,8 +1464,25 @@ const handleSave = async () => {
     toast.warning('请填写句子内容和分类')
     return
   }
+  if (formData.value.linkType === 'url') {
+    const url = formData.value.linkUrl.trim()
+    if (!url) {
+      toast.warning('请输入跳转链接URL')
+      return
+    }
+    if (!/^https?:\/\/.+/.test(url)) {
+      toast.warning('请输入以 http:// 或 https:// 开头的有效URL')
+      return
+    }
+  }
+  if (formData.value.linkType === 'post' && !formData.value.postName) {
+    toast.warning('请选择关联文章')
+    return
+  }
   saving.value = true
   try {
+    const linkUrl = formData.value.linkType === 'url' ? formData.value.linkUrl.trim() : undefined
+    const postName = formData.value.linkType === 'post' ? formData.value.postName : undefined
     if (isEditing.value && editingOriginalSentence.value) {
       // 重新获取最新数据，防止多次修改导致版本冲突
       const { data: latestSentence } = await sentenceCoreApiClient.sentence.getSentence({
@@ -1338,7 +1496,9 @@ const handleSave = async () => {
           categoryName: formData.value.categoryName,
           author: formData.value.author,
           source: formData.value.source,
-        },
+          linkUrl,
+          postName,
+        } as any,
         status: {...latestSentence.status, published: formData.value.published},
       }
       await sentenceCoreApiClient.sentence.updateSentence({
@@ -1352,6 +1512,8 @@ const handleSave = async () => {
               formData.value.categoryName,
               formData.value.author,
               formData.value.source,
+              linkUrl,
+              postName,
       )
       await batchCreate([sentence])
       toast.success('创建成功')
@@ -1412,12 +1574,55 @@ const handleEdit = (sentence: Sentence) => {
   isEditing.value = true
   editingSentenceName.value = sentence.metadata.name
   editingOriginalSentence.value = sentence
+  const spec = sentence.spec as any
+  let linkType: 'none' | 'url' | 'post' = 'none'
+  let linkUrl = ''
+  let postName = ''
+  postOptions.value = []
+  if (spec.linkUrl) {
+    linkType = 'url'
+    linkUrl = spec.linkUrl
+  } else if (spec.postName) {
+    linkType = 'post'
+    postName = spec.postName
+    // 如果已加载全部文章，直接从中查找；否则异步获取单篇标题作为占位
+    if (postsLoaded.value) {
+      postOptions.value = allPosts.value
+      const found = allPosts.value.find(p => p.name === postName)
+      if (!found) {
+        // 文章不在列表中（可能是已删除/未发布），仍然显示
+        axiosInstance.get(`/apis/content.halo.run/v1alpha1/posts/${postName}`)
+          .then(({ data }) => {
+            const title = data.spec?.title || '(无标题)'
+            postOptions.value = [...allPosts.value, { name: postName, title }]
+          })
+          .catch(() => {
+            postOptions.value = [...allPosts.value, { name: postName, title: '(文章不存在)' }]
+          })
+      }
+    } else {
+      axiosInstance.get(`/apis/content.halo.run/v1alpha1/posts/${postName}`)
+        .then(({ data }) => {
+          const title = data.spec?.title || '(无标题)'
+          postOptions.value = [{ name: postName, title }]
+        })
+        .catch(() => {
+          postOptions.value = [{ name: postName, title: '(文章不存在)' }]
+        })
+    }
+  } else if (postsLoaded.value) {
+    // 无关联文章，但已加载全部列表，直接填充
+    postOptions.value = allPosts.value
+  }
   formData.value = {
     content: sentence.spec.content,
     categoryName: sentence.spec.categoryName,
     author: sentence.spec.author || '匿名',
     source: sentence.spec.source || '未知',
     published: sentence.status?.published ?? true,
+    linkType,
+    linkUrl,
+    postName,
   }
   showFormModal.value = true
 }
@@ -1850,5 +2055,17 @@ onUnmounted(() => {
   color: #111827;
   border-color: #d1d5db;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.form-field-wrapper {
+  margin-bottom: 16px;
+}
+
+.form-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 6px;
 }
 </style>

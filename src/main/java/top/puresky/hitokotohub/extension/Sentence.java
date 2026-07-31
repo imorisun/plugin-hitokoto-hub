@@ -47,6 +47,14 @@ public class Sentence extends AbstractExtension {
 
         @Schema(description = "创建用户")
         private String createdBy;
+
+        @Size(max = 500)
+        @Schema(description = "自定义跳转链接", maxLength = 500)
+        private String linkUrl;
+
+        @Size(max = 100)
+        @Schema(description = "关联文章名称（metadata.name）", maxLength = 100)
+        private String postName;
     }
 
     @Data

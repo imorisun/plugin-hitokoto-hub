@@ -62,5 +62,11 @@ export interface SentenceItem {
      * @memberof SentenceItem
      */
     'viewCount'?: number;
+    /**
+     * 跳转链接
+     * @type {string}
+     * @memberof SentenceItem
+     */
+    'jumpUrl'?: string;
 }
 
