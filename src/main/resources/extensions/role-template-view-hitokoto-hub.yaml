@@ -10,9 +10,23 @@ metadata:
     rbac.authorization.halo.run/ui-permissions: |
       ["plugin:hitokoto-hub:view"]
 rules:
-  - apiGroups: [ "hitokotohub.puresky.top" ]
-    resources: [ "sentences", "categories", "sentencesubmissions", "aigeneratelogs", "similaritychecklogs" ]
-    verbs: [ "get", "list", "watch" ]
   - apiGroups: [ "console.api.hitokotohub.puresky.top" ]
-    resources: [ "overview", "sentence" ,"overview/view-statistics", "sentence-submissions", "ai-generate-logs", "similarity-check-logs", "similarity-check-config" ]
+    resources:
+      - "sentence"
+      - "overview"
+      - "ai-generate-logs"
+      - "sentence-submissions"
+      - "similarity-check-logs"
+      - "categories"
+      - "similarity-check-config"
+      - "similarity-check-groups"
     verbs: [ "get", "list" ]
+  - apiGroups: [ "hitokotohub.puresky.top" ]
+    resources:
+      - "categoryviewrecords"
+      - "sentences"
+      - "sentencesubmissions"
+      - "categories"
+      - "aigeneratelogs"
+      - "similaritychecklogs"
+    verbs: [ "get", "list", "watch" ]

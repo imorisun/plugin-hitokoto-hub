@@ -54,7 +54,7 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
                     .summary("获取访客提交配置")
                     .tag(TAG)
                     .response(responseBuilder().implementation(Object.class)))
-            .POST("sentence-submission/submit", this::submitSentence,
+            .POST("sentence-submission/-/submit", this::submitSentence,
                 builder -> builder.operationId("submitSentence")
                     .summary("访客提交句子")
                     .tag(TAG)

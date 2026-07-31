@@ -11,5 +11,13 @@ metadata:
     rbac.authorization.halo.run/display-name: "一言公共接口"
 rules:
   - apiGroups: [ "public.api.hitokotohub.puresky.top" ]
-    resources: [ "sentence", "category", "sentence-submission", "sentence-submission/config" ]
-    verbs: [ "get", "list", "create" ]
+    resources:
+      - "sentence"
+      - "category"
+      - "sentence-submission"
+    verbs: [ "get", "list" ]
+  - apiGroups: [ "public.api.hitokotohub.puresky.top" ]
+    resources:
+      - "sentence-submission/submit"
+    resourceNames: [ "-" ]
+    verbs: [ "create" ]
