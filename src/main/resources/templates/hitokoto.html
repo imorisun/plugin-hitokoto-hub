@@ -83,7 +83,8 @@
 <main>
     <div class="quote-container" id="quoteContainer"
          th:each="s : ${hitokotoFinder.randomSentences(1, null)}"
-         th:attr="data-name=${s.name}, data-likes=${s.likeCount}"
+         th:attr="data-name=${s.name}, data-likes=${s.likeCount}, data-jump-url=${s.jumpUrl}"
+         th:classappend="${s.jumpUrl} ? 'quote-container--clickable'"
          aria-live="polite" aria-atomic="true"
          aria-label="当前句子">
         <h1 class="quote-text" id="quoteText" th:text="${s.content}">加载中...</h1>

@@ -297,6 +297,12 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
         // source: trim + 空则填默认值
         String source = StringUtils.trimToNull(spec.getSource());
         spec.setSource(source != null ? source : "未知");
+        // linkUrl: trim + 空则置 null
+        String linkUrl = StringUtils.trimToNull(spec.getLinkUrl());
+        spec.setLinkUrl(linkUrl);
+        // postName: trim + 空则置 null
+        String postName = StringUtils.trimToNull(spec.getPostName());
+        spec.setPostName(postName);
         return sentence;
     }
 

@@ -24,6 +24,7 @@ import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import run.halo.app.core.extension.content.Post;
 import run.halo.app.core.extension.endpoint.CustomEndpoint;
 import run.halo.app.extension.GroupVersion;
 import run.halo.app.extension.ListOptions;
@@ -150,18 +151,21 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                     .flatMap(text -> ServerResponse.ok().bodyValue(text));
             }
 
-            return sentencesMono.zipWith(displayNameMono).map(tuple -> {
+            return sentencesMono.zipWith(displayNameMono).flatMap(tuple -> {
                 List<Sentence> sentences = tuple.getT1();
                 String displayName = tuple.getT2();
 
-                List<SentenceItem> items = sentences.stream().map(this::toSentenceItem).toList();
-
-                RandomSentenceResponse response = new RandomSentenceResponse();
-                response.setCategoryName(displayName);
-                response.setMaxRandomLimit(config.getMaxRandomLimit());
-                response.setReturned(items.size());
-                response.setSentences(items);
-                return response;
+                return Flux.fromIterable(sentences)
+                    .concatMap(this::toSentenceItem)
+                    .collectList()
+                    .map(items -> {
+                        RandomSentenceResponse response = new RandomSentenceResponse();
+                        response.setCategoryName(displayName);
+                        response.setMaxRandomLimit(config.getMaxRandomLimit());
+                        response.setReturned(items.size());
+                        response.setSentences(items);
+                        return response;
+                    });
             }).flatMap(response -> ServerResponse.ok().bodyValue(response));
         });
     }
@@ -225,7 +229,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
             long likeCooldown = Duration.ofHours(config.getLikeCooldown()).toMillis();
             if (state != null && state.isCoolingDown(likeCooldown, now)) {
                 long remainingSeconds = state.remainingMillis(likeCooldown, now) / 1000;
-                return client.get(Sentence.class, name).map(
+                return client.get(Sentence.class, name).flatMap(
                         sentence -> buildLikeResponse(sentence, false,
                             "请在 " + TimeFormatUtils.formatRemainingTime(remainingSeconds) + " 后再" + (isUnlike
                                 ? "取消点赞" : "点赞"), "rate_limited"))
@@ -267,7 +271,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                                         log.warn("删除点赞记录失败", e);
                                         return Mono.empty();
                                     })
-                                    .thenReturn(buildLikeResponse(updated, true,
+                                    .then(buildLikeResponse(updated, true,
                                         "取消点赞成功", "ok"));
                             }
 
@@ -275,7 +279,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                             CategoryViewRecord record = CategoryViewRecordFactory.forLike(
                                 sentence.getSpec().getCategoryName(), name, ip);
                             return client.create(record)
-                                .thenReturn(buildLikeResponse(updated, true,
+                                .then(buildLikeResponse(updated, true,
                                     "点赞成功", "ok"));
                         });
                 })
@@ -284,14 +288,16 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         });
     }
 
-    private @NonNull LikeResponse buildLikeResponse(Sentence sentence, boolean success, String message,
+    private @NonNull Mono<LikeResponse> buildLikeResponse(Sentence sentence, boolean success, String message,
         String code) {
-        LikeResponse response = new LikeResponse();
-        response.setSuccess(success);
-        response.setMessage(message);
-        response.setCode(code);
-        response.setSentence(toSentenceItem(sentence));
-        return response;
+        return toSentenceItem(sentence).map(item -> {
+            LikeResponse response = new LikeResponse();
+            response.setSuccess(success);
+            response.setMessage(message);
+            response.setCode(code);
+            response.setSentence(item);
+            return response;
+        });
     }
 
     private @NonNull LikeResponse buildErrorResponse() {
@@ -303,7 +309,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         return response;
     }
 
-    private @NonNull SentenceItem toSentenceItem(@NonNull Sentence s) {
+    private @NonNull Mono<SentenceItem> toSentenceItem(@NonNull Sentence s) {
         SentenceItem item = new SentenceItem();
         item.setMetaName(s.getMetadata().getName());
         item.setAuthor(s.getSpec().getAuthor());
@@ -312,7 +318,29 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         item.setCreatedBy(s.getSpec().getCreatedBy());
         item.setLikeCount(s.getStatus() != null ? s.getStatus().getLikeCount() : 0);
         item.setViewCount(s.getStatus() != null ? s.getStatus().getViewCount() : 0);
-        return item;
+
+        String linkUrl = s.getSpec().getLinkUrl();
+        String postName = s.getSpec().getPostName();
+
+        if (StringUtils.isNotBlank(linkUrl)) {
+            item.setJumpUrl(linkUrl);
+            return Mono.just(item);
+        }
+
+        if (StringUtils.isNotBlank(postName)) {
+            return client.fetch(Post.class, postName)
+                .map(post -> {
+                    String permalink = null;
+                    if (post.getStatus() != null) {
+                        permalink = post.getStatus().getPermalink();
+                    }
+                    item.setJumpUrl(permalink);
+                    return item;
+                })
+                .defaultIfEmpty(item);
+        }
+
+        return Mono.just(item);
     }
 
     // 清理过期的点赞缓存方法
@@ -357,6 +385,8 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         private long likeCount;
         @Schema(description = "浏览数")
         private long viewCount;
+        @Schema(description = "跳转链接")
+        private String jumpUrl;
     }
 
     @Data

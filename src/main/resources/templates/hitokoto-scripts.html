@@ -138,7 +138,8 @@
         name: '',
         likes: 0,
         liked: false,
-        busy: false
+        busy: false,
+        jumpUrl: ''
     };
 
     const LIKE_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like';
@@ -385,30 +386,9 @@
         const container = document.getElementById('quoteContainer');
         state.name = container.getAttribute('data-name') || '';
         state.likes = parseInt(container.getAttribute('data-likes') || '0', 10) || 0;
+        state.jumpUrl = container.getAttribute('data-jump-url') || '';
         state.liked = isLiked(state.name);
         renderLikeUI();
-    }
-
-    /* ==================== 心形粒子动画 ==================== */
-    function createHeartBurst(x, y) {
-        const count = 7;
-        for (let i = 0; i < count; i++) {
-            const heart = document.createElement('div');
-            heart.className = 'heart-particle';
-            heart.textContent = '\u2665';
-            const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
-            const distance = 55 + Math.random() * 50;
-            const dx = Math.cos(angle) * distance;
-            const dy = Math.sin(angle) * distance;
-            const rot = (Math.random() - 0.5) * 60;
-            heart.style.left = x + 'px';
-            heart.style.top = y + 'px';
-            heart.style.setProperty('--dx', dx + 'px');
-            heart.style.setProperty('--dy', dy + 'px');
-            heart.style.setProperty('--rot', rot + 'deg');
-            document.body.appendChild(heart);
-            setTimeout(() => heart.remove(), 900);
-        }
     }
 
     /* ==================== 轻提示 ==================== */
@@ -453,7 +433,7 @@
                 void btn.offsetWidth;
                 btn.classList.toggle('liked', state.liked);
                 if (state.liked && originX != null && originY != null) {
-                    createHeartBurst(originX, originY);
+                    document.dispatchEvent(new CustomEvent('hitokoto:burst', { detail: { x: originX, y: originY } }));
                 }
             } else {
                 showToast(data.message || '操作过于频繁');
@@ -492,9 +472,12 @@
 
             state.name = s.metaName || s.name || '';
             state.likes = s.likeCount || 0;
+            state.jumpUrl = s.jumpUrl || '';
             state.liked = isLiked(state.name);
             container.setAttribute('data-name', state.name);
             container.setAttribute('data-likes', state.likes);
+            container.setAttribute('data-jump-url', state.jumpUrl);
+            container.classList.toggle('quote-container--clickable', !!state.jumpUrl);
             renderLikeUI();
 
             textEl.style.opacity = '1';
@@ -833,6 +816,24 @@
         }
     });
 
+    /* ==================== 句子点击跳转（仅句子文字区域可点击，区分单击/双击） ==================== */
+    let clickTimer = null;
+    const quoteTextEl = document.getElementById('quoteText');
+    quoteTextEl.addEventListener('click', (e) => {
+        if (clickTimer) {
+            /* 第二次点击（双击），取消跳转，交给 document 的 dblclick 处理点赞 */
+            clearTimeout(clickTimer);
+            clickTimer = null;
+            return;
+        }
+        clickTimer = setTimeout(() => {
+            clickTimer = null;
+            if (state.jumpUrl) {
+                window.open(state.jumpUrl, '_blank', 'noopener');
+            }
+        }, 250);
+    });
+
     /* ==================== 樱花动画 ==================== */
     /* 读取服务端配置决定是否启用花瓣动画 */
     (function() {
@@ -843,8 +844,8 @@
 
         var sakuraList = [];
         var sakuraContainer = document.getElementById('sakura-container');
-        var isMobile = window.innerWidth < 640;
-        var SAKURA_MAX = isMobile ? 35 : 75;
+        var isMobile = window.innerWidth < 768 || ('ontouchstart' in window && window.innerWidth < 1024);
+        var SAKURA_MAX = isMobile ? 15 : 75;
         var mouseX = -1000, mouseY = -1000;
         var mouseActive = false;    /* 鼠标是否在页面内 */
         var mouseDown = false;      /* 鼠标是否按住 */
@@ -931,8 +932,8 @@
                 blur = 0;
             }
 
-            /* 移动端减速 35%，飘落更从容 */
-            if (isMobile) baseSpeed *= 0.65;
+            /* 移动端减速 60%，飘落更舒缓 */
+            if (isMobile) baseSpeed *= 0.4;
 
             petal.style.width = size + 'px';
             petal.style.height = size + 'px';
@@ -1110,9 +1111,12 @@
         }
 
         /* 点击绽放可配置参数 */
-        var BURST_COUNT = 10;       /* 基础花瓣数（实际 ±3 随机） */
-        var BURST_DIST_MIN = 50;   /* 最小扩散半径 (px) */
-        var BURST_DIST_MAX = 130;  /* 最大扩散半径 (px) */
+        var BURST_COUNT = isMobile ? 5 : 10;      /* 基础花瓣数：移动端5，PC端10 */
+        var BURST_VARIANCE = isMobile ? 3 : 7;    /* 随机浮动：移动端±3，PC端±7 */
+        var BURST_DIST_MIN = isMobile ? 35 : 50;  /* 最小扩散半径 */
+        var BURST_DIST_MAX = isMobile ? 90 : 130; /* 最大扩散半径 */
+        var BURST_SPEED_MIN = isMobile ? 1.8 : 2.5;
+        var BURST_SPEED_MAX = isMobile ? 3.5 : 5.0;
 
         /**
          * 鼠标点击绽放特效（纯 JS 驱动，无缝融入飘落系统）：
@@ -1120,7 +1124,7 @@
          *   全程由 animateSakura 物理引擎统一驱动，零切换、零间隙。
          */
         function createBurst(x, y) {
-            var count = BURST_COUNT + Math.floor(Math.random() * 7);  /* 10-16 */
+            var count = BURST_COUNT + Math.floor(Math.random() * BURST_VARIANCE);
             for (var i = 0; i < count; i++) {
                 (function() {
                     var sakura = document.createElement('div');
@@ -1130,8 +1134,10 @@
 
                     var angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
                     var br = (Math.random() - 0.5) * 360;
-                    var size = Math.random() * 6 + 6;
-                    var burstSpeed = 2.5 + Math.random() * 2.5;  /* 2.5-5.0 px/帧 高速扩散 */
+                    var size = isMobile
+                        ? Math.random() * 4 + 5
+                        : Math.random() * 6 + 6;
+                    var burstSpeed = BURST_SPEED_MIN + Math.random() * (BURST_SPEED_MAX - BURST_SPEED_MIN);
 
                     petal.style.width = size + 'px';
                     petal.style.height = size + 'px';
@@ -1192,11 +1198,16 @@
             createBurst(e.clientX, e.clientY);
         });
 
+        /* 点赞成功时触发樱花绽放 */
+        document.addEventListener('hitokoto:burst', function(e) {
+            createBurst(e.detail.x, e.detail.y);
+        });
+
         /* 播种与密度管理 */
-        var seedCount = isMobile ? 18 : 35;
-        var spawnInterval = isMobile ? 1200 : 600;
+        var seedCount = isMobile ? 8 : 35;
+        var spawnInterval = isMobile ? 2000 : 600;
         for (var i = 0; i < seedCount; i++) {
-            setTimeout(createSakura, i * (isMobile ? 200 : 100));
+            setTimeout(createSakura, i * (isMobile ? 350 : 100));
         }
         setInterval(function() {
             /* 根据当前数量动态调整创建速率 */

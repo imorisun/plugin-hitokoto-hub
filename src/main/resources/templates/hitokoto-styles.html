@@ -133,18 +133,6 @@
             100% { transform: scale(1); }
         }
 
-        @keyframes heartBurst {
-            0% {
-                transform: translate(-50%, -50%) scale(0) rotate(0deg);
-                opacity: 1;
-            }
-            60% { opacity: 1; }
-            100% {
-                transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.1) rotate(var(--rot));
-                opacity: 0;
-            }
-        }
-
         @keyframes toastIn {
             from {
                 opacity: 0;
@@ -311,9 +299,10 @@
             color: var(--text);
             overflow-wrap: break-word;
             word-break: break-word;
-            transition: opacity 0.3s ease, color 0.4s ease;
-            cursor: pointer;
+            transition: opacity 0.3s ease, color 0.4s ease, text-shadow 0.3s ease;
+            cursor: default;
             text-shadow: var(--shadow-text);
+            display: inline;
         }
 
         /* 流光渐变：逐字动画完成后渐显 */
@@ -375,6 +364,17 @@
             height: 1px;
             background: linear-gradient(90deg, transparent, var(--line), transparent);
             opacity: 0;
+        }
+
+        /* 可点击句子（带跳转链接）—— 仅鼠标悬停在句子文字上时才触发 */
+        .quote-container--clickable .quote-text {
+            cursor: pointer;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }
+
+        .quote-container--clickable .quote-text:hover {
+            color: var(--accent);
+            text-shadow: 0 0 24px var(--accent-glow);
         }
 
         /* 右上角点赞按钮 */
@@ -531,17 +531,6 @@
 
         .next-btn:hover .line::after {
             transform: translateY(0);
-        }
-
-        /* 双击点赞飞出的心形粒子 */
-        .heart-particle {
-            position: fixed;
-            z-index: 100;
-            pointer-events: none;
-            color: var(--accent);
-            font-size: 14px;
-            animation: heartBurst 0.9s ease-out forwards;
-            text-shadow: 0 0 8px var(--accent-glow);
         }
 
         /* 轻提示 */
@@ -732,10 +721,6 @@
 
             .next-btn .line {
                 height: 2rem;
-            }
-
-            .heart-particle {
-                font-size: 16px;
             }
         }
 

@@ -50,5 +50,17 @@ export interface SentenceSpec {
      * @memberof SentenceSpec
      */
     'source'?: string;
+    /**
+     * 自定义跳转链接
+     * @type {string}
+     * @memberof SentenceSpec
+     */
+    'linkUrl'?: string;
+    /**
+     * 关联文章名称（metadata.name）
+     * @type {string}
+     * @memberof SentenceSpec
+     */
+    'postName'?: string;
 }
 

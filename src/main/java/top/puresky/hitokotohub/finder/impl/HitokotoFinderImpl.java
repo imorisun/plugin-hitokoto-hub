@@ -11,6 +11,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import run.halo.app.core.extension.content.Post;
 import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ListResult;
 import run.halo.app.extension.Metadata;
@@ -118,7 +119,7 @@ public class HitokotoFinderImpl implements HitokotoFinder {
                                 return Flux.fromIterable(randomItems);
                             });
                     })
-                    .map(this::toSentenceVo);
+                    .flatMap(this::toSentenceVo);
             });
     }
 
@@ -141,14 +142,39 @@ public class HitokotoFinderImpl implements HitokotoFinder {
     }
 
 
-    private SentenceVo toSentenceVo(@NonNull Sentence s) {
+    private Mono<SentenceVo> toSentenceVo(@NonNull Sentence s) {
         var spec = s.getSpec();
         var status = s.getStatus();
-        return SentenceVo.builder().name(s.getMetadata().getName()).author(spec.getAuthor())
-            .content(spec.getContent()).source(spec.getSource())
+        var builder = SentenceVo.builder()
+            .name(s.getMetadata().getName())
+            .author(spec.getAuthor())
+            .content(spec.getContent())
+            .source(spec.getSource())
             .categoryName(spec.getCategoryName())
             .likeCount(status != null ? status.getLikeCount() : 0)
-            .viewCount(status != null ? status.getViewCount() : 0).build();
+            .viewCount(status != null ? status.getViewCount() : 0);
+
+        String linkUrl = spec.getLinkUrl();
+        String postName = spec.getPostName();
+
+        if (StringUtils.isNotBlank(linkUrl)) {
+            builder.jumpUrl(linkUrl);
+            return Mono.just(builder.build());
+        }
+
+        if (StringUtils.isNotBlank(postName)) {
+            return client.fetch(Post.class, postName)
+                .map(post -> {
+                    String permalink = null;
+                    if (post.getStatus() != null) {
+                        permalink = post.getStatus().getPermalink();
+                    }
+                    return builder.jumpUrl(permalink).build();
+                })
+                .defaultIfEmpty(builder.build());
+        }
+
+        return Mono.just(builder.build());
     }
 
     private CategoryVo toCategoryVo(@NonNull Category c, long sentenceCount) {
