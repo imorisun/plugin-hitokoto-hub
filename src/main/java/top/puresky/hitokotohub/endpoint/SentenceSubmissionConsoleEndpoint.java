@@ -9,12 +9,10 @@ import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.security.Principal;
 import java.time.Instant;
 import java.util.Map;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Sort;
@@ -120,7 +118,7 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
         Mono<ApproveRequest> bodyMono = request.bodyToMono(ApproveRequest.class)
             .defaultIfEmpty(new ApproveRequest());
 
-        return request.principal().map(Principal::getName)
+        return request.principal().map(p -> p.getName())
             .flatMap(username -> bodyMono.flatMap(approveRequest ->
                 client.fetch(SentenceSubmission.class, name)
                     .switchIfEmpty(Mono.error(new IllegalArgumentException("提交记录不存在")))
@@ -162,7 +160,7 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
         Mono<RejectRequest> bodyMono = request.bodyToMono(RejectRequest.class)
             .defaultIfEmpty(new RejectRequest());
 
-        return request.principal().map(Principal::getName)
+        return request.principal().map(p -> p.getName())
             .flatMap(username -> bodyMono.flatMap(rejectRequest ->
                 client.fetch(SentenceSubmission.class, name)
                     .switchIfEmpty(Mono.error(new IllegalArgumentException("提交记录不存在")))

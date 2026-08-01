@@ -55,7 +55,7 @@ public final class TextSimilarityCalculator {
         }
         int total = 0;
         for (int i = 0; i < text.length() - 1; i++) {
-            tf.merge(text.substring(i, i + 2), 1.0, Double::sum);
+            tf.merge(text.substring(i, i + 2), 1.0, (a, b) -> Double.sum(a, b));
             total++;
         }
         if (total > 0) {
@@ -79,7 +79,7 @@ public final class TextSimilarityCalculator {
         int n = tokenSets.size();
         for (Set<String> tokens : tokenSets) {
             for (String token : tokens) {
-                docFreq.merge(token, 1, Integer::sum);
+                docFreq.merge(token, 1, (a, b) -> Integer.sum(a, b));
             }
         }
         Map<String, Double> idf = new HashMap<>();

@@ -130,7 +130,7 @@ public class CategoryCountServiceImpl implements CategoryCountService {
                 // 此处统一计入 uncategorized 以保持统计一致性
                 categoryName = UncategorizedConstants.METADATA_NAME;
             }
-            counts.merge(categoryName, 1L, Long::sum);
+            counts.merge(categoryName, 1L, (a, b) -> Long.sum(a, b));
         }
         return counts;
     }

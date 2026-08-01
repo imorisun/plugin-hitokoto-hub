@@ -71,7 +71,7 @@ public class EchartsDataBuilder {
         for (Map.Entry<String, Map<String, Long>> entry : aggregatedData.entrySet()) {
             ViewStatisticsResponse.TimePoint point = new ViewStatisticsResponse.TimePoint();
             point.setTime(entry.getKey());
-            long totalCount = entry.getValue().values().stream().mapToLong(Long::longValue).sum();
+            long totalCount = entry.getValue().values().stream().mapToLong(v -> v.longValue()).sum();
             point.setTotalCount(totalCount);
             List<ViewStatisticsResponse.CategoryDetail> details = new ArrayList<>();
             for (Map.Entry<String, Long> categoryEntry : entry.getValue().entrySet()) {
@@ -112,7 +112,7 @@ public class EchartsDataBuilder {
         }
 
         List<String> xAxis = timePoints.stream()
-            .map(ViewStatisticsResponse.TimePoint::getTime)
+            .map(p -> p.getTime())
             .collect(Collectors.toList());
 
         List<ViewStatisticsResponse.EChartsSeries> series = new ArrayList<>();
@@ -123,7 +123,7 @@ public class EchartsDataBuilder {
             String displayName = timePoints.stream()
                 .flatMap(point -> point.getDetails().stream())
                 .filter(d -> d.getCategoryName().equals(categoryName))
-                .map(ViewStatisticsResponse.CategoryDetail::getDisplayName)
+                .map(d -> d.getDisplayName())
                 .findFirst()
                 .orElse(categoryName);
             serie.setDisplayName(displayName);
@@ -131,7 +131,7 @@ public class EchartsDataBuilder {
             for (ViewStatisticsResponse.TimePoint point : timePoints) {
                 long count = point.getDetails().stream()
                     .filter(d -> d.getCategoryName().equals(categoryName))
-                    .mapToLong(ViewStatisticsResponse.CategoryDetail::getCount)
+                    .mapToLong(d -> d.getCount())
                     .findFirst()
                     .orElse(0L);
                 data.add(count);

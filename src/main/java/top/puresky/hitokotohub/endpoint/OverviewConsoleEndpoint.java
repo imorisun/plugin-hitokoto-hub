@@ -149,8 +149,8 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
         }
 
         // 汇总总数(包含未注册分类的句子,与原 countBy 行为一致)
-        long totalSentences = stats.values().stream().mapToLong(CategoryStats::total).sum();
-        long totalPublished = stats.values().stream().mapToLong(CategoryStats::published).sum();
+        long totalSentences = stats.values().stream().mapToLong(s -> s.total()).sum();
+        long totalPublished = stats.values().stream().mapToLong(s -> s.published()).sum();
 
         OverviewResponse response = new OverviewResponse();
         response.setSentenceCount(totalSentences);
@@ -340,7 +340,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
 
                         // 按事件数降序排列
                         result.sort(Comparator.comparing(
-                            TodaySentenceDetailsResponse.TodaySentenceDetail::getEventCount).reversed());
+                            (TodaySentenceDetailsResponse.TodaySentenceDetail d) -> d.getEventCount()).reversed());
 
                         TodaySentenceDetailsResponse response = new TodaySentenceDetailsResponse();
                         response.setSuccess(true);

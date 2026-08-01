@@ -13,7 +13,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.app.core.extension.content.Post;
 import run.halo.app.extension.ListOptions;
-import run.halo.app.extension.ListResult;
 import run.halo.app.extension.Metadata;
 import run.halo.app.extension.PageRequestImpl;
 import run.halo.app.extension.ReactiveExtensionClient;
@@ -70,7 +69,7 @@ public class HitokotoFinderImpl implements HitokotoFinder {
                         var pageRequest = PageRequestImpl.of(page, effectiveSize, Sort.unsorted());
 
                         return client.listBy(Sentence.class, options, pageRequest)
-                            .map(ListResult::getItems)
+                            .map(r -> r.getItems())
                             .flatMapMany(items -> {
                                 if (items.size() >= effectiveSize || total <= effectiveSize) {
                                     return Mono.just(items);
@@ -78,7 +77,7 @@ public class HitokotoFinderImpl implements HitokotoFinder {
                                 int remaining = effectiveSize - items.size();
                                 var wrapRequest = PageRequestImpl.of(1, remaining, Sort.unsorted());
                                 return client.listBy(Sentence.class, options, wrapRequest)
-                                    .map(ListResult::getItems)
+                                    .map(r -> r.getItems())
                                     .map(wrapItems -> {
                                         List<Sentence> combined = new ArrayList<>(items);
                                         combined.addAll(wrapItems);

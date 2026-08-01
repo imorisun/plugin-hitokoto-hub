@@ -317,7 +317,7 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
                         return Mono.just(Map.entry(name, false));
                     }))
                 .defaultIfEmpty(Map.entry(name, false)), 16)
-            .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+            .collectMap(e -> e.getKey(), e -> e.getValue())
             .flatMap(nameToSuccess -> {
                 long deletedCount = nameToSuccess.values().stream()
                     .filter(Boolean.TRUE::equals).count();
@@ -329,8 +329,8 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
 
                 // 只验证真正删除成功的句子，跳过删除失败的
                 Set<String> deletedNames = nameToSuccess.entrySet().stream()
-                    .filter(Map.Entry::getValue)
-                    .map(Map.Entry::getKey)
+                    .filter(e -> e.getValue())
+                    .map(e -> e.getKey())
                     .collect(Collectors.toSet());
                 if (deletedNames.isEmpty()) {
                     return Mono.just(result);

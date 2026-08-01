@@ -28,7 +28,6 @@ import run.halo.app.core.extension.content.Post;
 import run.halo.app.core.extension.endpoint.CustomEndpoint;
 import run.halo.app.extension.GroupVersion;
 import run.halo.app.extension.ListOptions;
-import run.halo.app.extension.ListResult;
 import run.halo.app.extension.PageRequestImpl;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.Queries;
@@ -120,7 +119,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                         var pageRequest = PageRequestImpl.of(page, effectiveSize, Sort.unsorted());
 
                         return client.listBy(Sentence.class, options, pageRequest)
-                            .map(ListResult::getItems).flatMap(items -> {
+                            .map(r -> r.getItems()).flatMap(items -> {
                                 if (items.size() >= effectiveSize || total <= effectiveSize) {
                                     return Mono.just(items);
                                 }
@@ -129,7 +128,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                                 var wrapRequest = PageRequestImpl.of(1, remaining, Sort.unsorted());
 
                                 return client.listBy(Sentence.class, options, wrapRequest)
-                                    .map(ListResult::getItems).map(wrapItems -> {
+                                    .map(r -> r.getItems()).map(wrapItems -> {
                                         List<Sentence> combined = new ArrayList<>(items);
                                         combined.addAll(wrapItems);
                                         return combined;

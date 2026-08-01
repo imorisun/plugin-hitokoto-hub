@@ -69,7 +69,7 @@ public class SimilarityGroupBuilder {
         }
 
         // 按相似句子数量降序
-        groups.sort(Comparator.comparingInt(SimilarityGroup::getSimilarCount).reversed());
+        groups.sort(Comparator.comparingInt((SimilarityGroup g) -> g.getSimilarCount()).reversed());
         return groups;
     }
 
@@ -230,7 +230,7 @@ public class SimilarityGroupBuilder {
         }
 
         // 按相似度降序
-        similarInfos.sort(Comparator.comparingDouble(SentenceInfo::getSimilarity).reversed());
+        similarInfos.sort(Comparator.comparingDouble((SentenceInfo s) -> s.getSimilarity()).reversed());
 
         int similarCount = similarInfos.size();
         double avgSim = similarCount > 0 ? sumSim / similarCount : 0;

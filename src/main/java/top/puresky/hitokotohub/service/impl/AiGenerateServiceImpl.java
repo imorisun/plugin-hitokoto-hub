@@ -13,7 +13,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.aifoundation.AiModelService;
 import run.halo.aifoundation.chat.GenerateTextRequest;
-import run.halo.aifoundation.chat.GenerateTextResult;
 import run.halo.aifoundation.schema.JsonSchema;
 import run.halo.aifoundation.schema.OutputSpec;
 import run.halo.app.extension.Metadata;
@@ -104,7 +103,7 @@ public class AiGenerateServiceImpl implements AiGenerateService {
             .flatMap(createdLog -> extensionGetter.getEnabledExtension(AiModelService.class)
                 .flatMap(server -> server.languageModel(modelName))
                 .flatMap(model -> model.generateText(request))
-                .map(GenerateTextResult::getText)
+                .map(r -> r.getText())
                 .doOnNext(json -> {
                     if (json.length() > MAX_AI_RESPONSE_SIZE) {
                         log.warn("AI 返回内容过大: {} 字符,超过限制 {}", json.length(), MAX_AI_RESPONSE_SIZE);

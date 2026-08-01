@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.security.Principal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -105,14 +104,14 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
     }
 
     @NonNull Mono<ServerResponse> batchCreateSentence(@NonNull ServerRequest request) {
-        return request.principal().map(Principal::getName).flatMap(username -> {
+        return request.principal().map(p -> p.getName()).flatMap(username -> {
             var sentenceFlux = request.bodyToFlux(Sentence.class);
             return createSentences(sentenceFlux, username);
         }).flatMap(result -> ServerResponse.ok().bodyValue(result));
     }
 
     private @NonNull Mono<ServerResponse> importExcelSentences(@NonNull ServerRequest request) {
-        return request.principal().map(Principal::getName)
+        return request.principal().map(p -> p.getName())
             .flatMap(username -> request.multipartData().flatMap(parts -> {
                 var file = parts.getFirst("file");
                 if (!(file instanceof FilePart filePart)) {
@@ -317,7 +316,7 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
 
     @NonNull Mono<ServerResponse> searchSentence(ServerRequest request) {
         return listSentences(request)
-            .map(ListResult::getItems)
+            .map(r -> r.getItems())
             .flatMap(sentences -> ServerResponse.ok().bodyValue(sentences));
     }
 

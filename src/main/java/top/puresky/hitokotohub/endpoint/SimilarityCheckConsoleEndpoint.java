@@ -5,7 +5,6 @@ import static org.springdoc.core.fn.builders.parameter.Builder.parameterBuilder;
 import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
-import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -126,7 +125,7 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
     }
 
     private @NonNull Mono<ServerResponse> triggerCheck(@NonNull ServerRequest request) {
-        return request.principal().map(Principal::getName).defaultIfEmpty("system")
+        return request.principal().map(p -> p.getName()).defaultIfEmpty("system")
             .flatMap(username -> settingConfig.getSimilarityConfig()
                 .flatMap(config -> {
                     String algorithm = config.getSimilarityAlgorithm() != null
