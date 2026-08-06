@@ -36,6 +36,8 @@ public class HitokotoTemplateRouter {
                 model.put("templateTheme", templateConfig.getTemplateTheme());
                 model.put("templateShowSakura", templateConfig.getTemplateShowSakura());
                 model.put("templateShowHint", templateConfig.getTemplateShowHint());
+                model.put("enableAutoRefresh", templateConfig.getEnableAutoRefresh());
+                model.put("autoRefreshInterval", templateConfig.getAutoRefreshInterval());
                 return templateNameResolver.resolveTemplateNameOrDefault(request.exchange(), "hitokoto")
                     .flatMap(templateName -> ServerResponse.ok().render(templateName, model));
             });

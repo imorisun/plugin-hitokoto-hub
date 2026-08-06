@@ -30,7 +30,8 @@
 <!-- 服务端配置注入，JS 通过 data 属性读取 -->
 <div id="templateConfig"
      style="display:none"
-     th:attr="data-theme=${templateTheme},data-sakura=${templateShowSakura},data-hint=${templateShowHint}">
+     th:attr="data-theme=${templateTheme},data-sakura=${templateShowSakura},data-hint=${templateShowHint},
+              data-auto-refresh=${enableAutoRefresh},data-auto-refresh-interval=${autoRefreshInterval}">
 </div>
 
 <div class="bg-glow top"></div>
@@ -63,6 +64,21 @@
             <svg class="icon-auto" viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
                 <path d="M12 2a10 10 0 0 1 0 20" fill="currentColor" opacity="0.5"/>
+            </svg>
+        </button>
+        <!-- 自动刷新暂停/恢复按钮：仅在后端启用自动刷新时渲染 -->
+        <button class="auto-refresh-toggle" id="autoRefreshToggle" type="button"
+                th:if="${enableAutoRefresh == true}"
+                aria-label="暂停自动切换" data-tooltip="暂停自动切换"
+                aria-pressed="false">
+            <!-- 暂停图标：自动刷新运行中显示 -->
+            <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="6" y="4" width="4" height="16" rx="1"/>
+                <rect x="14" y="4" width="4" height="16" rx="1"/>
+            </svg>
+            <!-- 播放图标：暂停时显示 -->
+            <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true">
+                <polygon points="6,4 20,12 6,20"/>
             </svg>
         </button>
         <button class="submit-btn" id="submitBtn" type="button" aria-label="提交句子">

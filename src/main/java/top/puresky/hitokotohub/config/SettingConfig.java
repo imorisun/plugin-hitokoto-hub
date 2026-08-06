@@ -95,5 +95,9 @@ public interface SettingConfig {
         private Boolean templateShowSakura;
         @Schema(description = "是否显示首次操作提示")
         private Boolean templateShowHint;
+        @Schema(description = "是否启用定时自动切换句子")
+        private Boolean enableAutoRefresh;
+        @Schema(description = "自动切换间隔（秒）")
+        private Integer autoRefreshInterval;
     }
 }

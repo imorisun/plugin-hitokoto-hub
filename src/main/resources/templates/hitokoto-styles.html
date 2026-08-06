@@ -252,7 +252,10 @@
             left: 0;
             right: 0;
             z-index: 50;
-            padding: 1.25rem 1.5rem;
+            padding: max(1.25rem, env(safe-area-inset-top, 0px) + 0.5rem)
+                     max(1.5rem, env(safe-area-inset-right, 0px) + 0.5rem)
+                     1.25rem
+                     max(1.5rem, env(safe-area-inset-left, 0px) + 0.5rem);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -456,7 +459,7 @@
 
         footer {
             position: fixed;
-            bottom: 1.25rem;
+            bottom: max(1.25rem, env(safe-area-inset-bottom, 0px) + 0.5rem);
             left: 50%;
             transform: translateX(-50%);
             z-index: 50;
@@ -575,7 +578,14 @@
         /* 平板 */
         @media (min-width: 640px) {
             header {
-                padding: 1.5rem 2rem;
+                padding: max(1.5rem, env(safe-area-inset-top, 0px) + 0.5rem)
+                         max(2rem, env(safe-area-inset-right, 0px) + 0.5rem)
+                         1.5rem
+                         max(2rem, env(safe-area-inset-left, 0px) + 0.5rem);
+            }
+
+            footer {
+                bottom: max(1.5rem, env(safe-area-inset-bottom, 0px) + 0.5rem);
             }
 
             main {
@@ -622,6 +632,16 @@
                 height: 17px;
             }
 
+            .auto-refresh-toggle {
+                width: 34px;
+                height: 34px;
+            }
+
+            .auto-refresh-toggle svg {
+                width: 15px;
+                height: 15px;
+            }
+
             .submit-btn {
                 font-size: 0.72rem;
                 gap: 0.45rem;
@@ -649,7 +669,14 @@
         /* 桌面 */
         @media (min-width: 768px) {
             header {
-                padding: 2rem 2.5rem;
+                padding: max(2rem, env(safe-area-inset-top, 0px) + 0.5rem)
+                         max(2.5rem, env(safe-area-inset-right, 0px) + 0.5rem)
+                         2rem
+                         max(2.5rem, env(safe-area-inset-left, 0px) + 0.5rem);
+            }
+
+            footer {
+                bottom: max(2rem, env(safe-area-inset-bottom, 0px) + 0.5rem);
             }
 
             main {
@@ -696,6 +723,16 @@
             .theme-toggle svg {
                 width: 18px;
                 height: 18px;
+            }
+
+            .auto-refresh-toggle {
+                width: 36px;
+                height: 36px;
+            }
+
+            .auto-refresh-toggle svg {
+                width: 16px;
+                height: 16px;
             }
 
             .submit-btn {
@@ -1391,8 +1428,276 @@
             transform: translateX(-50%) translateY(0);
         }
 
+        /* ==================== 自动刷新暂停/恢复按钮 ==================== */
+        .auto-refresh-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            border: 1px solid var(--border-default);
+            background: var(--bg-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
+            padding: 0;
+            opacity: 0;
+            animation: authorFadeIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            animation-delay: 1s;
+        }
+
+        .auto-refresh-toggle:hover {
+            color: var(--accent);
+            background-color: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+
+        .auto-refresh-toggle:active {
+            transform: scale(0.9);
+        }
+
+        .auto-refresh-toggle svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .auto-refresh-toggle .icon-pause,
+        .auto-refresh-toggle .icon-play {
+            position: absolute;
+        }
+
+        /* 运行中状态：显示暂停图标，隐藏播放图标 */
+        .auto-refresh-toggle:not(.paused) .icon-pause {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .auto-refresh-toggle:not(.paused) .icon-play {
+            opacity: 0;
+            transform: scale(0.6);
+        }
+
+        /* 暂停状态：显示播放图标，隐藏暂停图标 */
+        .auto-refresh-toggle.paused .icon-pause {
+            opacity: 0;
+            transform: scale(0.6);
+        }
+
+        .auto-refresh-toggle.paused .icon-play {
+            opacity: 1;
+            transform: scale(1);
+            color: var(--muted);
+        }
+
+        .auto-refresh-toggle.paused:hover .icon-play {
+            color: var(--accent);
+        }
+
+        /* Tooltip */
+        .auto-refresh-toggle::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            padding: 4px 12px;
+            font-family: var(--ui-font);
+            font-size: 0.7rem;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            color: var(--text-dim);
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-default);
+            border-radius: 99px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            z-index: 100;
+        }
+
+        .auto-refresh-toggle:hover::after {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* 减少动效偏好下禁用图标过渡 */
+        @media (prefers-reduced-motion: reduce) {
+            .auto-refresh-toggle svg {
+                transition: none;
+            }
+        }
+
+        /* ==================== 极窄屏幕适配（≤ 420px） ====================
+           典型场景：小屏手机竖屏。核心优化：
+           - 投递按钮隐藏文字，仅保留圆形图标按钮
+           - 压缩 header 间距和按钮尺寸，防止操作区溢出
+           - 缩小品牌标识字距
+           - 适配 iOS 安全区域
+        */
+        @media (max-width: 420px) {
+            header {
+                padding: 0.85rem 0.85rem;
+            }
+
+            .music-btn {
+                font-size: 0.6rem;
+                letter-spacing: 0.2em;
+            }
+
+            .header-actions {
+                gap: 0.35rem;
+            }
+
+            /* 圆形图标按钮统一尺寸 30px */
+            .theme-toggle,
+            .auto-refresh-toggle {
+                width: 30px;
+                height: 30px;
+            }
+
+            .theme-toggle svg {
+                width: 14px;
+                height: 14px;
+            }
+
+            .auto-refresh-toggle svg {
+                width: 12px;
+                height: 12px;
+            }
+
+            /* 投递按钮：隐藏文字，变为圆形图标按钮 */
+            .submit-btn {
+                width: 30px;
+                height: 30px;
+                padding: 0;
+                justify-content: center;
+                gap: 0;
+            }
+
+            .submit-btn span {
+                display: none;
+            }
+
+            .submit-btn svg {
+                width: 14px;
+                height: 14px;
+            }
+
+            /* 点赞按钮更紧凑 */
+            .like-btn {
+                padding: 0.35rem 0.6rem;
+                gap: 0.3rem;
+                font-size: 0.62rem;
+            }
+
+            .like-btn .heart-icon {
+                width: 13px;
+                height: 13px;
+            }
+
+            /* 主体左右边距略收 */
+            main {
+                padding: 0 1rem;
+            }
+
+            /* 句子字号微调 */
+            .quote-text {
+                font-size: 0.92rem;
+                line-height: 1.9;
+                letter-spacing: 0.05em;
+            }
+
+            .quote-author {
+                margin-top: 1.2rem;
+                font-size: 0.6rem;
+                gap: 0.1rem;
+            }
+
+            .quote-author::before,
+            .quote-author::after {
+                width: 1.4rem;
+            }
+
+            /* 底部 Next 按钮适配安全区域 */
+            footer {
+                bottom: max(1rem, env(safe-area-inset-bottom, 0px) + 0.75rem);
+            }
+
+            .next-btn {
+                gap: 0.4rem;
+                font-size: 0.55rem;
+                letter-spacing: 0.25em;
+            }
+
+            .next-btn .line {
+                height: 1.3rem;
+            }
+
+            /* Toast 缩短水平 padding，避免贴边 */
+            .toast {
+                font-size: 0.62rem;
+                padding: 0.5rem 1rem;
+                bottom: 4.5rem;
+            }
+
+            /* 投递弹窗适配窄屏 */
+            .submit-modal__card {
+                padding: 1.25rem 1rem;
+                border-radius: 0.85rem;
+                max-height: 85vh;
+                margin: 0.5rem;
+            }
+
+            .submit-modal__title {
+                font-size: 0.95rem;
+            }
+        }
+
+        /* 超窄屏幕（≤ 360px，如 iPhone SE 初代）进一步压缩 */
+        @media (max-width: 360px) {
+            header {
+                padding: 0.75rem 0.7rem;
+            }
+
+            .header-actions {
+                gap: 0.25rem;
+            }
+
+            .theme-toggle,
+            .auto-refresh-toggle {
+                width: 28px;
+                height: 28px;
+            }
+
+            .submit-btn {
+                width: 28px;
+                height: 28px;
+            }
+
+            .like-btn {
+                padding: 0.3rem 0.5rem;
+                font-size: 0.58rem;
+            }
+
+            .quote-text {
+                font-size: 0.85rem;
+            }
+
+            .music-btn {
+                font-size: 0.55rem;
+                letter-spacing: 0.15em;
+            }
+        }
+
         /* ==================== 减少动效偏好适配 ====================
-           尊重用户系统级 prefers-reduced-motion 设置：
            - 关闭所有动画与过渡（保留 0.001ms 以保证状态切换终态正确）
            - 隐藏樱花粒子、背景光晕呼吸、噪点纹理等装饰性动效
            - JS 侧同步跳过樱花物理引擎启动（见 createSakura IIFE 顶部判断）

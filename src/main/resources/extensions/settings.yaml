@@ -325,3 +325,18 @@ spec:
           label: 显示首次操作提示
           value: true
           help: 开启后，页面加载完成时将显示"双击屏幕任意位置点赞"的操作提示
+        - $formkit: switch
+          name: enableAutoRefresh
+          id: enableAutoRefresh
+          label: 定时自动切换句子
+          value: false
+          help: 开启后，页面将按照设定的时间间隔自动切换展示新的句子
+        - $formkit: number
+          name: autoRefreshInterval
+          label: 自动切换间隔（秒）
+          if: "$get(enableAutoRefresh).value === true"
+          value: 10
+          min: 3
+          max: 3600
+          step: 1
+          help: 句子自动切换的时间间隔，单位为秒，最小 3 秒，最大 3600 秒（1 小时）

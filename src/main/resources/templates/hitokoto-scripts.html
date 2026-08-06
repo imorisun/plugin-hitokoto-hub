@@ -807,6 +807,10 @@
         try {
             const s = await fetchNewSentence();
             applySentence(s);
+            /* 手动切换后重置自动切换计时器 */
+            if (window.__hitokotoResetAutoTimer) {
+                window.__hitokotoResetAutoTimer();
+            }
         } catch (e) {
             console.error('刷新失败', e);
             showToast('刷新失败，请稍后再试');
@@ -845,7 +849,7 @@
         var sakuraList = [];
         var sakuraContainer = document.getElementById('sakura-container');
         var isMobile = window.innerWidth < 768 || ('ontouchstart' in window && window.innerWidth < 1024);
-        var SAKURA_MAX = isMobile ? 15 : 75;
+        var SAKURA_MAX = isMobile ? 12 : 75;
         var mouseX = -1000, mouseY = -1000;
         var mouseActive = false;    /* 鼠标是否在页面内 */
         var mouseDown = false;      /* 鼠标是否按住 */
@@ -914,26 +918,40 @@
             else if (layer < 0.85) depth = 1;  /* 中层 50% */
             else depth = 2;                     /* 近层 15% */
 
-            var size, baseSpeed, baseOpacity, blur;
+            var size, baseSpeed, baseOpacity, blur, wobbleSpeedFactor, wobbleAmountFactor, rotSpeedFactor;
             if (depth === 0) {
                 size = Math.random() * 3 + 5;               /* 5-8px */
                 baseSpeed = Math.random() * 0.24 + 0.18;    /* 0.18-0.42（优雅极慢） */
                 baseOpacity = Math.random() * 0.18 + 0.18;  /* 0.18-0.36 */
                 blur = 0;
+                wobbleSpeedFactor = 0.8;
+                wobbleAmountFactor = 0.7;
+                rotSpeedFactor = 0.6;
             } else if (depth === 2) {
                 size = Math.random() * 6 + 10;              /* 10-16px */
                 baseSpeed = Math.random() * 0.38 + 0.46;    /* 0.46-0.84（优雅慢速） */
                 baseOpacity = Math.random() * 0.18 + 0.58;  /* 0.58-0.76 */
                 blur = Math.random() * 1.5 + 0.5;            /* 0.5-2px 景深模糊 */
+                wobbleSpeedFactor = 0.85;
+                wobbleAmountFactor = 0.8;
+                rotSpeedFactor = 0.7;
             } else {
                 size = Math.random() * 4 + 7;               /* 7-11px */
                 baseSpeed = Math.random() * 0.31 + 0.32;    /* 0.32-0.63（优雅中速） */
                 baseOpacity = Math.random() * 0.22 + 0.4;   /* 0.4-0.62 */
                 blur = 0;
+                wobbleSpeedFactor = 1.0;
+                wobbleAmountFactor = 1.0;
+                rotSpeedFactor = 1.0;
             }
 
-            /* 移动端减速 60%，飘落更舒缓 */
-            if (isMobile) baseSpeed *= 0.4;
+            /* 移动端大幅减速至 25%，飘落更从容优雅 */
+            if (isMobile) {
+                baseSpeed *= 0.25;
+                wobbleSpeedFactor *= 0.6;
+                wobbleAmountFactor *= 0.6;
+                rotSpeedFactor *= 0.5;
+            }
 
             petal.style.width = size + 'px';
             petal.style.height = size + 'px';
@@ -962,13 +980,13 @@
             }
             /* 所有花瓣统一从屏幕顶部上方飘入 */
             var y = -size * 2 - Math.random() * 120;
-            var wobbleSpeed = Math.random() * 0.012 + 0.006;
-            var wobbleAmountX = Math.random() * 45 + 20;      /* 20-65（更大摇摆幅度） */
-            var wobbleAmountY = Math.random() * 15 + 5;       /* 5-20（垂直波动增强） */
-            var rotSpeedZ = (Math.random() - 0.5) * 2.5;
+            var wobbleSpeed = (Math.random() * 0.012 + 0.006) * wobbleSpeedFactor;
+            var wobbleAmountX = (Math.random() * 45 + 20) * wobbleAmountFactor;
+            var wobbleAmountY = (Math.random() * 15 + 5) * wobbleAmountFactor;
+            var rotSpeedZ = (Math.random() - 0.5) * 2.5 * rotSpeedFactor;
 
-            /* 初始水平漂移速度（风） */
-            var driftVx = (Math.random() - 0.5) * 0.3;
+            /* 初始水平漂移速度（风） — 移动端风力减半 */
+            var driftVx = (Math.random() - 0.5) * (isMobile ? 0.15 : 0.3);
 
             var data = {
                 element: sakura,
@@ -1015,10 +1033,15 @@
                 windAngle = Math.max(-0.8, Math.min(0.8, windAngle));
             }
 
-            var GRAVITY = 0.005;   /* 降低重力（0.008→0.005），飘落更优雅 */
-            var WIND_FACTOR = windAngle * 0.15 * 0.02;
+            var GRAVITY = isMobile ? 0.0025 : 0.005;   /* 移动端重力减半，飘落更悠然 */
+            var WIND_FACTOR = windAngle * (isMobile ? 0.08 : 0.15) * 0.02;
             var FADE_START = 0.85;
             var FADE_END = 1.02;
+
+            /* 移动端鼠标吸引范围和力度减弱，避免触摸时过于躁动 */
+            var mousePullRadius = isMobile ? 150 : 250;
+            var mousePullStrength = isMobile ? 0.9 : 1.6;
+            var mouseRotStrength = isMobile ? 6 : 12;
 
             for (var i = sakuraList.length - 1; i >= 0; i--) {
                 var s = sakuraList[i];
@@ -1029,22 +1052,22 @@
                     var dx = s.x - mouseX;
                     var dy = s.y - mouseY;
                     var distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < 250) {
+                    if (distance < mousePullRadius) {
                         var angle = Math.atan2(dy, dx);
                         var cosA = Math.cos(angle);
                         var sinA = Math.sin(angle);
-                        var strength = (250 - distance) / 250;   /* 0→1，越近越强 */
-                        var pull = strength * 1.6;
+                        var strength = (mousePullRadius - distance) / mousePullRadius;
+                        var pull = strength * mousePullStrength;
                         s.vx -= cosA * pull;
                         s.vy -= sinA * pull;
-                        s.rotationZ += (Math.random() - 0.5) * strength * 12;
+                        s.rotationZ += (Math.random() - 0.5) * strength * mouseRotStrength;
                     }
                 }
 
                 /* 重力 + 阻尼 */
                 s.vy += GRAVITY;
-                s.vx *= 0.99;
-                s.vy *= 0.995;
+                s.vx *= isMobile ? 0.985 : 0.99;
+                s.vy *= isMobile ? 0.992 : 0.995;
 
                 /* 风速（按深度加权） */
                 var wf = s.depth === 0 ? 0.6 : (s.depth === 2 ? 1.4 : 1.0);
@@ -1111,12 +1134,12 @@
         }
 
         /* 点击绽放可配置参数 */
-        var BURST_COUNT = isMobile ? 5 : 10;      /* 基础花瓣数：移动端5，PC端10 */
-        var BURST_VARIANCE = isMobile ? 3 : 7;    /* 随机浮动：移动端±3，PC端±7 */
-        var BURST_DIST_MIN = isMobile ? 35 : 50;  /* 最小扩散半径 */
-        var BURST_DIST_MAX = isMobile ? 90 : 130; /* 最大扩散半径 */
-        var BURST_SPEED_MIN = isMobile ? 1.8 : 2.5;
-        var BURST_SPEED_MAX = isMobile ? 3.5 : 5.0;
+        var BURST_COUNT = isMobile ? 4 : 10;      /* 移动端更少花瓣，避免遮挡 */
+        var BURST_VARIANCE = isMobile ? 2 : 7;
+        var BURST_DIST_MIN = isMobile ? 28 : 50;  /* 移动端扩散半径更小 */
+        var BURST_DIST_MAX = isMobile ? 65 : 130;
+        var BURST_SPEED_MIN = isMobile ? 1.2 : 2.5;  /* 移动端爆发速度更温和 */
+        var BURST_SPEED_MAX = isMobile ? 2.2 : 5.0;
 
         /**
          * 鼠标点击绽放特效（纯 JS 驱动，无缝融入飘落系统）：
@@ -1204,10 +1227,10 @@
         });
 
         /* 播种与密度管理 */
-        var seedCount = isMobile ? 8 : 35;
-        var spawnInterval = isMobile ? 2000 : 600;
+        var seedCount = isMobile ? 6 : 35;
+        var spawnInterval = isMobile ? 3000 : 600;
         for (var i = 0; i < seedCount; i++) {
-            setTimeout(createSakura, i * (isMobile ? 350 : 100));
+            setTimeout(createSakura, i * (isMobile ? 500 : 100));
         }
         setInterval(function() {
             /* 根据当前数量动态调整创建速率 */
@@ -1216,6 +1239,134 @@
             }
         }, spawnInterval);
         animateSakura();
+    })();
+
+    /* ==================== 定时自动切换句子 ==================== */
+    (function() {
+        var autoTimer = null;
+        var isAutoFetching = false;
+        var userPaused = false;  /* 用户手动暂停状态 */
+
+        function getAutoRefreshConfig() {
+            var cfg = document.getElementById('templateConfig');
+            if (!cfg) return { enabled: false, interval: 10 };
+            var enabled = cfg.getAttribute('data-auto-refresh') === 'true';
+            var interval = parseInt(cfg.getAttribute('data-auto-refresh-interval') || '10', 10);
+            if (isNaN(interval) || interval < 3) interval = 10;
+            return { enabled: enabled, interval: interval };
+        }
+
+        function clearAutoTimer() {
+            if (autoTimer) {
+                clearTimeout(autoTimer);
+                autoTimer = null;
+            }
+        }
+
+        function updateToggleButton() {
+            var btn = document.getElementById('autoRefreshToggle');
+            if (!btn) return;
+            if (userPaused) {
+                btn.classList.add('paused');
+                btn.setAttribute('aria-label', '恢复自动切换');
+                btn.setAttribute('data-tooltip', '恢复自动切换');
+                btn.setAttribute('aria-pressed', 'true');
+            } else {
+                btn.classList.remove('paused');
+                btn.setAttribute('aria-label', '暂停自动切换');
+                btn.setAttribute('data-tooltip', '暂停自动切换');
+                btn.setAttribute('aria-pressed', 'false');
+            }
+        }
+
+        async function autoFetchAndApply() {
+            if (isAutoFetching || state.busy) return;
+            if (userPaused) return;
+            /* 提交弹窗打开时暂停自动切换，避免打断用户操作 */
+            var modal = document.getElementById('submitModal');
+            if (modal && modal.classList.contains('open')) return;
+            isAutoFetching = true;
+            try {
+                var s = await fetchNewSentence();
+                applySentence(s);
+            } catch (e) {
+                console.error('自动切换失败', e);
+            } finally {
+                isAutoFetching = false;
+            }
+        }
+
+        function scheduleNext() {
+            clearAutoTimer();
+            var config = getAutoRefreshConfig();
+            if (!config.enabled || userPaused) return;
+            autoTimer = setTimeout(function() {
+                autoFetchAndApply().then(function() {
+                    scheduleNext();
+                });
+            }, config.interval * 1000);
+        }
+
+        function pause() {
+            if (userPaused) return;
+            userPaused = true;
+            clearAutoTimer();
+            updateToggleButton();
+        }
+
+        function resume() {
+            if (!userPaused) return;
+            userPaused = false;
+            updateToggleButton();
+            scheduleNext();
+        }
+
+        function toggle() {
+            if (userPaused) {
+                resume();
+            } else {
+                pause();
+            }
+        }
+
+        /* 页面不可见时暂停自动切换，回到页面时继续（仅在用户未手动暂停时） */
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                clearAutoTimer();
+            } else {
+                var config = getAutoRefreshConfig();
+                if (config.enabled && !userPaused) {
+                    scheduleNext();
+                }
+            }
+        });
+
+        /* 初始化：DOM 就绪后启动定时任务并绑定按钮 */
+        document.addEventListener('DOMContentLoaded', function() {
+            var config = getAutoRefreshConfig();
+            if (config.enabled) {
+                scheduleNext();
+                var btn = document.getElementById('autoRefreshToggle');
+                if (btn) {
+                    updateToggleButton();
+                    btn.addEventListener('click', function() {
+                        toggle();
+                    });
+                }
+            }
+        });
+
+        /* 暴露方法给外部调用 */
+        window.__hitokotoResetAutoTimer = function() {
+            var config = getAutoRefreshConfig();
+            if (config.enabled && !userPaused) {
+                scheduleNext();
+            }
+        };
+        window.__hitokotoPauseAutoRefresh = pause;
+        window.__hitokotoResumeAutoRefresh = resume;
+        window.__hitokotoToggleAutoRefresh = toggle;
+        window.__hitokotoIsAutoRefreshPaused = function() { return userPaused; };
     })();
 </script>
 </th:block>
