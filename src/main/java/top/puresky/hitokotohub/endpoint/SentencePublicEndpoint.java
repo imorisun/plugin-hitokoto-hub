@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -48,10 +49,17 @@ public class SentencePublicEndpoint implements CustomEndpoint {
 
     private static final String TAG = "SentencePublicV1alpha1";
     private static final String GROUP_VERSION = "public.api.hitokotohub.puresky.top/v1alpha1";
+    /** 浏览量去重窗口：同一 IP 对同一句子在此时长内重复浏览只计一次 */
+    private static final long VIEW_DEDUP_TTL_MILLIS = 30_000L;
+    /** 公开搜索单次最大返回数量 */
+    private static final int MAX_SEARCH_RESULTS = 20;
+    /** 热门榜单单次最大返回数量 */
+    private static final int MAX_HOT_LIMIT = 50;
 
     private final SettingConfig settingConfig;
     private final ReactiveExtensionClient client;
     private final IpCooldownCache<SimpleCooldownState> likeCache = new IpCooldownCache<>();
+    private final IpCooldownCache<SimpleCooldownState> viewDedupCache = new IpCooldownCache<>();
 
     @Override
     public @NonNull RouterFunction<ServerResponse> endpoint() {
@@ -76,7 +84,37 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                     parameterBuilder().in(ParameterIn.QUERY).name("action")
                         .description("操作类型，like 或 unlike").implementation(String.class)
                         .required(false))
-                .response(responseBuilder().implementation(LikeResponse.class))).build();
+                .response(responseBuilder().implementation(LikeResponse.class)))
+            .GET("sentence/{name}", this::getSentenceByName,
+                builder -> builder.operationId("getSentenceByName").summary("按名称获取单条句子")
+                    .tag(TAG)
+                    .parameter(parameterBuilder().in(ParameterIn.PATH).name("name")
+                        .description("句子 metadata.name").implementation(String.class)
+                        .required(true))
+                    .response(responseBuilder().implementation(SentenceItem.class)))
+            .GET("sentence/search", this::searchSentences,
+                builder -> builder.operationId("searchSentences").summary("搜索已发布句子").tag(TAG)
+                    .parameter(parameterBuilder().in(ParameterIn.QUERY).name("keyword")
+                        .description("关键词（匹配句子内容）").implementation(String.class)
+                        .required(true)).parameter(
+                        parameterBuilder().in(ParameterIn.QUERY).name("categoryName")
+                            .implementation(String.class).required(false)).parameter(
+                        parameterBuilder().in(ParameterIn.QUERY).name("limit")
+                            .description("返回数量，默认 10，最大 " + MAX_SEARCH_RESULTS)
+                            .implementation(Integer.class).required(false))
+                    .response(responseBuilder().implementationArray(SentenceItem.class)))
+            .GET("sentence/hot", this::getHotSentences,
+                builder -> builder.operationId("getHotSentences").summary("获取热门句子榜单")
+                    .tag(TAG)
+                    .parameter(parameterBuilder().in(ParameterIn.QUERY).name("sort")
+                        .description("排序字段：like（默认，按点赞数）/ view（按浏览数）")
+                        .implementation(String.class).required(false)).parameter(
+                        parameterBuilder().in(ParameterIn.QUERY).name("categoryName")
+                            .implementation(String.class).required(false)).parameter(
+                        parameterBuilder().in(ParameterIn.QUERY).name("limit")
+                            .description("返回数量，默认 10，最大 " + MAX_HOT_LIMIT)
+                            .implementation(Integer.class).required(false))
+                    .response(responseBuilder().implementationArray(SentenceItem.class))).build();
     }
 
     @Override
@@ -85,6 +123,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
     }
 
     Mono<ServerResponse> getRandomSentences(ServerRequest request) {
+        String ip = HttpUtils.getClientIp(request.exchange().getRequest());
         return settingConfig.getBasicConfig().flatMap(config -> {
             String categoryNameParam = request.queryParam("categoryName")
                 .filter(StringUtils::isNotBlank).orElse(null);
@@ -140,7 +179,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                                 return randomItems;
                             });
                     }).flatMap(sentences -> Boolean.TRUE.equals(config.getEnableViewCount())
-                        ? incrementAndRecordViews(sentences) : Mono.just(sentences))
+                        ? incrementAndRecordViews(sentences, ip) : Mono.just(sentences))
                     .switchIfEmpty(Mono.just(Collections.emptyList()));
 
             if ("text".equalsIgnoreCase(encode)) {
@@ -153,18 +192,19 @@ public class SentencePublicEndpoint implements CustomEndpoint {
             return sentencesMono.zipWith(displayNameMono).flatMap(tuple -> {
                 List<Sentence> sentences = tuple.getT1();
                 String displayName = tuple.getT2();
-
-                return Flux.fromIterable(sentences)
-                    .concatMap(this::toSentenceItem)
-                    .collectList()
-                    .map(items -> {
-                        RandomSentenceResponse response = new RandomSentenceResponse();
-                        response.setCategoryName(displayName);
-                        response.setMaxRandomLimit(config.getMaxRandomLimit());
-                        response.setReturned(items.size());
-                        response.setSentences(items);
-                        return response;
-                    });
+                return loadLikedNames(ip, sentences).flatMap(likedNames ->
+                    Flux.fromIterable(sentences)
+                        .concatMap(s -> toSentenceItem(s,
+                            likedNames.contains(s.getMetadata().getName())))
+                        .collectList()
+                        .map(items -> {
+                            RandomSentenceResponse response = new RandomSentenceResponse();
+                            response.setCategoryName(displayName);
+                            response.setMaxRandomLimit(config.getMaxRandomLimit());
+                            response.setReturned(items.size());
+                            response.setSentences(items);
+                            return response;
+                        }));
             }).flatMap(response -> ServerResponse.ok().bodyValue(response));
         });
     }
@@ -195,9 +235,20 @@ public class SentencePublicEndpoint implements CustomEndpoint {
     }
 
 
-    private @NonNull Mono<List<Sentence>> incrementAndRecordViews(List<Sentence> sentences) {
+    private @NonNull Mono<List<Sentence>> incrementAndRecordViews(List<Sentence> sentences,
+                                                                    String ip) {
+        long now = System.currentTimeMillis();
         return Flux.fromIterable(sentences)
             .concatMap(sentence -> {
+                String name = sentence.getMetadata().getName();
+                // 同一 IP 对同一句子在去重窗口内只计一次浏览，防止刷新刷量
+                String dedupKey = ip + ":" + name;
+                SimpleCooldownState existing = viewDedupCache.get(dedupKey);
+                if (existing != null && existing.isCoolingDown(VIEW_DEDUP_TTL_MILLIS, now)) {
+                    return Mono.just(sentence);
+                }
+                viewDedupCache.put(dedupKey, new SimpleCooldownState(now));
+
                 if (sentence.getStatus() == null) {
                     sentence.setStatus(new Sentence.Status());
                 }
@@ -214,6 +265,30 @@ public class SentencePublicEndpoint implements CustomEndpoint {
             .then(Mono.just(sentences));
     }
 
+    /**
+     * 查询当前 IP 已点赞的句子名称集合，用于在响应中标注 hasLiked。
+     *
+     * <p>单次查询该 IP 的全部 LIKE 记录，再与本次返回的句子取交集，避免逐条查询。
+     */
+    private Mono<Set<String>> loadLikedNames(String ip, List<Sentence> sentences) {
+        if (sentences.isEmpty()) {
+            return Mono.just(Collections.emptySet());
+        }
+        return client.listAll(CategoryViewRecord.class,
+                ListOptions.builder().fieldQuery(Queries.and(
+                    Queries.equal("spec.ip", ip),
+                    Queries.equal("spec.eventType", CategoryViewRecord.EventType.LIKE.name())
+                )).build(),
+                Sort.unsorted())
+            .map(record -> record.getSpec().getSentenceName())
+            .filter(StringUtils::isNotBlank)
+            .collect(Collectors.toSet())
+            .onErrorResume(e -> {
+                log.warn("查询 IP 已点赞句子失败，降级为空集合", e);
+                return Mono.just(Collections.emptySet());
+            });
+    }
+
     @NonNull Mono<ServerResponse> toggleLike(@NonNull ServerRequest request) {
         String name = request.queryParam("name").orElse("");
         String action = request.queryParam("action").orElse("like");
@@ -222,6 +297,8 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         String unlikeKey = ip + ":unlike:" + name;
         return settingConfig.getBasicConfig().flatMap(config -> {
             boolean isUnlike = "unlike".equals(action);
+            // 当前操作完成后该句子的点赞状态：点赞后为 true，取消后为 false（rate_limited 时保持该语义）
+            boolean hasLiked = !isUnlike;
             String checkKey = isUnlike ? unlikeKey : likeKey;
             SimpleCooldownState state = likeCache.get(checkKey);
             long now = System.currentTimeMillis();
@@ -231,7 +308,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                 return client.get(Sentence.class, name).flatMap(
                         sentence -> buildLikeResponse(sentence, false,
                             "请在 " + TimeFormatUtils.formatRemainingTime(remainingSeconds) + " 后再" + (isUnlike
-                                ? "取消点赞" : "点赞"), "rate_limited"))
+                                ? "取消点赞" : "点赞"), "rate_limited", hasLiked))
                     .defaultIfEmpty(buildErrorResponse())
                     .flatMap(response -> ServerResponse.ok().bodyValue(response));
             }
@@ -271,7 +348,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                                         return Mono.empty();
                                     })
                                     .then(buildLikeResponse(updated, true,
-                                        "取消点赞成功", "ok"));
+                                        "取消点赞成功", "ok", hasLiked));
                             }
 
                             // 点赞：创建点赞记录
@@ -279,7 +356,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                                 sentence.getSpec().getCategoryName(), name, ip);
                             return client.create(record)
                                 .then(buildLikeResponse(updated, true,
-                                    "点赞成功", "ok"));
+                                    "点赞成功", "ok", hasLiked));
                         });
                 })
                 .defaultIfEmpty(buildErrorResponse())
@@ -287,9 +364,9 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         });
     }
 
-    private @NonNull Mono<LikeResponse> buildLikeResponse(Sentence sentence, boolean success, String message,
-        String code) {
-        return toSentenceItem(sentence).map(item -> {
+    private @NonNull Mono<LikeResponse> buildLikeResponse(Sentence sentence, boolean success,
+        String message, String code, boolean hasLiked) {
+        return toSentenceItem(sentence, hasLiked).map(item -> {
             LikeResponse response = new LikeResponse();
             response.setSuccess(success);
             response.setMessage(message);
@@ -309,6 +386,10 @@ public class SentencePublicEndpoint implements CustomEndpoint {
     }
 
     private @NonNull Mono<SentenceItem> toSentenceItem(@NonNull Sentence s) {
+        return toSentenceItem(s, false);
+    }
+
+    private @NonNull Mono<SentenceItem> toSentenceItem(@NonNull Sentence s, boolean hasLiked) {
         SentenceItem item = new SentenceItem();
         item.setMetaName(s.getMetadata().getName());
         item.setAuthor(s.getSpec().getAuthor());
@@ -317,6 +398,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         item.setCreatedBy(s.getSpec().getCreatedBy());
         item.setLikeCount(s.getStatus() != null ? s.getStatus().getLikeCount() : 0);
         item.setViewCount(s.getStatus() != null ? s.getStatus().getViewCount() : 0);
+        item.setHasLiked(hasLiked);
 
         String linkUrl = s.getSpec().getLinkUrl();
         String postName = s.getSpec().getPostName();
@@ -354,6 +436,98 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         }).subscribe();
     }
 
+    // 清理过期的浏览去重缓存（去重窗口短，频繁清理避免内存累积）
+    public void cleanExpiredViewDedupCache() {
+        long now = System.currentTimeMillis();
+        int removed = viewDedupCache.cleanIf(state -> state.isExpired(VIEW_DEDUP_TTL_MILLIS, now));
+        if (removed > 0) {
+            log.debug("清理过期浏览去重缓存: 移除 {} 项", removed);
+        }
+    }
+
+    // ===================== 按名称获取单条句子 =====================
+
+    Mono<ServerResponse> getSentenceByName(ServerRequest request) {
+        String name = request.pathVariable("name");
+        String ip = HttpUtils.getClientIp(request.exchange().getRequest());
+        return client.fetch(Sentence.class, name)
+            .filter(s -> s.getStatus() != null && s.getStatus().isPublished())
+            .flatMap(s -> loadLikedNames(ip, List.of(s))
+                .map(liked -> liked.contains(name))
+                .flatMap(hasLiked -> toSentenceItem(s, hasLiked)))
+            .flatMap(item -> ServerResponse.ok().bodyValue(item))
+            .switchIfEmpty(ServerResponse.notFound().build());
+    }
+
+    // ===================== 公开搜索 =====================
+
+    Mono<ServerResponse> searchSentences(ServerRequest request) {
+        String keyword = request.queryParam("keyword").filter(StringUtils::isNotBlank).orElse(null);
+        if (keyword == null) {
+            return ServerResponse.badRequest().bodyValue("keyword 参数必填");
+        }
+        String categoryName = request.queryParam("categoryName")
+            .filter(StringUtils::isNotBlank).orElse(null);
+        int limit = request.queryParam("limit").filter(StringUtils::isNotBlank)
+            .map(Integer::parseInt).orElse(10);
+        int actualLimit = Math.min(Math.max(limit, 1), MAX_SEARCH_RESULTS);
+        String ip = HttpUtils.getClientIp(request.exchange().getRequest());
+
+        var queryBuilder = ListOptions.builder()
+            .fieldQuery(Queries.and(
+                Queries.equal("status.isPublished", true),
+                Queries.isNull("metadata.deletionTimestamp"),
+                Queries.contains("spec.content", keyword)
+            ));
+        if (StringUtils.isNotBlank(categoryName)) {
+            queryBuilder.andQuery(Queries.equal("spec.categoryName", categoryName));
+        }
+        var pageRequest = PageRequestImpl.of(1, actualLimit, Sort.unsorted());
+
+        return client.listBy(Sentence.class, queryBuilder.build(), pageRequest)
+            .map(r -> r.getItems())
+            .flatMap(sentences -> loadLikedNames(ip, sentences).flatMap(likedNames ->
+                Flux.fromIterable(sentences)
+                    .concatMap(s -> toSentenceItem(s, likedNames.contains(s.getMetadata().getName())))
+                    .collectList()))
+            .flatMap(items -> ServerResponse.ok().bodyValue(items))
+            .switchIfEmpty(ServerResponse.ok().bodyValue(List.of()));
+    }
+
+    // ===================== 热门榜单 =====================
+
+    Mono<ServerResponse> getHotSentences(ServerRequest request) {
+        String sort = request.queryParam("sort").filter(StringUtils::isNotBlank).orElse("like");
+        String categoryName = request.queryParam("categoryName")
+            .filter(StringUtils::isNotBlank).orElse(null);
+        int limit = request.queryParam("limit").filter(StringUtils::isNotBlank)
+            .map(Integer::parseInt).orElse(10);
+        int actualLimit = Math.min(Math.max(limit, 1), MAX_HOT_LIMIT);
+        String ip = HttpUtils.getClientIp(request.exchange().getRequest());
+
+        // 按点赞数或浏览数倒序；索引已在 status.likeCount / status.viewCount 上注册
+        String sortField = "view".equalsIgnoreCase(sort) ? "status.viewCount" : "status.likeCount";
+        var queryBuilder = ListOptions.builder()
+            .fieldQuery(Queries.and(
+                Queries.equal("status.isPublished", true),
+                Queries.isNull("metadata.deletionTimestamp")
+            ));
+        if (StringUtils.isNotBlank(categoryName)) {
+            queryBuilder.andQuery(Queries.equal("spec.categoryName", categoryName));
+        }
+        var pageRequest = PageRequestImpl.of(1, actualLimit,
+            Sort.by(Sort.Order.desc(sortField)));
+
+        return client.listBy(Sentence.class, queryBuilder.build(), pageRequest)
+            .map(r -> r.getItems())
+            .flatMap(sentences -> loadLikedNames(ip, sentences).flatMap(likedNames ->
+                Flux.fromIterable(sentences)
+                    .concatMap(s -> toSentenceItem(s, likedNames.contains(s.getMetadata().getName())))
+                    .collectList()))
+            .flatMap(items -> ServerResponse.ok().bodyValue(items))
+            .switchIfEmpty(ServerResponse.ok().bodyValue(List.of()));
+    }
+
     @Data
     @Schema(name = "RandomSentenceResponse")
     public static class RandomSentenceResponse {
@@ -386,6 +560,8 @@ public class SentencePublicEndpoint implements CustomEndpoint {
         private long viewCount;
         @Schema(description = "跳转链接")
         private String jumpUrl;
+        @Schema(description = "当前访客是否已点赞（基于 IP 判断）")
+        private boolean hasLiked;
     }
 
     @Data

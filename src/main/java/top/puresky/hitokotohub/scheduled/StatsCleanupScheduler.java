@@ -27,6 +27,7 @@ import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.endpoint.SentencePublicEndpoint;
 import top.puresky.hitokotohub.extension.AiGenerateLog;
 import top.puresky.hitokotohub.extension.CategoryViewRecord;
+import top.puresky.hitokotohub.extension.SentenceSubmission;
 import top.puresky.hitokotohub.extension.SimilarityCheckLog;
 import top.puresky.hitokotohub.service.AiGenerateService;
 import top.puresky.hitokotohub.service.SimilarityCheckService;
@@ -137,6 +138,12 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
         sentencePublicEndpoint.cleanExpiredLikeCache();
     }
 
+    // 每 5 分钟清理一次过期的浏览去重缓存（窗口短，需频繁清理）
+    @Scheduled(fixedRate = 300000)
+    public void cleanExpiredViewDedupCache() {
+        sentencePublicEndpoint.cleanExpiredViewDedupCache();
+    }
+
     // 每天凌晨 3 点清理一次过期的统计数据
     @Scheduled(cron = "0 0 3 * * *")
     public void cleanOldCategoryViewRecords() {
@@ -234,6 +241,41 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
                 return byDays.then(byCount);
             })
             .doOnError(e -> log.error("AI生成日志清理失败", e))
+            .subscribe();
+    }
+
+    // 每天凌晨 4 点清理一次已处理的访客提交记录（仅清理 APPROVED/REJECTED，保留 PENDING）
+    @Scheduled(cron = "0 0 4 * * *")
+    public void cleanOldSentenceSubmissions() {
+        settingConfig.getSubmissionConfig()
+            .flatMap(config -> {
+                int maxKeep =
+                    config.getSubmissionMaxKeep() != null ? config.getSubmissionMaxKeep() : 1000;
+                // 仅清理已处理记录（非 PENDING），保留待审核记录供管理员处理
+                return client.listAll(SentenceSubmission.class,
+                        ListOptions.builder().fieldQuery(Queries.and(
+                            Queries.notEqual("spec.status",
+                                SentenceSubmission.Status.PENDING.name()),
+                            Queries.isNull("metadata.deletionTimestamp")
+                        )).build(),
+                        Sort.by("metadata.creationTimestamp").ascending())
+                    .collectList()
+                    .flatMap(submissions -> {
+                        if (submissions.size() <= maxKeep) {
+                            return Mono.<Long>empty();
+                        }
+                        int deleteCount = submissions.size() - maxKeep;
+                        return Flux.fromIterable(submissions.subList(0, deleteCount))
+                            .flatMap(client::delete, 16)
+                            .count()
+                            .doOnNext(count -> {
+                                if (count > 0) {
+                                    log.info("按条数清理了 {} 条已处理提交记录", count);
+                                }
+                            });
+                    });
+            })
+            .doOnError(e -> log.error("访客提交记录清理失败", e))
             .subscribe();
     }
 

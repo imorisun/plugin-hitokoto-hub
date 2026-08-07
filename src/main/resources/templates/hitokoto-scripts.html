@@ -146,6 +146,132 @@
     const RANDOM_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/random?limit=1';
     const CATEGORY_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/category/list';
     const SUBMIT_API = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence-submission/-/submit';
+    const CATEGORY_KEY = 'hitokoto:category';
+
+    /* ==================== 分类切换 ==================== */
+    let selectedCategory = '';
+    let browseCategoriesLoaded = false;
+    const categoryToggleBtn = document.getElementById('categoryToggle');
+    const browseCategoryDropdown = document.getElementById('categoryDropdown');
+
+    function getStoredCategory() {
+        try { return localStorage.getItem(CATEGORY_KEY) || ''; } catch (e) { return ''; }
+    }
+
+    function setStoredCategory(cat) {
+        try {
+            if (cat) localStorage.setItem(CATEGORY_KEY, cat);
+            else localStorage.removeItem(CATEGORY_KEY);
+        } catch (e) { /* localStorage 不可用时静默处理 */ }
+    }
+
+    function updateCategoryToggleVisual() {
+        if (selectedCategory) {
+            categoryToggleBtn.classList.add('category-toggle--active');
+            categoryToggleBtn.setAttribute('data-tooltip', '分类：已选');
+        } else {
+            categoryToggleBtn.classList.remove('category-toggle--active');
+            categoryToggleBtn.setAttribute('data-tooltip', '分类');
+        }
+    }
+
+    function positionBrowseCategoryDropdown() {
+        const rect = categoryToggleBtn.getBoundingClientRect();
+        const dropdownHeight = 320;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const showAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+        if (showAbove) {
+            browseCategoryDropdown.style.top = (rect.top - 10 - Math.min(dropdownHeight, browseCategoryDropdown.scrollHeight)) + 'px';
+        } else {
+            browseCategoryDropdown.style.top = (rect.bottom + 6) + 'px';
+        }
+        browseCategoryDropdown.style.right = (window.innerWidth - rect.right) + 'px';
+        browseCategoryDropdown.style.left = '';
+    }
+
+    function closeBrowseCategoryDropdown() {
+        browseCategoryDropdown.classList.remove('category-dropdown--open');
+    }
+
+    async function loadBrowseCategories() {
+        try {
+            const res = await fetch(CATEGORY_API);
+            if (!res.ok) throw new Error('fetch failed');
+            const list = await res.json();
+            browseCategoryDropdown.innerHTML = '';
+
+            // "默认分类" 选项：不传 categoryName，后端使用设置中配置的默认分类
+            const allOption = document.createElement('div');
+            allOption.className = 'category-dropdown__option';
+            allOption.dataset.value = '';
+            allOption.textContent = '默认分类';
+            allOption.addEventListener('click', () => selectCategory(''));
+            browseCategoryDropdown.appendChild(allOption);
+
+            if (!list || list.length === 0) {
+                markActiveCategory();
+                return;
+            }
+
+            list.forEach((c) => {
+                const opt = document.createElement('div');
+                opt.className = 'category-dropdown__option';
+                opt.dataset.value = c.name;
+                opt.textContent = c.displayName;
+                opt.addEventListener('click', () => selectCategory(c.name, c.displayName));
+                browseCategoryDropdown.appendChild(opt);
+            });
+            markActiveCategory();
+            browseCategoriesLoaded = true;
+        } catch (e) {
+            browseCategoryDropdown.innerHTML = '<div class="category-dropdown__option">分类加载失败</div>';
+        }
+    }
+
+    function selectCategory(name, displayName) {
+        selectedCategory = name;
+        setStoredCategory(name);
+        updateCategoryToggleVisual();
+        markActiveCategory();
+        closeBrowseCategoryDropdown();
+        if (name) {
+            showToast('已切换至：' + displayName);
+        } else {
+            showToast('已切换至默认分类');
+        }
+        /* 选择分类后自动刷新句子 */
+        refreshAfterCategoryChange();
+    }
+
+    async function refreshAfterCategoryChange() {
+        const btn = document.getElementById('nextBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add('next-btn--loading');
+        }
+        try {
+            const s = await fetchNewSentence();
+            applySentence(s);
+            if (window.__hitokotoResetAutoTimer) {
+                window.__hitokotoResetAutoTimer();
+            }
+        } catch (e) {
+            console.error('切换分类后刷新失败', e);
+            showToast(selectedCategory ? '该分类暂无句子' : '刷新失败，请稍后再试');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('next-btn--loading');
+            }
+        }
+    }
+
+    function markActiveCategory() {
+        browseCategoryDropdown.querySelectorAll('.category-dropdown__option').forEach((opt) => {
+            opt.classList.toggle('category-dropdown__option--active',
+                opt.dataset.value === (selectedCategory || ''));
+        });
+    }
 
     /* ==================== 响应式文本截断 ==================== */
     let originalQuoteText = '';
@@ -487,7 +613,11 @@
     }
 
     async function fetchNewSentence() {
-        const res = await fetch(RANDOM_API);
+        let url = RANDOM_API;
+        if (selectedCategory) {
+            url += '&categoryName=' + encodeURIComponent(selectedCategory);
+        }
+        const res = await fetch(url);
         if (!res.ok) throw new Error('fetch failed');
         const data = await res.json();
         const list = data.sentences || [];
@@ -537,6 +667,46 @@
                 }
             })
             .catch(() => {});
+
+        /* 分类切换初始化：从 localStorage 恢复上次选择 */
+        selectedCategory = getStoredCategory();
+        updateCategoryToggleVisual();
+    });
+
+    /* ==================== 分类切换事件绑定 ==================== */
+    categoryToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = browseCategoryDropdown.classList.contains('category-dropdown--open');
+        if (isOpen) {
+            closeBrowseCategoryDropdown();
+        } else {
+            if (!browseCategoriesLoaded) {
+                loadBrowseCategories();
+            }
+            browseCategoryDropdown.classList.add('category-dropdown--open');
+            positionBrowseCategoryDropdown();
+        }
+    });
+
+    /* 点击外部关闭分类下拉 */
+    document.addEventListener('click', (e) => {
+        if (!categoryToggleBtn.contains(e.target) && !browseCategoryDropdown.contains(e.target)) {
+            closeBrowseCategoryDropdown();
+        }
+    });
+
+    /* 窗口大小变化时重新定位 */
+    window.addEventListener('resize', () => {
+        if (browseCategoryDropdown.classList.contains('category-dropdown--open')) {
+            positionBrowseCategoryDropdown();
+        }
+    });
+
+    /* Escape 键关闭分类下拉 */
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && browseCategoryDropdown.classList.contains('category-dropdown--open')) {
+            closeBrowseCategoryDropdown();
+        }
     });
 
     /* ==================== 访客提交句子 ==================== */
@@ -792,7 +962,7 @@
     /* 双击屏幕任意位置点赞 / 取消点赞 */
     document.addEventListener('dblclick', (e) => {
         /* 忽略交互按钮与弹窗上的双击，避免与单击冲突 */
-        if (e.target.closest('.like-btn, .next-btn, .music-btn, .submit-btn, .submit-modal')) return;
+        if (e.target.closest('.like-btn, .next-btn, .music-btn, .submit-btn, .submit-modal, .category-toggle, .category-dropdown, .theme-toggle, .auto-refresh-toggle')) return;
         const sel = window.getSelection && window.getSelection();
         if (sel && sel.removeAllRanges) sel.removeAllRanges();
         toggleLike(e.clientX, e.clientY);

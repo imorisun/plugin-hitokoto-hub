@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.Map;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Sort;
@@ -37,6 +38,7 @@ import top.puresky.hitokotohub.extension.SentenceSubmission;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
 
     private static final String TAG = "SentenceSubmissionV1alpha1";
@@ -189,10 +191,14 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
 
     private @NonNull Mono<ServerResponse> deleteSubmission(@NonNull ServerRequest request) {
         String name = request.pathVariable("name");
-        return client.fetch(SentenceSubmission.class, name)
-            .switchIfEmpty(Mono.error(new IllegalArgumentException("提交记录不存在")))
-            .flatMap(client::delete)
-            .then(ServerResponse.ok().bodyValue(Map.of("message", "删除成功")))
+        return request.principal().map(p -> p.getName()).defaultIfEmpty("system")
+            .flatMap(username -> client.fetch(SentenceSubmission.class, name)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("提交记录不存在")))
+                .flatMap(submission -> {
+                    log.info("User [{}] deleted submission [{}]", username, name);
+                    return client.delete(submission);
+                })
+                .then(ServerResponse.ok().bodyValue(Map.of("message", "删除成功"))))
             .onErrorResume(IllegalArgumentException.class,
                 e -> ServerResponse.status(HttpStatus.NOT_FOUND)
                     .bodyValue(Map.of("message", e.getMessage())));

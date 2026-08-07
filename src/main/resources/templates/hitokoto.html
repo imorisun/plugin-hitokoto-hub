@@ -81,6 +81,15 @@
                 <polygon points="6,4 20,12 6,20"/>
             </svg>
         </button>
+        <!-- 分类切换按钮：点击展开分类下拉，选择后随机句子仅从该分类获取 -->
+        <button class="category-toggle" id="categoryToggle" type="button"
+                aria-label="切换分类" data-tooltip="分类">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="4" y1="18" x2="14" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </button>
         <button class="submit-btn" id="submitBtn" type="button" aria-label="提交句子">
             <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 5v14M5 12h14"/>
@@ -204,6 +213,8 @@
 </div>
 
 <div class="custom-select__dropdown" id="submitCategoryDropdown"></div>
+<!-- 分类切换下拉面板 -->
+<div class="category-dropdown" id="categoryDropdown" role="menu" aria-label="分类选择"></div>
 <th:block th:replace="~{hitokoto-scripts :: scripts}"/>
 </body>
 </html>

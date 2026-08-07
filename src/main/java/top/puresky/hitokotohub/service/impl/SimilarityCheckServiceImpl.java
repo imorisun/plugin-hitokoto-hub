@@ -53,6 +53,12 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
     /** 日志中存储的相似对最大数量，超出部分不持久化（但可通过重新计算恢复） */
     private static final int MAX_STORED_PAIRS = 500;
 
+    /**
+     * 参与相似度检查的句子上限。超过此值时拒绝执行，避免 O(n²) 算法导致 OOM。
+     * 相似度计算需要全量句子驻留内存，5 万条约需 ~200MB profile + 中间数据。
+     */
+    private static final int MAX_SENTENCES_LIMIT = 50_000;
+
     private final ReactiveExtensionClient client;
     private final SimilarityGroupBuilder groupBuilder;
     private final SentencePairJsonCodec codec;
@@ -143,15 +149,21 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
                 String logName = latestLog.getMetadata().getName();
                 log.info("批量删除：开始处理，log={}, algorithm={}, threshold={}",
                     logName, algorithm, threshold);
-                return fetchAllSentences()
+                return fetchProfiles()
                     .doOnError(e -> log.error("获取句子列表失败, log={}", logName, e))
-                    .flatMap(sentences -> {
-                        if (sentences.isEmpty()) {
+                    .flatMap(profiles -> {
+                        if (profiles.isEmpty()) {
                             log.info("批量删除：无句子可处理, log={}", logName);
                             return Mono.just(BatchDeleteResult.empty("无句子可处理"));
                         }
+                        if (profiles.size() > MAX_SENTENCES_LIMIT) {
+                            String msg = "句子数量 " + profiles.size() + " 超过上限 "
+                                + MAX_SENTENCES_LIMIT + "，请先清理后再执行批量删除";
+                            log.warn("批量删除中止: {}", msg);
+                            return Mono.just(BatchDeleteResult.empty(msg));
+                        }
                         return Mono.fromCallable(() ->
-                            collectNonOptimalNames(sentences, algorithm, threshold))
+                            collectNonOptimalNames(profiles, algorithm, threshold))
                             .subscribeOn(Schedulers.boundedElastic())
                             .doOnError(e ->
                                 log.error("收集非最优句子名称失败, log={}", logName, e))
@@ -192,25 +204,39 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
      * 执行全量相似度计算并填充日志结果。
      *
      * <p>此方法在 boundedElastic 线程池中执行，可安全调用阻塞操作。
+     *
+     * <p>内存优化：直接流式映射为轻量 {@link SentenceProfile}，避免同时持有
+     * 全量 Sentence Extension 对象与 profile 列表两份数据。
      */
     private SimilarityCheckLog executeCheck(
         SimilarityCheckLog logEntry, String algorithm, double threshold
     ) {
         long startTime = System.currentTimeMillis();
-        List<Sentence> sentences = fetchAllSentences().block();
+        List<SentenceProfile> profiles = fetchProfiles().block();
 
-        if (sentences == null || sentences.isEmpty()) {
+        if (profiles == null || profiles.isEmpty()) {
             populateEmptyResult(logEntry, startTime);
             return logEntry;
         }
 
-        List<SentenceProfile> profiles = toProfiles(sentences);
+        // 句子数安全阀：防止 O(n²) 算法在海量数据下 OOM
+        if (profiles.size() > MAX_SENTENCES_LIMIT) {
+            String msg = "句子数量 " + profiles.size() + " 超过上限 " + MAX_SENTENCES_LIMIT
+                + "，请先清理或分批处理后再执行相似度检查";
+            log.warn(msg);
+            logEntry.getSpec().setTotalSentences(profiles.size());
+            logEntry.getSpec().setStatus(SimilarityCheckLog.Status.FAILED);
+            logEntry.getSpec().setErrorMessage(msg);
+            logEntry.getSpec().setDurationMs(System.currentTimeMillis() - startTime);
+            return logEntry;
+        }
+
         List<SentencePair> pairs = SimilarityPairFinder.find(profiles, algorithm, threshold);
         List<SentencePair> storedPairs = pairs.size() > MAX_STORED_PAIRS
             ? pairs.subList(0, MAX_STORED_PAIRS) : pairs;
         String pairsJson = codec.serialize(storedPairs);
 
-        int totalSentences = sentences.size();
+        int totalSentences = profiles.size();
         long totalPairs = SimilarityPairFinder.totalPairs(totalSentences);
 
         logEntry.getSpec().setTotalSentences(totalSentences);
@@ -256,11 +282,11 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
         }
 
         // 获取现存句子构建 profileMap（已删除的句子不会出现，实现自动过滤）
-        List<Sentence> sentences = fetchAllSentences().block();
-        if (sentences == null || sentences.isEmpty()) {
+        // 流式映射为轻量 profile，避免持有全量 Sentence 对象
+        Map<String, SentenceProfile> profileMap = fetchProfileMap().block();
+        if (profileMap == null || profileMap.isEmpty()) {
             return groupBuilder.emptyResult(page, size);
         }
-        Map<String, SentenceProfile> profileMap = toProfileMap(sentences);
 
         return groupBuilder.paginate(groupBuilder.buildGroups(pairs, profileMap), page, size);
     }
@@ -272,11 +298,10 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
      *
      * <p>对每组相似句子，保留评分最高的，其余标记为待删除。
      */
-    private Set<String> collectNonOptimalNames(List<Sentence> sentences,
+    private Set<String> collectNonOptimalNames(List<SentenceProfile> profiles,
                                                 String algorithm, double threshold) {
-        List<SentenceProfile> profiles = toProfiles(sentences);
         List<SentencePair> pairs = SimilarityPairFinder.find(profiles, algorithm, threshold);
-        Map<String, SentenceProfile> profileMap = toProfileMap(sentences);
+        Map<String, SentenceProfile> profileMap = toProfileMap(profiles);
         return groupBuilder.collectNonOptimalNames(pairs, profileMap);
     }
 
@@ -343,7 +368,7 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
      * 验证被删句子是否已从存储中消失。
      *
      * <p>Halo 扩展存储在批量并发删除后索引更新存在短暂延迟，
-     * 若 {@link #fetchAllSentences()} 仍返回已删句子，说明索引尚未同步完成。
+     * 若 {@link #fetchProfiles()} 仍返回已删句子，说明索引尚未同步完成。
      * 通过指数退避重试（最多 10 次，100ms 起，500ms 上限）等待索引就绪，
      * 确保 {@code deleteNonOptimalSentences} 返回时被删数据已不可见。
      *
@@ -352,10 +377,10 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
      * @return 验证完成（无数据）Mono
      */
     private Mono<Void> ensureSentencesGone(Set<String> names, String logName) {
-        return Mono.defer(() -> fetchAllSentences()
-                .flatMap(sentences -> {
-                    long remaining = sentences.stream()
-                        .filter(s -> names.contains(s.getMetadata().getName()))
+        return Mono.defer(() -> fetchProfiles()
+                .flatMap(profiles -> {
+                    long remaining = profiles.stream()
+                        .filter(p -> names.contains(p.name()))
                         .count();
                     if (remaining == 0) {
                         return Mono.empty();
@@ -398,31 +423,42 @@ public class SimilarityCheckServiceImpl implements SimilarityCheckService {
     }
 
     /**
-     * 获取所有句子（按创建时间升序）。
+     * 流式获取所有句子的轻量 profile（按创建时间升序）。
+     *
+     * <p>内存优化：在 Flux 管道中即时映射为 {@link SentenceProfile}，
+     * 避免在内存中同时持有全量 Sentence Extension 对象。峰值内存仅为
+     * profile 列表 + 单个 Sentence（被 GC 回收）。
      */
-    private Mono<List<Sentence>> fetchAllSentences() {
+    private Mono<List<SentenceProfile>> fetchProfiles() {
         return client.listAll(Sentence.class,
                 ListOptions.builder().build(),
                 Sort.by("metadata.creationTimestamp").ascending())
+            .map(SentenceProfile::from)
             .collectList();
+    }
+
+    /**
+     * 流式获取 name → SentenceProfile 映射，用于分组构建时过滤已删除句子。
+     */
+    private Mono<Map<String, SentenceProfile>> fetchProfileMap() {
+        return client.listAll(Sentence.class,
+                ListOptions.builder().build(),
+                Sort.by("metadata.creationTimestamp").ascending())
+            .collectMap(
+                s -> s.getMetadata().getName(),
+                SentenceProfile::from
+            );
     }
 
     // ===================== 边界转换 =====================
 
     /**
-     * 将 Sentence 列表转换为 SentenceProfile 列表（算法层纯数据投影）。
+     * 将 profile 列表转换为 name → SentenceProfile 映射，用于批量删除时分组构建。
      */
-    private List<SentenceProfile> toProfiles(List<Sentence> sentences) {
-        return sentences.stream().map(SentenceProfile::from).toList();
-    }
-
-    /**
-     * 将 Sentence 列表转换为 name → SentenceProfile 映射，用于分组构建时过滤已删除句子。
-     */
-    private Map<String, SentenceProfile> toProfileMap(List<Sentence> sentences) {
-        return sentences.stream().collect(Collectors.toMap(
-            s -> s.getMetadata().getName(),
-            SentenceProfile::from,
+    private Map<String, SentenceProfile> toProfileMap(List<SentenceProfile> profiles) {
+        return profiles.stream().collect(Collectors.toMap(
+            SentenceProfile::name,
+            p -> p,
             (a, b) -> a
         ));
     }

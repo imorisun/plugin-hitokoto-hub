@@ -112,30 +112,31 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
             return ServerResponse.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .bodyValue(Map.of("message", "AI Foundation 服务不可用，请先安装并启用"));
         }
-        return settingConfig.getAiConfig()
-            .flatMap(aiConfig -> {
-                if (!StringUtils.hasText(aiConfig.getLanguageModelName())) {
-                    return ServerResponse.badRequest()
-                        .bodyValue(Map.of("message", "请先在设置中选择 AI 模型"));
-                }
-                if (!StringUtils.hasText(aiConfig.getAiSentenceCategory())) {
-                    return ServerResponse.badRequest()
-                        .bodyValue(Map.of("message", "请先在设置中选择目标分类"));
-                }
-                // 异步触发，立即返回，用户可在日志列表查看进度
-                aiService.sentencesGenerateAndSave(
-                        aiConfig.getLanguageModelName(),
-                        aiConfig.getAiSystemPrompt(),
-                        aiConfig.getAiTopic(),
-                        aiConfig.getAiSentenceCount(),
-                        aiConfig.getAiSentenceCategory(),
-                        aiConfig.getAiSentenceAutoPublish())
-                    .doOnError(e -> log.error("手动触发AI生成失败, model={}, topic={}, count={}, category={}",
-                        aiConfig.getLanguageModelName(), aiConfig.getAiTopic(),
-                        aiConfig.getAiSentenceCount(), aiConfig.getAiSentenceCategory(), e))
-                    .subscribe();
-                return ServerResponse.ok()
-                    .bodyValue(Map.of("message", "AI生成任务已触发，请稍后查看日志"));
-            });
+        return request.principal().map(p -> p.getName()).defaultIfEmpty("system")
+            .flatMap(username -> settingConfig.getAiConfig()
+                .flatMap(aiConfig -> {
+                    if (!StringUtils.hasText(aiConfig.getLanguageModelName())) {
+                        return ServerResponse.badRequest()
+                            .bodyValue(Map.of("message", "请先在设置中选择 AI 模型"));
+                    }
+                    if (!StringUtils.hasText(aiConfig.getAiSentenceCategory())) {
+                        return ServerResponse.badRequest()
+                            .bodyValue(Map.of("message", "请先在设置中选择目标分类"));
+                    }
+                    // 异步触发，立即返回，用户可在日志列表查看进度
+                    aiService.sentencesGenerateAndSave(
+                            aiConfig.getLanguageModelName(),
+                            aiConfig.getAiSystemPrompt(),
+                            aiConfig.getAiTopic(),
+                            aiConfig.getAiSentenceCount(),
+                            aiConfig.getAiSentenceCategory(),
+                            aiConfig.getAiSentenceAutoPublish())
+                        .doOnError(e -> log.error("手动触发AI生成失败, user={}, model={}, topic={}, count={}, category={}",
+                            username, aiConfig.getLanguageModelName(), aiConfig.getAiTopic(),
+                            aiConfig.getAiSentenceCount(), aiConfig.getAiSentenceCategory(), e))
+                        .subscribe();
+                    return ServerResponse.ok()
+                        .bodyValue(Map.of("message", "AI生成任务已触发，请稍后查看日志"));
+                }));
     }
 }

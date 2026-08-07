@@ -1535,6 +1535,143 @@
             }
         }
 
+        /* ==================== 分类切换按钮 ==================== */
+        .category-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            border: 1px solid var(--border-default);
+            background: var(--bg-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
+            padding: 0;
+            opacity: 0;
+            animation: authorFadeIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            animation-delay: 1s;
+        }
+
+        .category-toggle:hover {
+            color: var(--accent);
+            background-color: var(--bg-glass-hover);
+            border-color: var(--border-hover);
+        }
+
+        .category-toggle:active {
+            transform: scale(0.9);
+        }
+
+        .category-toggle svg {
+            width: 16px;
+            height: 16px;
+            fill: none;
+        }
+
+        /* 选中分类后按钮底部小圆点提示 */
+        .category-toggle--active::before {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--accent);
+            opacity: 0.8;
+        }
+
+        /* Tooltip */
+        .category-toggle::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            padding: 4px 12px;
+            font-family: var(--ui-font);
+            font-size: 0.7rem;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            color: var(--text-dim);
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-default);
+            border-radius: 99px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            z-index: 100;
+        }
+
+        .category-toggle:hover::after {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ==================== 分类下拉面板 ==================== */
+        .category-dropdown {
+            display: none;
+            position: fixed;
+            z-index: var(--z-dropdown);
+            min-width: 160px;
+            max-width: 260px;
+            max-height: 320px;
+            overflow-y: auto;
+            padding: 6px;
+            background: var(--bg-dropdown);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-dropdown);
+            border-radius: 14px;
+            box-shadow: var(--shadow-card);
+            opacity: 0;
+            transform: translateY(-8px) scale(0.96);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .category-dropdown--open {
+            display: block;
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .category-dropdown__option {
+            padding: 8px 14px;
+            font-family: var(--ui-font);
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s ease, color 0.2s ease;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            user-select: none;
+        }
+
+        .category-dropdown__option:hover {
+            background: var(--bg-glass-hover);
+            color: var(--text-default);
+        }
+
+        .category-dropdown__option--active {
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .category-dropdown__option--active:hover {
+            background: var(--bg-glass-hover);
+            color: var(--accent);
+        }
+
         /* ==================== 极窄屏幕适配（≤ 420px） ====================
            典型场景：小屏手机竖屏。核心优化：
            - 投递按钮隐藏文字，仅保留圆形图标按钮
@@ -1558,7 +1695,8 @@
 
             /* 圆形图标按钮统一尺寸 30px */
             .theme-toggle,
-            .auto-refresh-toggle {
+            .auto-refresh-toggle,
+            .category-toggle {
                 width: 30px;
                 height: 30px;
             }
@@ -1571,6 +1709,11 @@
             .auto-refresh-toggle svg {
                 width: 12px;
                 height: 12px;
+            }
+
+            .category-toggle svg {
+                width: 14px;
+                height: 14px;
             }
 
             /* 投递按钮：隐藏文字，变为圆形图标按钮 */

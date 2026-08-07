@@ -11,7 +11,9 @@ import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -21,6 +23,8 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.dhatim.fastexcel.Workbook;
+import org.dhatim.fastexcel.Worksheet;
 import org.dhatim.fastexcel.reader.ReadableWorkbook;
 import org.dhatim.fastexcel.reader.Row;
 import org.jspecify.annotations.NonNull;
@@ -48,6 +52,7 @@ import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.Queries;
 import run.halo.app.extension.router.selector.FieldSelector;
 import top.puresky.hitokotohub.UncategorizedConstants;
+import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.Sentence;
 
 @Slf4j
@@ -95,7 +100,23 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
             .DELETE("sentence/-/clear-uncategorized", this::clearUncategorizedSentences,
                 builder -> builder.operationId("clearUncategorizedSentences")
                     .summary("清空未分类的所有句子").tag(TAG)
-                    .response(responseBuilder().implementation(Long.class))).build();
+                    .response(responseBuilder().implementation(Long.class)))
+            .GET("sentence/-/export", this::exportSentences,
+                builder -> builder.operationId("exportSentences").summary("导出句子").tag(TAG)
+                    .parameter(parameterBuilder().in(ParameterIn.QUERY).name("format")
+                        .description("导出格式：json（默认）或 excel").implementation(String.class)
+                        .required(false)).parameter(
+                        parameterBuilder().in(ParameterIn.QUERY).name("categoryName")
+                            .description("按分类导出，留空导出全部；多个分类用逗号分隔").implementation(String.class)
+                            .required(false)))
+            .POST("sentence/-/import-csv", this::importCsvSentences,
+                builder -> builder.operationId("importCsvSentences").summary("从 CSV 导入句子")
+                    .tag(TAG).requestBody(requestBodyBuilder().content(
+                            contentBuilder().mediaType(MediaType.MULTIPART_FORM_DATA_VALUE)
+                                .schema(schemaBuilder().implementation(CsvImportRequest.class)))
+                        .required(true))
+                    .response(responseBuilder().implementation(BatchCreateSentenceResult.class)))
+            .build();
     }
 
     @Override
@@ -336,15 +357,258 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
 
         // 使用 concatMap 串行删除，避免并发触发 SentenceReconciler 导致脏数据清理压力
         // （与 SimilarityCheckServiceImpl.deleteSentencesSerially 风格一致）
-        return client.listAll(Sentence.class, listOptions, Sort.unsorted())
-            .concatMap(sentence -> client.delete(sentence)
-                .onErrorResume(e -> {
-                    log.warn("删除未分类句子 [{}] 失败: {}",
-                        sentence.getMetadata().getName(), e.getMessage(), e);
-                    return Mono.empty();
-                }))
-            .count()
-            .flatMap(count -> ServerResponse.ok().bodyValue(count));
+        return request.principal().map(p -> p.getName()).defaultIfEmpty("system")
+            .flatMap(username -> client.listAll(Sentence.class, listOptions, Sort.unsorted())
+                .concatMap(sentence -> client.delete(sentence)
+                    .onErrorResume(e -> {
+                        log.warn("删除未分类句子 [{}] 失败: {}",
+                            sentence.getMetadata().getName(), e.getMessage(), e);
+                        return Mono.empty();
+                    }))
+                .count()
+                .doOnSuccess(count -> log.info("User [{}] cleared {} uncategorized sentences", username, count))
+                .flatMap(count -> ServerResponse.ok().bodyValue(count)));
+    }
+
+    // ===================== 导出句子 =====================
+
+    @NonNull Mono<ServerResponse> exportSentences(@NonNull ServerRequest request) {
+        String format = request.queryParam("format").orElse("json");
+        String categoryName = request.queryParam("categoryName")
+            .filter(StringUtils::isNotBlank).orElse(null);
+
+        var optionsBuilder = ListOptions.builder();
+        if (StringUtils.isNotBlank(categoryName)) {
+            String[] names = categoryName.split(",");
+            if (names.length == 1) {
+                optionsBuilder.fieldQuery(Queries.equal("spec.categoryName", names[0].trim()));
+            } else {
+                List<String> categoryList = new ArrayList<>();
+                for (String name : names) {
+                    categoryList.add(name.trim());
+                }
+                optionsBuilder.fieldQuery(Queries.in("spec.categoryName", categoryList));
+            }
+        }
+
+        return request.principal().map(p -> p.getName()).defaultIfEmpty("system")
+            .flatMap(username -> client.listAll(Sentence.class, optionsBuilder.build(),
+                    Sort.by("metadata.creationTimestamp").descending())
+                .collectList()
+                .flatMap(sentences -> {
+                    if (sentences.isEmpty()) {
+                        return ServerResponse.ok()
+                            .bodyValue(format.equalsIgnoreCase("excel") ? new byte[0] : List.of());
+                    }
+                    log.info("User [{}] exported {} sentences in {} format, category={}",
+                        username, sentences.size(), format, categoryName != null ? categoryName : "all");
+                    // 构建分类名映射：metadata.name → spec.name（中文显示名）
+                    return client.listAll(Category.class, ListOptions.builder()
+                            .fieldQuery(Queries.isNull("metadata.deletionTimestamp")).build(),
+                            Sort.unsorted())
+                        .collectMap(c -> c.getMetadata().getName(), c -> c.getSpec().getName())
+                        .defaultIfEmpty(Map.of())
+                        .flatMap(categoryMap -> {
+                            if ("excel".equalsIgnoreCase(format)) {
+                                return Mono.fromCallable(
+                                        () -> buildExcelExport(sentences, categoryMap))
+                                    .subscribeOn(Schedulers.boundedElastic())
+                                    .flatMap(bytes -> ServerResponse.ok()
+                                        .contentType(MediaType.parseMediaType(
+                                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                                        .header("Content-Disposition",
+                                            "attachment; filename=hitokoto-export.xlsx")
+                                        .bodyValue(bytes));
+                            }
+                            // JSON 导出
+                            return ServerResponse.ok().contentType(MediaType.APPLICATION_JSON)
+                                .bodyValue(sentences);
+                        });
+                }));
+    }
+
+    /**
+     * 构建 Excel 导出工作簿（内存中）。
+     *
+     * <p>列：内容 / 作者 / 来源 / 分类 / 点赞数 / 浏览数 / 是否发布
+     *
+     * @param sentences   导出的句子列表
+     * @param categoryMap 分类 metadata.name → spec.name 映射（用于显示中文分类名）
+     */
+    private byte[] buildExcelExport(List<Sentence> sentences,
+        Map<String, String> categoryMap) throws IOException {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        Workbook wb = new Workbook(os, "HitokotoExport", "1.0");
+        Worksheet ws = wb.newWorksheet("句子");
+        ws.value(0, 0, "内容");
+        ws.value(0, 1, "作者");
+        ws.value(0, 2, "来源");
+        ws.value(0, 3, "分类");
+        ws.value(0, 4, "点赞数");
+        ws.value(0, 5, "浏览数");
+        ws.value(0, 6, "是否发布");
+        for (int i = 0; i < sentences.size(); i++) {
+            Sentence s = sentences.get(i);
+            int row = i + 1;
+            String categoryName = s.getSpec().getCategoryName();
+            String displayName;
+            if (UncategorizedConstants.METADATA_NAME.equals(categoryName)) {
+                displayName = UncategorizedConstants.DISPLAY_NAME;
+            } else {
+                displayName = categoryMap.getOrDefault(categoryName, categoryName);
+            }
+            ws.value(row, 0, s.getSpec().getContent());
+            ws.value(row, 1, s.getSpec().getAuthor());
+            ws.value(row, 2, s.getSpec().getSource());
+            ws.value(row, 3, displayName);
+            ws.value(row, 4, s.getStatus() != null ? s.getStatus().getLikeCount() : 0);
+            ws.value(row, 5, s.getStatus() != null ? s.getStatus().getViewCount() : 0);
+            ws.value(row, 6,
+                s.getStatus() != null && s.getStatus().isPublished() ? "是" : "否");
+        }
+        wb.finish();
+        return os.toByteArray();
+    }
+
+    // ===================== CSV 导入 =====================
+
+    private @NonNull Mono<ServerResponse> importCsvSentences(@NonNull ServerRequest request) {
+        return request.principal().map(p -> p.getName())
+            .flatMap(username -> request.multipartData().flatMap(parts -> {
+                var file = parts.getFirst("file");
+                if (!(file instanceof FilePart filePart)) {
+                    return Mono.<List<Sentence>>error(new IllegalArgumentException("请选择 CSV 文件"));
+                }
+                if (!filePart.filename().toLowerCase().endsWith(".csv")) {
+                    return Mono.<List<Sentence>>error(new IllegalArgumentException("仅支持 .csv 文件"));
+                }
+                long contentLength = filePart.headers().getContentLength();
+                if (contentLength > MAX_EXCEL_FILE_SIZE) {
+                    return Mono.<List<Sentence>>error(new IllegalArgumentException(
+                        "CSV 文件不能超过 " + MAX_EXCEL_FILE_SIZE / 1024 / 1024 + "MB"));
+                }
+                var categoryName = formValue(parts.getFirst("categoryName"));
+                if (categoryName == null || categoryName.isBlank()) {
+                    return Mono.<List<Sentence>>error(new IllegalArgumentException("请选择目标分类"));
+                }
+                var contentField = formValue(parts.getFirst("contentField"));
+                var authorField = formValue(parts.getFirst("authorField"));
+                var sourceField = formValue(parts.getFirst("sourceField"));
+
+                return DataBufferUtils.join(filePart.content()).flatMap(dataBuffer -> {
+                        byte[] bytes = new byte[dataBuffer.readableByteCount()];
+                        dataBuffer.read(bytes);
+                        DataBufferUtils.release(dataBuffer);
+                        if (bytes.length > MAX_EXCEL_FILE_SIZE) {
+                            return Mono.<List<Sentence>>error(new IllegalArgumentException(
+                                "CSV 文件超过大小限制"));
+                        }
+                        return Mono.fromCallable(() -> parseCsvSentences(bytes, categoryName,
+                            contentField, authorField, sourceField))
+                            .subscribeOn(Schedulers.boundedElastic());
+                    }).flatMapMany(Flux::fromIterable)
+                    .as(sentenceFlux -> createSentences(sentenceFlux, username));
+            })).flatMap(result -> ServerResponse.ok().bodyValue(result))
+            .onErrorResume(IllegalArgumentException.class,
+                e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+    }
+
+    /**
+     * 解析 CSV 为句子列表。复用 Excel 导入的别名解析逻辑。
+     *
+     * <p>支持 RFC 4180 引号转义、字段内换行；自动处理 UTF-8 BOM。
+     */
+    private @NonNull List<Sentence> parseCsvSentences(byte[] bytes, String categoryName,
+        String contentField, String authorField, String sourceField) {
+        String content = new String(bytes, StandardCharsets.UTF_8);
+        // 去除 UTF-8 BOM
+        if (content.startsWith("\uFEFF")) {
+            content = content.substring(1);
+        }
+        // 统一换行符
+        content = content.replace("\r\n", "\n").replace('\r', '\n');
+        List<String[]> rows = parseCsv(content);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        String[] headerRow = rows.get(0);
+        Map<String, Integer> headers = new HashMap<>();
+        for (int i = 0; i < headerRow.length; i++) {
+            String h = headerRow[i].trim();
+            if (!h.isEmpty()) {
+                headers.put(h, i);
+            }
+        }
+        var contentColumn = resolveColumn(headers, contentField,
+            List.of("hitokoto", "content", "sentence", "句子内容", "内容", "一言"));
+        if (contentColumn == null) {
+            throw new IllegalArgumentException("未找到句子内容列");
+        }
+        var authorColumn =
+            resolveColumn(headers, authorField, List.of("from_who", "author", "作者"));
+        var sourceColumn =
+            resolveColumn(headers, sourceField, List.of("from", "source", "来源", "出处"));
+
+        List<Sentence> sentences = new ArrayList<>();
+        for (int r = 1; r < rows.size(); r++) {
+            String[] row = rows.get(r);
+            var contentValue = cellValue(row, contentColumn);
+            if (contentValue.isBlank()) {
+                continue;
+            }
+            var author = authorColumn == null ? "" : cellValue(row, authorColumn);
+            var source = sourceColumn == null ? "" : cellValue(row, sourceColumn);
+            sentences.add(buildSentence(categoryName, contentValue, author, source));
+        }
+        return sentences;
+    }
+
+    /** 简易 RFC 4180 CSV 解析：支持引号包裹、字段内逗号与换行、双引号转义。 */
+    private @NonNull List<String[]> parseCsv(String text) {
+        List<String[]> records = new ArrayList<>();
+        List<String> fields = new ArrayList<>();
+        StringBuilder sb = new StringBuilder();
+        boolean inQuotes = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (inQuotes) {
+                if (c == '"') {
+                    if (i + 1 < text.length() && text.charAt(i + 1) == '"') {
+                        sb.append('"');
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    sb.append(c);
+                }
+            } else {
+                if (c == '"') {
+                    inQuotes = true;
+                } else if (c == ',') {
+                    fields.add(sb.toString());
+                    sb.setLength(0);
+                } else if (c == '\n') {
+                    fields.add(sb.toString());
+                    sb.setLength(0);
+                    records.add(fields.toArray(new String[0]));
+                    fields.clear();
+                } else {
+                    sb.append(c);
+                }
+            }
+        }
+        // 处理最后一行（无尾换行的情况）
+        if (sb.length() > 0 || !fields.isEmpty()) {
+            fields.add(sb.toString());
+            records.add(fields.toArray(new String[0]));
+        }
+        return records;
+    }
+
+    private @NonNull String cellValue(String[] row, int columnIndex) {
+        return columnIndex < row.length ? row[columnIndex].trim() : "";
     }
 
     @Data
@@ -360,6 +624,26 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
     public static class ExcelImportRequest {
         @Schema(description = "xlsx 文件", type = "string", format = "binary", requiredMode =
             Schema.RequiredMode.REQUIRED)
+        private String file;
+
+        @Schema(description = "目标分类 metadata.name", requiredMode = Schema.RequiredMode.REQUIRED)
+        private String categoryName;
+
+        @Schema(description = "句子内容列名")
+        private String contentField;
+
+        @Schema(description = "作者列名")
+        private String authorField;
+
+        @Schema(description = "来源列名")
+        private String sourceField;
+    }
+
+    @Data
+    @Schema(name = "CsvImportRequest")
+    public static class CsvImportRequest {
+        @Schema(description = "csv 文件", type = "string", format = "binary",
+            requiredMode = Schema.RequiredMode.REQUIRED)
         private String file;
 
         @Schema(description = "目标分类 metadata.name", requiredMode = Schema.RequiredMode.REQUIRED)

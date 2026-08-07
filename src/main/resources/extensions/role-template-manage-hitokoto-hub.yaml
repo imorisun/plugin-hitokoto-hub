@@ -17,11 +17,18 @@ rules:
       - "ai-generate-logs/trigger"
       - "sentence/batch"
       - "sentence/import-excel"
+      - "sentence/import-csv"
+      - "sentence/export"
       - "similarity-check-groups/delete-nonoptimal"
       - "similarity-check-logs/trigger"
       - "sentence/clear-uncategorized"
     resourceNames: [ "-" ]
-    verbs: [ "create", "delete" ]
+    verbs: [ "create" ]
+  - apiGroups: [ "console.api.hitokotohub.puresky.top" ]
+    resources:
+      - "sentence/export"
+    resourceNames: [ "-" ]
+    verbs: [ "get" ]
   - apiGroups: [ "console.api.hitokotohub.puresky.top" ]
     resources:
       - "sentence-submissions"

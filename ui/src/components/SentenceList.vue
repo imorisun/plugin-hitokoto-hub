@@ -14,13 +14,13 @@
               <template #icon>
                 <IconUpload class="h-full w-full"/>
               </template>
-              JSON 导入
+              导入
             </VButton>
-            <VButton size="sm" @click="handleBatchImport('excel')">
+            <VButton size="sm" @click="showExportModal = true">
               <template #icon>
-                <IconUpload class="h-full w-full"/>
+                <el-icon :size="16"><Download /></el-icon>
               </template>
-              Excel 导入
+              导出
             </VButton>
             <VButton size="sm" type="secondary" @click="handleCreate">
               <template #icon>
@@ -521,6 +521,14 @@
           >
             Excel
           </button>
+          <button
+                  :class="{ 'batch-mode-button--active': batchImportMode === 'csv' }"
+                  class="batch-mode-button"
+                  type="button"
+                  @click="batchImportMode = 'csv'"
+          >
+            CSV
+          </button>
         </div>
 
         <template v-if="batchImportMode === 'json'">
@@ -621,7 +629,7 @@
           </div>
         </template>
 
-        <template v-else>
+        <template v-else-if="batchImportMode === 'excel'">
           <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
             <h4 class="mb-3 text-sm font-medium text-gray-700">上传 Excel 文件</h4>
             <input
@@ -716,6 +724,102 @@
             </div>
           </div>
         </template>
+
+        <template v-else-if="batchImportMode === 'csv'">
+          <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h4 class="mb-3 text-sm font-medium text-gray-700">上传 CSV 文件</h4>
+            <input
+                    accept=".csv"
+                    class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:text-gray-700"
+                    type="file"
+                    @change="handleCsvFileChange"
+            />
+            <p class="mt-2 text-xs text-gray-500">
+              仅支持 .csv，UTF-8 编码。第一行作为列名。
+            </p>
+          </div>
+
+          <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h4 class="mb-3 text-sm font-medium text-gray-700">字段映射</h4>
+            <div class="grid grid-cols-3 gap-4">
+              <div>
+                <label class="mb-1.5 block text-xs font-medium text-gray-500">
+                  句子内容列
+                  <span class="text-red-400">*</span>
+                </label>
+                <select
+                        v-model="batchImportCsvForm.contentField"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">不映射</option>
+                  <option v-for="key in csvColumns" :key="key" :value="key">{{ key }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1.5 block text-xs font-medium text-gray-500">作者列</label>
+                <select
+                        v-model="batchImportCsvForm.authorField"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">不映射</option>
+                  <option v-for="key in csvColumns" :key="key" :value="key">{{ key }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1.5 block text-xs font-medium text-gray-500">来源列</label>
+                <select
+                        v-model="batchImportCsvForm.sourceField"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">不映射</option>
+                  <option v-for="key in csvColumns" :key="key" :value="key">{{ key }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- CSV 预览 -->
+          <div class="mt-4">
+            <div class="mb-2 flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-700">解析预览</label>
+              <span class="text-xs text-gray-400">共 {{ csvPreview.length }} 条</span>
+            </div>
+            <div class="max-h-60 overflow-y-auto rounded-md border border-gray-200">
+              <div v-if="!batchImportCsvFile" class="py-8 text-center text-sm text-gray-400">
+                请选择 CSV 文件
+              </div>
+              <div v-else-if="!batchImportCsvForm.contentField"
+                   class="py-8 text-center text-sm text-gray-400">
+                请选择句子内容字段映射
+              </div>
+              <div v-else-if="csvPreview.length === 0"
+                   class="py-8 text-center text-sm text-gray-400">
+                没有解析到有效的句子数据
+              </div>
+              <div v-else class="divide-y divide-gray-100">
+                <div
+                        v-for="(item, index) in csvPreview"
+                        :key="index"
+                        class="flex items-start justify-between px-4 py-3 hover:bg-gray-50"
+                >
+                  <div class="min-w-0 flex-1">
+                    <div class="text-sm font-medium text-gray-900">
+                      {{ item.content || '(无内容)' }}
+                    </div>
+                    <div class="mt-1 flex flex-wrap items-center gap-1.5">
+            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
+              作者：{{ item.author || '匿名' }}
+            </span>
+                      <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
+              来源：{{ item.source || '未知' }}
+            </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
       <template #footer>
         <div class="modal-footer">
@@ -724,13 +828,94 @@
                   type="secondary"
                   :loading="batchImporting"
                   :disabled="
-              batchImportMode === 'json' ? parsedSentences.length === 0 : excelPreview.length === 0
+              batchImportMode === 'json' ? parsedSentences.length === 0 : batchImportMode === 'excel' ? excelPreview.length === 0 : csvPreview.length === 0
             "
                   @click="handleBatchSave"
           >
             {{
-              batchImportMode === 'json' ? `开始导入 (${parsedSentences.length} 条)` : `开始导入 (${excelPreview.length} 条)`
+              batchImportMode === 'json' ? `开始导入 (${parsedSentences.length} 条)` : batchImportMode === 'excel' ? `开始导入 (${excelPreview.length} 条)` : `开始导入 (${csvPreview.length} 条)`
             }}
+          </VButton>
+        </div>
+      </template>
+    </VModal>
+
+    <!-- 导出句子弹窗 -->
+    <VModal
+      v-model:visible="showExportModal"
+      title="导出句子"
+      :width="480"
+    >
+      <div class="form-modal-body">
+        <FormKit
+          v-model="exportForm.format"
+          type="select"
+          label="导出格式"
+          :options="[
+            { label: 'JSON', value: 'json' },
+            { label: 'Excel (.xlsx)', value: 'excel' },
+          ]"
+        />
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2.5">选择分类</label>
+          <div class="export-category-list">
+            <label class="export-category-item export-category-item--all">
+              <input
+                type="checkbox"
+                :checked="exportForm.selectAll"
+                @change="handleExportSelectAll"
+              />
+              <span class="export-category-name">全部分类</span>
+              <span class="export-category-count">{{ total }} 条</span>
+            </label>
+            <label
+              v-for="category in regularCategories"
+              :key="category.metadata.name"
+              class="export-category-item"
+            >
+              <input
+                type="checkbox"
+                :value="category.metadata.name"
+                :checked="exportForm.categoryNames.includes(category.metadata.name)"
+                @change="handleExportToggleCategory(category.metadata.name)"
+              />
+              <span class="export-category-name">{{ category.spec.name }}</span>
+              <span class="export-category-count">{{ category.sentenceCount ?? 0 }} 条</span>
+            </label>
+            <label
+              v-if="uncategorizedCategory"
+              class="export-category-item"
+            >
+              <input
+                type="checkbox"
+                :value="uncategorizedCategory.metadata.name"
+                :checked="exportForm.categoryNames.includes(uncategorizedCategory.metadata.name)"
+                @change="handleExportToggleCategory(uncategorizedCategory.metadata.name)"
+              />
+              <span class="export-category-name">{{ uncategorizedCategory.spec.name }}</span>
+              <span class="export-category-count">{{ uncategorizedCategory.sentenceCount ?? 0 }} 条</span>
+            </label>
+          </div>
+          <div class="mt-2 text-xs text-gray-400">
+            {{ exportForm.selectAll ? '将导出所有分类的句子' : exportForm.categoryNames.length > 0 ? `已选择 ${exportForm.categoryNames.length} 个分类` : '请至少选择一个分类' }}
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <VButton
+            type="secondary"
+            :disabled="exporting"
+            @click="showExportModal = false"
+          >
+            取消
+          </VButton>
+          <VButton
+            :loading="exporting"
+            :disabled="!canExport"
+            @click="handleExport"
+          >
+            {{ exportForm.selectAll ? '导出全部' : `导出所选 (${exportForm.categoryNames.length})` }}
           </VButton>
         </div>
       </template>
@@ -746,6 +931,7 @@ import {
   IconUpload,
   VButton,
   VCard,
+  VDropdown,
   VDropdownItem,
   VEmpty,
   VEntity,
@@ -760,7 +946,7 @@ import {
 } from '@halo-dev/components'
 import {axiosInstance} from '@halo-dev/api-client'
 import {utils} from '@halo-dev/ui-shared'
-import {Delete, EditPen, View} from '@element-plus/icons-vue'
+import {Delete, Download, EditPen, View} from '@element-plus/icons-vue'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import type {CategoryWithCount} from '@/api'
 import {categoryCoreApiClient, sentenceCoreApiClient} from '@/api'
@@ -907,9 +1093,12 @@ watch(() => formData.value.linkType, (newType) => {
 
 const showBatchImportModal = ref(false)
 const batchImporting = ref(false)
-const batchImportMode = ref<'json' | 'excel'>('json')
+const batchImportMode = ref<'json' | 'excel' | 'csv'>('json')
 const batchImportExcelFile = ref<File | null>(null)
 const excelColumns = ref<string[]>([])
+const batchImportCsvFile = ref<File | null>(null)
+const csvColumns = ref<string[]>([])
+const csvRows = ref<string[][]>([])
 const batchImportForm = ref({
   jsonText: '',
   categoryName: '',
@@ -918,6 +1107,11 @@ const batchImportForm = ref({
   sourceField: '',
 })
 const batchImportExcelForm = ref({
+  contentField: '',
+  authorField: '',
+  sourceField: '',
+})
+const batchImportCsvForm = ref({
   contentField: '',
   authorField: '',
   sourceField: '',
@@ -1014,6 +1208,41 @@ const excelPreview = computed(() => {
   if (!contentField) return []
 
   const rows = xlsxRows.value
+  if (rows.length < 2) return []
+
+  const headers = rows[0].map((h: any) => String(h ?? ''))
+  const contentIndex = headers.indexOf(contentField)
+  const authorIndex = authorField ? headers.indexOf(authorField) : -1
+  const sourceIndex = sourceField ? headers.indexOf(sourceField) : -1
+
+  if (contentIndex === -1) return []
+
+  const result: Array<{ content: string; author: string; source: string }> = []
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]
+    if (!row) continue
+    const content = String(row[contentIndex] ?? '').trim()
+    if (!content) continue
+    result.push({
+      content,
+      author: authorIndex !== -1 ? String(row[authorIndex] ?? '').trim() : '',
+      source: sourceIndex !== -1 ? String(row[sourceIndex] ?? '').trim() : '',
+    })
+  }
+  return result
+})
+
+const csvPreview = computed(() => {
+  if (!batchImportCsvFile.value) return []
+  if (!csvRows.value.length) return []
+
+  const contentField = batchImportCsvForm.value.contentField
+  const authorField = batchImportCsvForm.value.authorField
+  const sourceField = batchImportCsvForm.value.sourceField
+
+  if (!contentField) return []
+
+  const rows = csvRows.value
   if (rows.length < 2) return []
 
   const headers = rows[0].map((h: any) => String(h ?? ''))
@@ -1258,7 +1487,7 @@ const handleCreate = () => {
   showFormModal.value = true
 }
 
-const handleBatchImport = async (mode: 'json' | 'excel' = 'json') => {
+const handleBatchImport = async (mode: 'json' | 'excel' | 'csv' = 'json') => {
   await initCategories()
   batchImportForm.value = {
     jsonText: '',
@@ -1276,7 +1505,77 @@ const handleBatchImport = async (mode: 'json' | 'excel' = 'json') => {
     authorField: '',
     sourceField: '',
   }
+  batchImportCsvFile.value = null
+  csvColumns.value = []
+  csvRows.value = []
+  batchImportCsvForm.value = {
+    contentField: '',
+    authorField: '',
+    sourceField: '',
+  }
   showBatchImportModal.value = true
+}
+
+const showExportModal = ref(false)
+const exporting = ref(false)
+const exportForm = ref<{ format: string; categoryNames: string[]; selectAll: boolean }>({
+  format: 'json',
+  categoryNames: [],
+  selectAll: true,
+})
+
+const canExport = computed(() =>
+  exportForm.value.selectAll || exportForm.value.categoryNames.length > 0
+)
+
+const handleExportSelectAll = () => {
+  exportForm.value.selectAll = !exportForm.value.selectAll
+  if (exportForm.value.selectAll) {
+    exportForm.value.categoryNames = []
+  }
+}
+
+const handleExportToggleCategory = (name: string) => {
+  // 选择具体分类时自动取消"全部分类"
+  exportForm.value.selectAll = false
+  const idx = exportForm.value.categoryNames.indexOf(name)
+  if (idx >= 0) {
+    exportForm.value.categoryNames.splice(idx, 1)
+  } else {
+    exportForm.value.categoryNames.push(name)
+  }
+}
+
+const handleExport = async () => {
+  if (!canExport.value) return
+  try {
+    exporting.value = true
+    const params = new URLSearchParams()
+    params.set('format', exportForm.value.format)
+    if (!exportForm.value.selectAll && exportForm.value.categoryNames.length > 0) {
+      params.set('categoryName', exportForm.value.categoryNames.join(','))
+    }
+    const url = `/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence/-/export?${params.toString()}`
+    const res = await axiosInstance.get(url, { responseType: 'blob' })
+    const blob = new Blob([res.data])
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    const ext = exportForm.value.format === 'excel' ? 'xlsx' : 'json'
+    const prefix = exportForm.value.selectAll ? 'all' : exportForm.value.categoryNames.join('+')
+    link.download = `hitokoto-${prefix}-${Date.now()}.${ext}`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(link.href)
+    showExportModal.value = false
+    const desc = exportForm.value.selectAll ? '全部句子' : `${exportForm.value.categoryNames.length} 个分类`
+    toast.success(`已导出 ${desc} 为 ${exportForm.value.format.toUpperCase()}`)
+  } catch (e) {
+    console.error('导出失败', e)
+    toast.error('导出失败，请稍后重试')
+  } finally {
+    exporting.value = false
+  }
 }
 
 const handleCreateCategory = () => {
@@ -1459,6 +1758,79 @@ const handleExcelFileChange = async (event: Event) => {
   excelColumns.value = rows[0].map((h: any) => String(h ?? ''))
 }
 
+const handleCsvFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) {
+    batchImportCsvFile.value = null
+    csvRows.value = []
+    csvColumns.value = []
+    return
+  }
+
+  batchImportCsvFile.value = file
+
+  try {
+    const text = await file.text()
+    // 去除 UTF-8 BOM
+    const cleanText = text.startsWith('\uFEFF') ? text.substring(1) : text
+    const lines = cleanText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+    const rows: string[][] = []
+    for (const line of lines) {
+      if (!line.trim()) continue
+      rows.push(parseCsvLine(line))
+    }
+    csvRows.value = rows
+
+    if (rows.length < 1) {
+      csvColumns.value = []
+      return
+    }
+
+    csvColumns.value = rows[0].map((h: string) => h.trim())
+  } catch (e) {
+    console.error('CSV 解析失败', e)
+    toast.error('CSV 文件解析失败，请检查文件编码和格式')
+    csvRows.value = []
+    csvColumns.value = []
+  }
+}
+
+/**
+ * 解析单行 CSV，支持 RFC 4180 引号转义。
+ */
+const parseCsvLine = (line: string): string[] => {
+  const fields: string[] = []
+  let field = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (inQuotes) {
+      if (c === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          field += '"'
+          i++
+        } else {
+          inQuotes = false
+        }
+      } else {
+        field += c
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true
+      } else if (c === ',') {
+        fields.push(field)
+        field = ''
+      } else {
+        field += c
+      }
+    }
+  }
+  fields.push(field)
+  return fields
+}
+
 const handleSave = async () => {
   if (!formData.value.content || !formData.value.categoryName) {
     toast.warning('请填写句子内容和分类')
@@ -1543,12 +1915,21 @@ const handleBatchSave = async () => {
     toast.warning('没有解析到有效的句子数据')
     return
   }
+  if (batchImportMode.value === 'csv' && csvPreview.value.length === 0) {
+    toast.warning('没有解析到有效的句子数据')
+    return
+  }
 
   batchImporting.value = true
   try {
     let result: BatchCreateSentenceResult
     if (batchImportMode.value === 'excel') {
       const sentenceList = excelPreview.value.map((item) =>
+              buildSentence(item.content, batchImportForm.value.categoryName, item.author, item.source),
+      )
+      result = await batchCreate(sentenceList)
+    } else if (batchImportMode.value === 'csv') {
+      const sentenceList = csvPreview.value.map((item) =>
               buildSentence(item.content, batchImportForm.value.categoryName, item.author, item.source),
       )
       result = await batchCreate(sentenceList)
@@ -2067,5 +2448,67 @@ onUnmounted(() => {
   font-weight: 500;
   color: #111827;
   margin-bottom: 6px;
+}
+
+/* 导出分类多选列表 */
+.export-category-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.export-category-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.export-category-item:last-child {
+  border-bottom: none;
+}
+
+.export-category-item:hover {
+  background: #f9fafb;
+}
+
+.export-category-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.export-category-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-category-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.export-category-item--all {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.export-category-item--all .export-category-name {
+  font-weight: 600;
+  color: #111827;
 }
 </style>

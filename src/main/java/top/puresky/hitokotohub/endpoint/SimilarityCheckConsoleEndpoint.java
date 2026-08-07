@@ -194,14 +194,17 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
     }
 
     @NonNull Mono<ServerResponse> deleteNonOptimal(@NonNull ServerRequest request) {
-        return similarityCheckService.deleteNonOptimalSentences()
-            .flatMap(result -> ServerResponse.ok().bodyValue(result))
-            .onErrorResume(e -> {
-                log.error("批量删除非最优句子失败", e);
-                return ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .bodyValue(Map.of(
-                        "message", "批量删除失败：" + e.getMessage(),
-                        "total", 0, "deleted", 0, "failed", 0));
-            });
+        return request.principal().map(p -> p.getName()).defaultIfEmpty("system")
+            .flatMap(username -> similarityCheckService.deleteNonOptimalSentences()
+                .doOnSuccess(result -> log.info("User [{}] deleted non-optimal sentences: total={}, deleted={}, failed={}",
+                    username, result.total(), result.deleted(), result.failed()))
+                .flatMap(result -> ServerResponse.ok().bodyValue(result))
+                .onErrorResume(e -> {
+                    log.error("User [{}] failed to delete non-optimal sentences", username, e);
+                    return ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .bodyValue(Map.of(
+                            "message", "批量删除失败：" + e.getMessage(),
+                            "total", 0, "deleted", 0, "failed", 0));
+                }));
     }
 }

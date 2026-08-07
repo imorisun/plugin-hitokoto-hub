@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Logger;
 
 /**
  * 句子相似对查找器（纯函数，零 Spring/Extension 依赖）。
@@ -34,13 +35,21 @@ public final class SimilarityPairFinder {
      */
     static final int INVERTED_INDEX_THRESHOLD = 500;
 
+    /**
+     * 相似对列表的安全上限，防止低阈值 + 大量重复内容导致 O(n²) 配对列表 OOM。
+     * 达到此上限后停止追加新配对，返回已收集的部分（按相似度降序）。
+     * 正常场景下远不会触及此上限，仅作为极端情况的内存安全阀。
+     */
+    static final int MAX_PAIRS_LIMIT = 200_000;
+
+    private static final Logger LOGGER = Logger.getLogger(SimilarityPairFinder.class.getName());
+
     private SimilarityPairFinder() {}
 
     /**
      * 计算完整的相似对列表（按相似度降序）。
      *
-     * <p>根据句子数自动选择算法：n &lt; {@value #INVERTED_INDEX_THRESHOLD} 用暴力法，
-     * 否则用倒排索引优化。两者结果集等价（相似度 &gt; 0 的必要条件是共享至少一个 bigram）。
+     * <p>等同于 {@link #find(List, String, double, int) find(profiles, algorithm, threshold, MAX_PAIRS_LIMIT)}。
      *
      * @param profiles  句子纯数据列表
      * @param algorithm 算法（COSINE 或 JACCARD，大小写不敏感）
@@ -49,6 +58,27 @@ public final class SimilarityPairFinder {
      */
     public static List<SentencePair> find(List<SentenceProfile> profiles,
                                            String algorithm, double threshold) {
+        return find(profiles, algorithm, threshold, MAX_PAIRS_LIMIT);
+    }
+
+    /**
+     * 计算相似对列表（按相似度降序），支持指定最大配对数以防 OOM。
+     *
+     * <p>根据句子数自动选择算法：n &lt; {@value #INVERTED_INDEX_THRESHOLD} 用暴力法，
+     * 否则用倒排索引优化。两者结果集等价（相似度 &gt; 0 的必要条件是共享至少一个 bigram）。
+     *
+     * <p><b>内存安全</b>：当配对数达到 {@code maxPairs} 时停止追加，返回已收集部分。
+     * 注意：截断后返回的列表可能不包含所有相似对，仅作为极端场景的内存安全阀。
+     *
+     * @param profiles  句子纯数据列表
+     * @param algorithm 算法（COSINE 或 JACCARD，大小写不敏感）
+     * @param threshold 相似度阈值 [0, 1]
+     * @param maxPairs  最大配对数上限（防止 OOM），建议传 {@link #MAX_PAIRS_LIMIT}
+     * @return 达到阈值的相似对列表（按相似度降序），最多 {@code maxPairs} 条
+     */
+    public static List<SentencePair> find(List<SentenceProfile> profiles,
+                                           String algorithm, double threshold,
+                                           int maxPairs) {
         int n = profiles.size();
         if (n < 2) {
             return Collections.emptyList();
@@ -59,9 +89,9 @@ public final class SimilarityPairFinder {
 
         // 根据规模分派
         if (n < INVERTED_INDEX_THRESHOLD) {
-            return findBruteForce(profiles, data, algorithm, threshold);
+            return findBruteForce(profiles, data, algorithm, threshold, maxPairs);
         }
-        return findWithInvertedIndex(profiles, data, algorithm, threshold);
+        return findWithInvertedIndex(profiles, data, algorithm, threshold, maxPairs);
     }
 
     /**
@@ -106,6 +136,8 @@ public final class SimilarityPairFinder {
                 tfidfVectors.add(
                     TextSimilarityCalculator.computeTfidfVector(tfVectors.get(i), idfMap));
             }
+            // 内存优化：COSINE 算法后续仅使用 tfidfVectors，释放 TF 向量内存
+            tfVectors = Collections.emptyList();
         }
 
         return new PreprocessedData(contents, tfVectors, tokenSets, tfidfVectors);
@@ -123,15 +155,31 @@ public final class SimilarityPairFinder {
     static List<SentencePair> findBruteForce(List<SentenceProfile> profiles,
                                               PreprocessedData data,
                                               String algorithm, double threshold) {
+        return findBruteForce(profiles, data, algorithm, threshold, MAX_PAIRS_LIMIT);
+    }
+
+    static List<SentencePair> findBruteForce(List<SentenceProfile> profiles,
+                                              PreprocessedData data,
+                                              String algorithm, double threshold,
+                                              int maxPairs) {
         int n = profiles.size();
         List<SentencePair> similarPairs = new ArrayList<>();
+        boolean capped = false;
+        outer:
         for (int i = 0; i < n; i++) {
             for (int j = i + 1; j < n; j++) {
                 double similarity = computeSimilarity(data, algorithm, i, j);
                 if (similarity >= threshold) {
                     similarPairs.add(buildPair(profiles.get(i), profiles.get(j), similarity));
+                    if (similarPairs.size() >= maxPairs) {
+                        capped = true;
+                        break outer;
+                    }
                 }
             }
+        }
+        if (capped) {
+            LOGGER.warning("相似对数量达到上限 " + maxPairs + "，已停止追加（暴力法）");
         }
         similarPairs.sort((a, b) -> Double.compare(b.similarity(), a.similarity()));
         return similarPairs;
@@ -159,6 +207,14 @@ public final class SimilarityPairFinder {
                                                       PreprocessedData data,
                                                       String algorithm,
                                                       double threshold) {
+        return findWithInvertedIndex(profiles, data, algorithm, threshold, MAX_PAIRS_LIMIT);
+    }
+
+    static List<SentencePair> findWithInvertedIndex(List<SentenceProfile> profiles,
+                                                      PreprocessedData data,
+                                                      String algorithm,
+                                                      double threshold,
+                                                      int maxPairs) {
         int n = profiles.size();
         List<Set<String>> tokenSets = data.tokenSets();
 
@@ -173,6 +229,8 @@ public final class SimilarityPairFinder {
         // 2. 收集候选对并计算相似度
         List<SentencePair> similarPairs = new ArrayList<>();
         BitSet candidates = new BitSet(n);
+        boolean capped = false;
+        outer:
         for (int i = 0; i < n; i++) {
             // 收集所有 j > i 且与 i 共享至少一个 bigram 的候选
             candidates.clear();
@@ -197,8 +255,15 @@ public final class SimilarityPairFinder {
                 double similarity = computeSimilarity(data, algorithm, i, j);
                 if (similarity >= threshold) {
                     similarPairs.add(buildPair(profiles.get(i), profiles.get(j), similarity));
+                    if (similarPairs.size() >= maxPairs) {
+                        capped = true;
+                        break outer;
+                    }
                 }
             }
+        }
+        if (capped) {
+            LOGGER.warning("相似对数量达到上限 " + maxPairs + "，已停止追加（倒排索引法）");
         }
 
         similarPairs.sort((a, b) -> Double.compare(b.similarity(), a.similarity()));

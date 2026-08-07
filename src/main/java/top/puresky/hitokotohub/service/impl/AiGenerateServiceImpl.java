@@ -2,6 +2,7 @@ package top.puresky.hitokotohub.service.impl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 import run.halo.aifoundation.AiModelService;
 import run.halo.aifoundation.chat.GenerateTextRequest;
 import run.halo.aifoundation.chat.GenerateTextResult;
@@ -38,6 +40,12 @@ public class AiGenerateServiceImpl implements AiGenerateService {
     private static final int MAX_SOURCE_LENGTH = 100;
     /** 采样温度：偏高以鼓励创意与多样性，不支持该参数的模型会自动忽略 */
     private static final double GENERATION_TEMPERATURE = 0.9;
+    /** AI 生成最大重试次数（不含首次调用），仅对瞬时错误生效 */
+    private static final long MAX_GENERATE_RETRIES = 2;
+    /** 重试初始退避间隔 */
+    private static final Duration RETRY_BACKOFF = Duration.ofSeconds(2);
+    /** 重试最大退避间隔 */
+    private static final Duration RETRY_MAX_BACKOFF = Duration.ofSeconds(10);
 
     /**
      * 默认角色设定。与 settings.yaml 中 {@code aiSystemPrompt} 的默认值保持一致，
@@ -125,10 +133,20 @@ public class AiGenerateServiceImpl implements AiGenerateService {
         String categoryName,
         boolean autoPublish
     ) {
-        return extensionGetter.getEnabledExtension(AiModelService.class)
+        // 生成 + 解析阶段：对瞬时错误（网络、服务波动）重试，对结构校验失败不重试
+        Mono<List<AiSentenceOutput>> generationMono = extensionGetter
+            .getEnabledExtension(AiModelService.class)
             .flatMap(server -> server.languageModel(createdLog.getSpec().getModelName()))
             .flatMap(model -> model.generateText(request))
             .flatMap(result -> parseSentences(result, count))
+            .retryWhen(Retry.backoff(MAX_GENERATE_RETRIES, RETRY_BACKOFF)
+                .maxBackoff(RETRY_MAX_BACKOFF)
+                .filter(AiGenerateServiceImpl::shouldRetry)
+                .doBeforeRetry(signal -> log.warn("AI 生成第 {} 次重试：{}",
+                    signal.totalRetries() + 1,
+                    signal.failure().getMessage())));
+
+        return generationMono
             .flatMap(sentences -> {
                 try {
                     createdLog.getSpec().setGeneratedData(objectMapper.writeValueAsString(sentences));
@@ -142,6 +160,36 @@ public class AiGenerateServiceImpl implements AiGenerateService {
             .collectList()
             .flatMap(results -> finalizeLog(createdLog, results, count, startTime))
             .onErrorResume(err -> failLog(createdLog, err, count, startTime));
+    }
+
+    /**
+     * 判断是否应重试 AI 生成调用。
+     *
+     * <p>不重试的情况：
+     * <ul>
+     *   <li>{@link StructuredOutputValidationException}：模型输出格式问题，重试通常仍失败且浪费 token</li>
+     *   <li>空响应：模型未返回内容，多为配置或配额问题</li>
+     *   <li>输出超限：响应过大，重试无意义</li>
+     * </ul>
+     */
+    private static boolean shouldRetry(Throwable err) {
+        if (err instanceof StructuredOutputValidationException) {
+            return false;
+        }
+        String message = err.getMessage();
+        if (message != null) {
+            if (message.contains("AI 未返回任何内容")) {
+                return false;
+            }
+            if (message.contains("超过大小限制")) {
+                return false;
+            }
+            if (message.contains("AI 输出格式不正确")) {
+                // JSON 解析失败：模型能力问题，给一次重试机会可能恢复，但保持不重试避免浪费
+                return false;
+            }
+        }
+        return true;
     }
 
     private Mono<List<AiSentenceOutput>> parseSentences(GenerateTextResult result, int count) {
