@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": "skills/halo-plugin-dev/SKILL.md",
       "computedHash": "cacdbde0d53b6d062b3acbe237c6dbe60fd564d7bb70172b22eb4cfbf43117dd"
+    },
+    "use-ai-foundation-sdk": {
+      "source": "halo-dev/plugin-ai-foundation",
+      "sourceType": "github",
+      "skillPath": "skills/use-ai-foundation-sdk/SKILL.md",
+      "computedHash": "6920c6290139fe760981ece4106bc8c9e62b7872242f1c5f14c00fefc292ac1d"
     }
   }
 }

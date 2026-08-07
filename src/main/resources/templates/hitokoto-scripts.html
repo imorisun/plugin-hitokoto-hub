@@ -561,7 +561,12 @@
         if (!submitCategoriesLoaded) {
             loadSubmitCategories();
         }
-        setTimeout(() => submitContent.focus(), 350);
+        /* 移动端检测：触摸设备且视口较小时，不自动聚焦，避免输入法自动弹出 */
+        var isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        var isSmallScreen = window.innerWidth < 768;
+        if (!(isTouchDevice && isSmallScreen)) {
+            setTimeout(() => submitContent.focus(), 350);
+        }
     }
 
     function closeSubmitModal() {
