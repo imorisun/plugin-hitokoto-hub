@@ -71,14 +71,14 @@ spec:
         - $formkit: switch
           name: enableAiGenerate
           id: enableAiGenerate
-          label: 启用 AI 生成
+          label: 启用 AI 自动生成
           value: false
-          help: 开启后，定时任务将按设定的时间自动生成句子
+          help: 开启后，定时任务将按设定的时间自动生成句子；关闭后仍可在后台手动生成
           __raw__sectionsSchema:
             help:
               children:
                 - $el: span
-                  children: "启用后，轻言 将可以进行 AI 句子生成。此功能需要先安装并启用 "
+                  children: "开启后，轻言 将按设定时间定时自动生成句子（关闭仅影响自动生成，手动生成不受影响）。此功能需要先安装并启用 "
                 - $el: a
                   children: "Halo AI Foundation"
                   attrs:
@@ -94,7 +94,7 @@ spec:
 
         - $formkit: select
           name: aiCron
-          label: 定时生成时间
+          label: 自动生成时间
           if: "$get(enableAiGenerate).value === true"
           value: "0 0 2 * * *"
           searchable: true
@@ -130,12 +130,10 @@ spec:
           clearable: true
           placeholder: 请选择语言模型
           help: 选择用于生成句子的 AI 模型
-          if: "$get(enableAiGenerate).value === true"
 
         - $formkit: textarea
           name: aiSystemPrompt
           label: 角色设定
-          if: "$get(enableAiGenerate).value === true"
           value: |
             # 角色
             你是一位资深中文文学创作匠人，融合古典诗词的凝练、现代散文的流畅与哲学思辨的深度，擅长围绕任意主题锻造高质量的"一句话"作品。
@@ -164,7 +162,6 @@ spec:
         - $formkit: text
           name: aiTopic
           label: 生成主题
-          if: "$get(enableAiGenerate).value === true"
           value: "温柔治愈"
           placeholder: 请输入生成主题
           help: 句子围绕的主题
@@ -172,17 +169,16 @@ spec:
         - $formkit: number
           name: aiSentenceCount
           label: 生成数量
-          if: "$get(enableAiGenerate).value === true"
-          value: "25"
+          value: 25
           min: 1
           max: 100
           step: 1
+          validation: required|number|min:1|max:100
           help: 每次生成的句子数量
 
         - $formkit: select
           name: aiSentenceCategory
           label: 目标分类
-          if: "$get(enableAiGenerate).value === true"
           value:
           clearable: true
           autoSelect: true
@@ -198,18 +194,15 @@ spec:
           label: 是否自动发布
           value: false
           help: 开启后，将自动发布AI生成的句子
-          if: "$get(enableAiGenerate).value === true"
         - $formkit: number
           name: aiLogMaxKeep
           label: AI日志最大保留条数
-          if: "$get(enableAiGenerate).value === true"
           value: 500
           validation: required|number|min:10|max:10000
           help: 超过此数量将自动删除最旧的AI生成日志
         - $formkit: number
           name: aiLogRetentionDays
           label: AI日志保留天数
-          if: "$get(enableAiGenerate).value === true"
           value: 30
           validation: required|number|min:1|max:365
           help: 超过此天数的AI生成日志将被清理
@@ -260,7 +253,6 @@ spec:
           label: 提交记录最大保留条数
           value: 1000
           validation: required|number|min:100|max:10000
-          if: "$get(enableSubmission).value === true"
           help: 超过此数量将自动删除最旧的已处理提交记录
     - group: similarity
       label: 相似度检查设置

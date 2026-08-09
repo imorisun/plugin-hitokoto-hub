@@ -36,7 +36,7 @@ public interface SettingConfig {
     @Data
     class AiConfig {
         public static final String GROUP = "ai";
-        @Schema(description = "启用 AI 生成")
+        @Schema(description = "启用 AI 自动生成（定时任务）")
         private Boolean enableAiGenerate;
         @Schema(description = "AI 生成句子的 Cron 表达式")
         private String aiCron;

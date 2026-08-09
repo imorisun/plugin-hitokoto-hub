@@ -290,6 +290,10 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
         settingConfig.getAiConfig()
             .flatMap(aiConfig -> {
                 if (Boolean.TRUE.equals(aiConfig.getEnableAiGenerate())) {
+                    if (aiConfig.getAiSentenceCount() == null) {
+                        log.warn("AI 生成数量未设置，跳过本次任务");
+                        return Mono.empty();
+                    }
                     return aiService.sentencesGenerateAndSave(
                         aiConfig.getLanguageModelName(),
                         aiConfig.getAiSystemPrompt(),

@@ -123,6 +123,10 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
                         return ServerResponse.badRequest()
                             .bodyValue(Map.of("message", "请先在设置中选择目标分类"));
                     }
+                    if (aiConfig.getAiSentenceCount() == null) {
+                        return ServerResponse.badRequest()
+                            .bodyValue(Map.of("message", "请先在设置中配置生成数量"));
+                    }
                     // 异步触发，立即返回，用户可在日志列表查看进度
                     aiService.sentencesGenerateAndSave(
                             aiConfig.getLanguageModelName(),

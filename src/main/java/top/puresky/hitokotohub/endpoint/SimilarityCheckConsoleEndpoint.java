@@ -169,7 +169,7 @@ public class SimilarityCheckConsoleEndpoint implements CustomEndpoint {
                         ? config.getEnableScheduledCheck() : false);
                 result.put("similarityCron",
                     config.getSimilarityCron() != null
-                        ? config.getSimilarityCron() : "0 0 4 * * *");
+                        ? config.getSimilarityCron() : "0 0 2 * * *");
                 result.put("similarityAlgorithm",
                     config.getSimilarityAlgorithm() != null
                         ? config.getSimilarityAlgorithm() : "COSINE");
