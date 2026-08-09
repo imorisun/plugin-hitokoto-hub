@@ -1152,15 +1152,57 @@ const handleCategorySelect = (categoryName?: string) => {
   page.value = 1
 }
 
+// 判断是否为普通对象（非 null、非数组）
+const isPlainObject = (v: any): boolean =>
+  v !== null && typeof v === 'object' && !Array.isArray(v)
+
+// 递归将多层级的对象扁平化为点分路径的叶子键，如 spec.content、metadata.name
+// 数组若首元素为普通对象，则展开为 items.0.content 形式的索引路径；否则作为叶子节点
+const flattenKeys = (obj: any, prefix = ''): string[] => {
+  if (!isPlainObject(obj)) return []
+  const keys: string[] = []
+  for (const key of Object.keys(obj)) {
+    const value = obj[key]
+    const path = prefix ? `${prefix}.${key}` : key
+    if (Array.isArray(value)) {
+      if (value.length && isPlainObject(value[0])) {
+        value.forEach((item, index) => {
+          keys.push(...flattenKeys(item, `${path}.${index}`))
+        })
+      } else {
+        keys.push(path)
+      }
+    } else if (isPlainObject(value)) {
+      keys.push(...flattenKeys(value, path))
+    } else {
+      keys.push(path)
+    }
+  }
+  return keys
+}
+
+// 按点分路径从对象中取值，如 getNestedValue(item, 'spec.content') -> item.spec.content
+const getNestedValue = (obj: any, path: string): any => {
+  if (!path) return undefined
+  const segments = path.split('.')
+  let current: any = obj
+  for (const seg of segments) {
+    // 仅保留 null/undefined 检查，允许数组（typeof 为 'object'）按索引继续取值
+    if (current == null) return undefined
+    current = current[seg]
+  }
+  return current
+}
+
 const availableKeys = computed(() => {
   const text = batchImportForm.value.jsonText.trim()
   if (!text) return []
   try {
     const parsed = JSON.parse(text)
     const data = Array.isArray(parsed) ? parsed : [parsed]
-    const firstObject = data.find((item: any) => item && typeof item === 'object')
+    const firstObject = data.find((item: any) => isPlainObject(item))
     if (!firstObject) return []
-    return Object.keys(firstObject)
+    return flattenKeys(firstObject)
   } catch {
     return []
   }
@@ -1174,7 +1216,7 @@ const parsedSentences = computed(() => {
     const parsed = JSON.parse(text)
     if (Array.isArray(parsed)) {
       data = parsed
-    } else if (typeof parsed === 'object' && parsed !== null) {
+    } else if (isPlainObject(parsed)) {
       data = [parsed]
     } else {
       return []
@@ -1185,11 +1227,11 @@ const parsedSentences = computed(() => {
     const sourceField = batchImportForm.value.sourceField
 
     return data
-            .filter((item) => item && typeof item === 'object')
+            .filter((item) => isPlainObject(item))
             .map((item) => ({
-              content: contentField ? String(item[contentField] ?? '') : '',
-              author: authorField ? String(item[authorField] ?? '') : '',
-              source: sourceField ? String(item[sourceField] ?? '') : '',
+              content: contentField ? String(getNestedValue(item, contentField) ?? '') : '',
+              author: authorField ? String(getNestedValue(item, authorField) ?? '') : '',
+              source: sourceField ? String(getNestedValue(item, sourceField) ?? '') : '',
             }))
             .filter((item) => item.content)
   } catch {
