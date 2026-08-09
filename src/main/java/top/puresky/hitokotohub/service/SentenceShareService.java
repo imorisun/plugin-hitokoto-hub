@@ -28,7 +28,8 @@ public interface SentenceShareService {
      *
      * @param sentenceName      句子 metadata.name
      * @param requirePublished  是否仅允许已发布句子
+     * @param theme             卡片主题：dark（夜间）/ light（日间），非法值回退 dark
      * @return SVG 字符串；句子不存在（或未发布且要求发布）时为空
      */
-    Mono<String> buildShareCardSvg(String sentenceName, boolean requirePublished);
+    Mono<String> buildShareCardSvg(String sentenceName, boolean requirePublished, String theme);
 }

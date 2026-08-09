@@ -7,6 +7,7 @@ import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.RouterFunction;
@@ -48,7 +49,10 @@ public class SentenceSharePublicEndpoint implements CustomEndpoint {
                     .tag(TAG)
                     .parameter(parameterBuilder().in(ParameterIn.PATH).name("name")
                         .description("句子 metadata.name").implementation(String.class)
-                        .required(true)))
+                        .required(true))
+                    .parameter(parameterBuilder().in(ParameterIn.QUERY).name("theme")
+                        .description("卡片主题：dark（夜间）/ light（日间），默认 dark")
+                        .implementation(String.class).required(false)))
             .build();
     }
 
@@ -66,9 +70,12 @@ public class SentenceSharePublicEndpoint implements CustomEndpoint {
 
     @NonNull Mono<ServerResponse> getShareCard(@NonNull ServerRequest request) {
         String name = request.pathVariable("name");
-        return shareService.buildShareCardSvg(name, true)
+        String theme = request.queryParam("theme").orElse("dark");
+        return shareService.buildShareCardSvg(name, true, theme)
             .flatMap(svg -> ServerResponse.ok()
                 .contentType(MediaType.parseMediaType("image/svg+xml;charset=UTF-8"))
+                // 卡片内容仅随句子与日期变化，允许浏览器/代理短时缓存以提升分享页加载性能
+                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=3600")
                 .bodyValue(svg))
             .switchIfEmpty(ServerResponse.notFound().build());
     }

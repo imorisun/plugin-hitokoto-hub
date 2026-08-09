@@ -48,7 +48,10 @@ public class SentenceShareConsoleEndpoint implements CustomEndpoint {
                     .summary("获取指定句子的分享卡片").tag(TAG)
                     .parameter(parameterBuilder().in(ParameterIn.PATH).name("name")
                         .description("句子 metadata.name").implementation(String.class)
-                        .required(true)))
+                        .required(true))
+                    .parameter(parameterBuilder().in(ParameterIn.QUERY).name("theme")
+                        .description("卡片主题：dark（夜间）/ light（日间），默认 dark")
+                        .implementation(String.class).required(false)))
             .build();
     }
 
@@ -66,7 +69,8 @@ public class SentenceShareConsoleEndpoint implements CustomEndpoint {
 
     @NonNull Mono<ServerResponse> getShareCard(@NonNull ServerRequest request) {
         String name = request.pathVariable("name");
-        return shareService.buildShareCardSvg(name, false)
+        String theme = request.queryParam("theme").orElse("dark");
+        return shareService.buildShareCardSvg(name, false, theme)
             .flatMap(svg -> ServerResponse.ok()
                 .contentType(MediaType.parseMediaType("image/svg+xml;charset=UTF-8"))
                 .bodyValue(svg))

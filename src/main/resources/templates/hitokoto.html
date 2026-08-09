@@ -31,7 +31,8 @@
 <div id="templateConfig"
      style="display:none"
      th:attr="data-theme=${templateTheme},data-sakura=${templateShowSakura},data-hint=${templateShowHint},
-              data-auto-refresh=${enableAutoRefresh},data-auto-refresh-interval=${autoRefreshInterval}">
+              data-auto-refresh=${enableAutoRefresh},data-auto-refresh-interval=${autoRefreshInterval},
+              data-disable-auto-refresh=${shareView}">
 </div>
 
 <div class="bg-glow top"></div>
@@ -66,11 +67,16 @@
                 <path d="M12 2a10 10 0 0 1 0 20" fill="currentColor" opacity="0.5"/>
             </svg>
         </button>
-        <!-- 自动刷新暂停/恢复按钮：仅在后端启用自动刷新时渲染 -->
+        <!-- 自动刷新暂停/恢复按钮：仅在后端启用自动刷新时渲染；分享直达视图初始为暂停态 -->
         <button class="auto-refresh-toggle" id="autoRefreshToggle" type="button"
                 th:if="${enableAutoRefresh == true}"
                 aria-label="暂停自动切换" data-tooltip="暂停自动切换"
                 aria-pressed="false">
+            <!-- 倒计时光环：圆弧从顶部顺时针递减，指示距下次自动切换的剩余时间 -->
+            <svg class="auto-refresh-ring" viewBox="0 0 40 40" aria-hidden="true">
+                <circle class="auto-refresh-ring__track" cx="20" cy="20" r="18"/>
+                <circle class="auto-refresh-ring__progress" cx="20" cy="20" r="18"/>
+            </svg>
             <!-- 暂停图标：自动刷新运行中显示 -->
             <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true">
                 <rect x="6" y="4" width="4" height="16" rx="1"/>
@@ -245,6 +251,25 @@
             <img class="share-preview__card" id="shareCardPreview" alt="分享卡片预览"/>
             <div class="share-preview__loading" id="shareCardLoading">卡片生成中...</div>
             <div class="share-preview__error" id="shareCardError">卡片生成失败，请稍后重试</div>
+            <button class="share-theme-toggle" id="shareThemeToggle" type="button"
+                    aria-label="切换卡片日间/夜间主题" data-tooltip="切换卡片主题">
+                <!-- 太阳图标：夜间卡片显示，点击切到日间 -->
+                <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <!-- 月亮图标：日间卡片显示，点击切到夜间 -->
+                <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
         </div>
         <!-- 分享选项 -->
         <div class="share-options" id="shareOptions">

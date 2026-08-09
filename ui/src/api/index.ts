@@ -88,8 +88,8 @@ const sentenceShareConsoleApiClient = {
     axiosInstance.get<SharePayload>(
       `/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence/${encodeURIComponent(name)}/share`,
     ),
-  getShareCardUrl: (name: string) =>
-    `/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence/${encodeURIComponent(name)}/share/card`,
+  getShareCardUrl: (name: string, theme: 'dark' | 'light' = 'dark') =>
+    `/apis/console.api.hitokotohub.puresky.top/v1alpha1/sentence/${encodeURIComponent(name)}/share/card?theme=${theme}`,
 }
 
 export {

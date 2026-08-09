@@ -35,11 +35,12 @@ public class SentenceShareServiceImpl implements SentenceShareService {
     }
 
     @Override
-    public Mono<String> buildShareCardSvg(String sentenceName, boolean requirePublished) {
+    public Mono<String> buildShareCardSvg(String sentenceName, boolean requirePublished,
+        String theme) {
         return loadSentence(sentenceName, requirePublished)
             .flatMap(sentence -> loadShareConfig()
                 .flatMap(config -> loadSiteName(config)
-                    .map(siteName -> ShareCardSvgBuilder.build(sentence, siteName))));
+                    .map(siteName -> ShareCardSvgBuilder.build(sentence, siteName, theme))));
     }
 
     private Mono<ShareConfig> loadShareConfig() {
@@ -91,7 +92,8 @@ public class SentenceShareServiceImpl implements SentenceShareService {
             payload.setCategoryDisplayName(categoryDisplayName);
             payload.setLikeCount(status != null ? status.getLikeCount() : 0);
             payload.setViewCount(status != null ? status.getViewCount() : 0);
-            payload.setSharePath("/hitokoto?sentence=" + sentence.getMetadata().getName());
+            payload.setSharePath(
+                "/hitokoto?sentence=" + sentence.getMetadata().getName());
             payload.setSiteName(siteName);
             payload.setCreatedAt(System.currentTimeMillis());
             return payload;

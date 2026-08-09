@@ -973,9 +973,12 @@
     const shareModal = document.getElementById('shareModal');
     const sharePreview = document.getElementById('sharePreview');
     const shareCardPreview = document.getElementById('shareCardPreview');
+    const shareThemeToggle = document.getElementById('shareThemeToggle');
     const SHARE_API_BASE = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/';
     let shareData = null;
     let shareCardReady = false;
+    /* 卡片主题：dark（夜间）/ light（日间），打开弹窗时跟随页面主题，可手动切换 */
+    let shareTheme = 'dark';
     /* 记录打开 modal 前的焦点元素，关闭后返回焦点（满足 WCAG 模态对话框规范） */
     let shareModalLastFocused = null;
 
@@ -985,6 +988,12 @@
             return;
         }
         shareModalLastFocused = document.activeElement;
+        /* 卡片主题默认跟随页面主题，用户可在弹窗内手动切换 */
+        shareTheme = document.documentElement.getAttribute('data-theme') === 'light'
+            ? 'light' : 'dark';
+        if (shareThemeToggle) {
+            shareThemeToggle.setAttribute('data-card-theme', shareTheme);
+        }
         /* 每次打开重置预览并重新加载，避免展示旧句子的卡片 */
         shareData = null;
         shareCardReady = false;
@@ -1020,15 +1029,32 @@
     }
 
     function loadShareCard() {
+        sharePreview.classList.add('share-preview--loading');
+        sharePreview.classList.remove('share-preview--loaded', 'share-preview--error');
         shareCardPreview.onload = () => {
             shareCardReady = true;
             sharePreview.classList.add('share-preview--loaded');
             sharePreview.classList.remove('share-preview--loading', 'share-preview--error');
+            /* 新卡片加载完成，淡入结束 */
+            shareCardPreview.classList.remove('share-card-preview--swap');
         };
         shareCardPreview.onerror = () => {
             showSharePreviewError();
+            shareCardPreview.classList.remove('share-card-preview--swap');
         };
-        shareCardPreview.src = SHARE_API_BASE + encodeURIComponent(state.name) + '/share/card';
+        shareCardPreview.src = SHARE_API_BASE + encodeURIComponent(state.name)
+            + '/share/card?theme=' + shareTheme;
+    }
+
+    /* 切换分享卡片日间/夜间主题并重新加载预览 */
+    function toggleShareTheme() {
+        shareTheme = shareTheme === 'dark' ? 'light' : 'dark';
+        if (shareThemeToggle) {
+            shareThemeToggle.setAttribute('data-card-theme', shareTheme);
+        }
+        /* 优雅过渡：旧卡片先淡出微缩，再以淡入显示新卡片 */
+        shareCardPreview.classList.add('share-card-preview--swap');
+        loadShareCard();
     }
 
     function showSharePreviewError() {
@@ -1100,7 +1126,8 @@
             canvas.width = shareCardPreview.naturalWidth || 600;
             canvas.height = shareCardPreview.naturalHeight || 800;
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#0a0606';
+            /* 背景色与卡片主题一致，避免导出 PNG 出现黑色底板 */
+            ctx.fillStyle = shareTheme === 'dark' ? '#0a0606' : '#fdf8f7';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(shareCardPreview, 0, 0, canvas.width, canvas.height);
             const a = document.createElement('a');
@@ -1124,6 +1151,9 @@
     document.getElementById('shareCopyLink').addEventListener('click', copyShareLink);
     document.getElementById('shareDownloadCard').addEventListener('click', downloadShareCard);
     document.getElementById('shareCopyText').addEventListener('click', copyShareText);
+    if (shareThemeToggle) {
+        shareThemeToggle.addEventListener('click', toggleShareTheme);
+    }
 
     /* Escape 关闭分享弹窗 + Tab 焦点陷阱（与提交弹窗一致） */
     document.addEventListener('keydown', (e) => {
@@ -1181,8 +1211,10 @@
         try {
             const s = await fetchNewSentence();
             applySentence(s);
-            /* 手动切换后重置自动切换计时器 */
-            if (window.__hitokotoResetAutoTimer) {
+            /* 离开分享直达视图后恢复自动切换计时器 */
+            if (window.__hitokotoReenableAutoRefresh) {
+                window.__hitokotoReenableAutoRefresh();
+            } else if (window.__hitokotoResetAutoTimer) {
                 window.__hitokotoResetAutoTimer();
             }
         } catch (e) {
@@ -1621,6 +1653,16 @@
         var isAutoFetching = false;
         var userPaused = false;  /* 用户手动暂停状态 */
 
+        /* ---- 倒计时光环：实时展示距下次自动切换的剩余时间 ---- */
+        var RING_CIRCUMFERENCE = 2 * Math.PI * 18;   /* r=18（viewBox 40），周长约 113.1 */
+        var ringStart = 0;        /* 当前倒计时起始时间戳 */
+        var ringDuration = 0;     /* 当前倒计时总时长（ms） */
+        var ringTimer = null;     /* rAF 句柄 */
+        var autoToggleBtn = null;
+        var ringProgressEl = null;
+        var reducedMotion = window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
         function getAutoRefreshConfig() {
             var cfg = document.getElementById('templateConfig');
             if (!cfg) return { enabled: false, interval: 10 };
@@ -1634,6 +1676,67 @@
             if (autoTimer) {
                 clearTimeout(autoTimer);
                 autoTimer = null;
+            }
+        }
+
+        /* 初始化光环元素引用（按钮仅在启用自动刷新时渲染） */
+        function initRingElements() {
+            if (autoToggleBtn) return;
+            autoToggleBtn = document.getElementById('autoRefreshToggle');
+            if (!autoToggleBtn) return;
+            var ring = autoToggleBtn.querySelector('.auto-refresh-ring');
+            ringProgressEl = ring ? ring.querySelector('.auto-refresh-ring__progress') : null;
+        }
+
+        /* 按剩余比例更新圆弧长度（fraction: 1 满 → 0 空） */
+        function updateRingProgress(fraction) {
+            if (!ringProgressEl) return;
+            var clamped = Math.max(0, Math.min(1, fraction));
+            ringProgressEl.style.strokeDashoffset = (RING_CIRCUMFERENCE * (1 - clamped)).toFixed(2);
+        }
+
+        function stopRingCountdown() {
+            if (ringTimer) {
+                cancelAnimationFrame(ringTimer);
+                ringTimer = null;
+            }
+        }
+
+        /* 启动倒计时光环：圆弧从满到空，每秒同步一次 tooltip 剩余秒数 */
+        function startRingCountdown(duration) {
+            stopRingCountdown();
+            if (reducedMotion || userPaused) return;
+            initRingElements();
+            if (!ringProgressEl) return;
+            ringStart = Date.now();
+            ringDuration = duration;
+            var lastSecond = -1;
+            function tick() {
+                var remaining = Math.max(0, ringDuration - (Date.now() - ringStart));
+                updateRingProgress(remaining / ringDuration);
+                var sec = Math.ceil(remaining / 1000);
+                if (sec !== lastSecond) {
+                    lastSecond = sec;
+                    if (autoToggleBtn) {
+                        autoToggleBtn.setAttribute('data-tooltip', sec + ' 秒后自动切换');
+                    }
+                }
+                if (remaining > 0) {
+                    ringTimer = requestAnimationFrame(tick);
+                } else {
+                    ringTimer = null;
+                }
+            }
+            ringTimer = requestAnimationFrame(tick);
+        }
+
+        /* 进入切换中状态：固定一段短弧，交由 CSS 环形旋转形成 loading 态 */
+        function setRingFetching() {
+            initRingElements();
+            if (!ringProgressEl) return;
+            ringProgressEl.style.strokeDashoffset = (RING_CIRCUMFERENCE * 0.75).toFixed(2);
+            if (autoToggleBtn) {
+                autoToggleBtn.setAttribute('data-tooltip', '正在切换...');
             }
         }
 
@@ -1662,6 +1765,12 @@
             var shareModalEl = document.getElementById('shareModal');
             if (shareModalEl && shareModalEl.classList.contains('open')) return;
             isAutoFetching = true;
+            /* 进入切换中状态：光环转为旋转短弧（loading 态） */
+            var btn = document.getElementById('autoRefreshToggle');
+            if (btn) {
+                btn.classList.add('auto-refresh-toggle--fetching');
+                setRingFetching();
+            }
             try {
                 var s = await fetchNewSentence();
                 applySentence(s);
@@ -1669,6 +1778,9 @@
                 console.error('自动切换失败', e);
             } finally {
                 isAutoFetching = false;
+                if (btn) {
+                    btn.classList.remove('auto-refresh-toggle--fetching');
+                }
             }
         }
 
@@ -1676,6 +1788,7 @@
             clearAutoTimer();
             var config = getAutoRefreshConfig();
             if (!config.enabled || userPaused) return;
+            startRingCountdown(config.interval * 1000);
             autoTimer = setTimeout(function() {
                 autoFetchAndApply().then(function() {
                     scheduleNext();
@@ -1687,6 +1800,7 @@
             if (userPaused) return;
             userPaused = true;
             clearAutoTimer();
+            stopRingCountdown();
             updateToggleButton();
         }
 
@@ -1717,18 +1831,24 @@
             }
         });
 
-        /* 初始化：DOM 就绪后启动定时任务并绑定按钮 */
+        /* 初始化：DOM 就绪后绑定按钮；分享直达视图初始为暂停态，不启动自动切换 */
         document.addEventListener('DOMContentLoaded', function() {
             var config = getAutoRefreshConfig();
-            if (config.enabled) {
+            var cfg = document.getElementById('templateConfig');
+            var shareView = cfg && cfg.getAttribute('data-disable-auto-refresh') === 'true';
+            var btn = document.getElementById('autoRefreshToggle');
+            if (btn) {
+                updateToggleButton();
+                btn.addEventListener('click', function() {
+                    toggle();
+                });
+            }
+            if (config.enabled && !shareView) {
                 scheduleNext();
-                var btn = document.getElementById('autoRefreshToggle');
-                if (btn) {
-                    updateToggleButton();
-                    btn.addEventListener('click', function() {
-                        toggle();
-                    });
-                }
+            }
+            /* 分享直达视图：自动切换初始暂停（按钮显示暂停态），用户可点击恢复 */
+            if (shareView) {
+                pause();
             }
         });
 
@@ -1736,6 +1856,18 @@
         window.__hitokotoResetAutoTimer = function() {
             var config = getAutoRefreshConfig();
             if (config.enabled && !userPaused) {
+                scheduleNext();
+            }
+        };
+        /* 用户主动离开分享直达视图（如点击 Next）后恢复自动切换 */
+        window.__hitokotoReenableAutoRefresh = function() {
+            var cfg = document.getElementById('templateConfig');
+            if (cfg) {
+                cfg.removeAttribute('data-disable-auto-refresh');
+            }
+            if (userPaused) {
+                resume();
+            } else {
                 scheduleNext();
             }
         };

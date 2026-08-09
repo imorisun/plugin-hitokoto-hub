@@ -1499,6 +1499,69 @@
             color: var(--accent);
         }
 
+        /* ==================== 自动刷新倒计时光环 ====================
+           圆弧从顶部顺时针递减，实时指示距下次自动切换的剩余时间：
+           - 运行中：圆弧+光晕随倒计时收缩，tooltip 同步显示剩余秒数
+           - 切换中：固定短弧并环绕旋转（loading 态），避免空环静止显得卡死
+           - 暂停时：光环变暗、进度弧隐藏，保持按钮视觉占位稳定
+           半径 r=18（viewBox 40），周长 2π·18 ≈ 113.1，供 JS 计算 stroke-dashoffset
+        */
+        @keyframes autoRefreshSpin {
+            from { transform: translate(-50%, -50%) rotate(-90deg); }
+            to   { transform: translate(-50%, -50%) rotate(270deg); }
+        }
+
+        .auto-refresh-toggle .auto-refresh-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+            width: calc(100% + 6px);
+            height: calc(100% + 6px);
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        .auto-refresh-toggle .auto-refresh-ring__track {
+            fill: none;
+            stroke: var(--border-default);
+            stroke-width: 2;
+        }
+
+        .auto-refresh-toggle .auto-refresh-ring__progress {
+            fill: none;
+            stroke: var(--accent);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-dasharray: 113.1;
+            stroke-dashoffset: 0;
+            /* 降低不透明度与光晕强度，避免与相邻图标按钮形成过于突出的视觉焦点 */
+            opacity: 0.55;
+            filter: drop-shadow(0 0 3px var(--accent-glow));
+            transition: opacity 0.4s ease;
+        }
+
+        /* 切换中：短弧环绕旋转 */
+        .auto-refresh-toggle--fetching .auto-refresh-ring {
+            animation: autoRefreshSpin 0.9s linear infinite;
+        }
+
+        /* 暂停状态：光环变暗、进度弧隐藏，避免视觉占位"缩水" */
+        .auto-refresh-toggle.paused .auto-refresh-ring {
+            opacity: 0.5;
+        }
+
+        .auto-refresh-toggle.paused .auto-refresh-ring__progress {
+            opacity: 0;
+        }
+
+        /* 减少动效偏好：直接隐藏光环（JS 侧同步跳过 rAF 倒计时驱动） */
+        @media (prefers-reduced-motion: reduce) {
+            .auto-refresh-toggle .auto-refresh-ring {
+                display: none;
+            }
+        }
+
         /* Tooltip */
         .auto-refresh-toggle::after {
             content: attr(data-tooltip);
@@ -1928,7 +1991,93 @@
             max-height: calc(52vh - 1.5rem);
             /* 高度受限时按比例缩放居中，防止拉伸变形 */
             object-fit: contain;
+            /* 加载前按卡片比例占位，避免 loading 区域塌缩与布局跳动 */
+            aspect-ratio: 3 / 4;
             border-radius: 0.6rem;
+            /* 作为主题切换按钮的定位上下文：按钮悬浮于卡片本体右上角 */
+            position: relative;
+            /* 主题切换过渡：旧卡片淡出微缩，新卡片加载完成后淡入 */
+            transition: opacity 0.45s ease, transform 0.45s ease;
+        }
+
+        .share-preview__card.share-card-preview--swap {
+            opacity: 0;
+            transform: scale(0.985);
+        }
+
+        /* 卡片日间/夜间主题切换按钮：悬浮于卡片本体右上角 */
+        .share-theme-toggle {
+            position: absolute;
+            top: 0.6rem;
+            right: 0.6rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border-radius: 999px;
+            border: 1px solid var(--border-default);
+            background: var(--bg-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: var(--text-dim);
+            cursor: pointer;
+            z-index: 2;
+            transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
+        }
+
+        .share-theme-toggle svg {
+            width: 15px;
+            height: 15px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        /* 图标切换：暗色卡片显示太阳，日间卡片显示月亮（由按钮 data-card-theme 决定） */
+        .share-theme-toggle[data-card-theme="dark"] .icon-sun,
+        .share-theme-toggle[data-card-theme="light"] .icon-moon {
+            display: block;
+        }
+
+        .share-theme-toggle[data-card-theme="light"] .icon-sun,
+        .share-theme-toggle[data-card-theme="dark"] .icon-moon {
+            display: none;
+        }
+
+        /* tooltip 显示在按钮下方：预览区 overflow:hidden 会裁剪上方内容 */
+        .share-theme-toggle::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            padding: 4px 12px;
+            font-family: var(--ui-font);
+            font-size: 0.7rem;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            color: var(--text-dim);
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-default);
+            border-radius: 99px;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            z-index: 100;
+        }
+
+        /* 仅支持悬停的设备展示提示，避免触摸设备出现粘滞提示 */
+        @media (hover: hover) {
+            .share-theme-toggle:hover::after {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .share-preview__loading {

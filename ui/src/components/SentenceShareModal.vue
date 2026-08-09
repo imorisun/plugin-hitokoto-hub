@@ -12,6 +12,7 @@
           :src="cardSrc"
           class="share-card-preview"
           alt="分享卡片预览"
+          :class="{ 'share-card-preview--fading': loading }"
           @load="handleCardLoaded"
           @error="handleCardError"
         />
@@ -21,22 +22,16 @@
         <div v-else-if="cardError" class="share-preview-status share-preview-status--error">
           卡片生成失败，请稍后重试
         </div>
-      </div>
-
-      <!-- 句子信息 -->
-      <div class="share-sentence-info">
-        <div class="share-sentence-content">
-          {{ payload?.content || sentence?.spec.content }}
-        </div>
-        <div class="share-sentence-meta">
-          <VTag>作者：{{ payload?.author || sentence?.spec.author || '匿名' }}</VTag>
-          <VTag>来源：{{ payload?.source || sentence?.spec.source || '未知' }}</VTag>
-          <VTag v-if="payload?.categoryDisplayName">
-            分类：{{ payload.categoryDisplayName }}
-          </VTag>
-          <VTag>点赞：{{ payload?.likeCount ?? 0 }}</VTag>
-          <VTag>浏览：{{ payload?.viewCount ?? 0 }}</VTag>
-        </div>
+        <button
+          class="share-theme-toggle"
+          type="button"
+          :aria-label="cardTheme === 'dark' ? '切换到日间卡片' : '切换到夜间卡片'"
+          :title="cardTheme === 'dark' ? '切换到日间卡片' : '切换到夜间卡片'"
+          @click="toggleCardTheme"
+        >
+          <el-icon v-if="cardTheme === 'dark'"><Sunny /></el-icon>
+          <el-icon v-else><Moon /></el-icon>
+        </button>
       </div>
 
       <!-- 分享操作 -->
@@ -70,8 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import {VButton, VLoading, VModal, VTag} from '@halo-dev/components'
-import {CopyDocument, Download, Link} from '@element-plus/icons-vue'
+import {VButton, VLoading, VModal} from '@halo-dev/components'
+import {CopyDocument, Download, Link, Moon, Sunny} from '@element-plus/icons-vue'
 import {computed, ref, watch} from 'vue'
 import {sentenceShareConsoleApiClient} from '@/api'
 import type {SharePayload} from '@/api'
@@ -99,19 +94,33 @@ const loading = ref(false)
 const cardError = ref(false)
 const cardLoaded = ref(false)
 const copying = ref(false)
+/* 卡片主题：dark（夜间）/ light（日间），默认夜间与品牌调性一致 */
+const cardTheme = ref<'dark' | 'light'>('dark')
 let loadToken = 0
 
 const cardSrc = computed(() =>
   props.sentence?.metadata?.name
-    ? sentenceShareConsoleApiClient.getShareCardUrl(props.sentence.metadata.name)
+    ? sentenceShareConsoleApiClient.getShareCardUrl(
+        props.sentence.metadata.name,
+        cardTheme.value,
+      )
     : '',
 )
+
+/** 切换卡片日间/夜间主题并重新加载预览 */
+const toggleCardTheme = () => {
+  cardTheme.value = cardTheme.value === 'dark' ? 'light' : 'dark'
+  cardLoaded.value = false
+  loading.value = true
+  cardError.value = false
+}
 
 const resetState = () => {
   payload.value = null
   loading.value = false
   cardError.value = false
   cardLoaded.value = false
+  cardTheme.value = 'dark'
 }
 
 const loadShareData = async () => {
@@ -223,7 +232,8 @@ const handleDownloadCard = () => {
     canvas.height = img.naturalHeight || 800
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    ctx.fillStyle = '#0a0606'
+    /* 背景色与卡片主题一致，避免导出 PNG 出现黑色底板 */
+    ctx.fillStyle = cardTheme.value === 'dark' ? '#0a0606' : '#fdf8f7'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
     const a = document.createElement('a')
@@ -277,6 +287,40 @@ watch(
   max-height: calc(46vh - 16px);
   width: 100%;
   object-fit: contain;
+  /* 主题切换过渡：旧卡片淡出微缩，新卡片加载完成后淡入 */
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.share-card-preview--fading {
+  opacity: 0;
+  transform: scale(0.985);
+}
+
+/* 卡片日间/夜间主题切换按钮：悬浮于预览右上角 */
+.share-theme-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.85);
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.share-theme-toggle:hover {
+  color: #e11d48;
+  border-color: #e11d48;
+}
+
+.share-theme-toggle:active {
+  transform: scale(0.92);
 }
 
 .share-preview-status {
@@ -287,34 +331,21 @@ watch(
   width: 100%;
   color: #6b7280;
   font-size: 13px;
+  /* 与卡片淡出/淡入节奏一致的柔和过渡 */
+  animation: statusFadeIn 0.4s ease both;
+}
+
+@keyframes statusFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .share-preview-status--error {
   color: #b91c1c;
-}
-
-.share-sentence-info {
-  margin-bottom: 16px;
-}
-
-.share-sentence-content {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 14px;
-  font-weight: 500;
-  color: #111827;
-  line-height: 1.6;
-  margin-bottom: 8px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.share-sentence-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 
 .share-actions {

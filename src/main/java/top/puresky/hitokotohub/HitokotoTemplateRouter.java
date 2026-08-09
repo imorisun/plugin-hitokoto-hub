@@ -38,17 +38,18 @@ public class HitokotoTemplateRouter {
             ? hitokotoFinder.sentenceByName(sharedName).map(List::of).defaultIfEmpty(List.of())
             : Mono.just(List.of());
 
-        return sharedSentences.flatMap(list -> renderPage(request, list));
+        return sharedSentences.flatMap(list -> renderPage(request, list,
+            StringUtils.isNotBlank(sharedName)));
     }
 
     private Mono<ServerResponse> renderPage(ServerRequest request,
-        List<HitokotoFinder.SentenceVo> sharedSentences) {
+        List<HitokotoFinder.SentenceVo> sharedSentences, boolean shareView) {
         return settingConfig.getTemplateConfig()
             .defaultIfEmpty(new SettingConfig.TemplateConfig())
             .flatMap(templateConfig -> {
                 var model = new HashMap<String, Object>();
                 model.put("sentences", List.of());
-                // 非空则模板渲染指定句子，为空则渲染随机句子（见 hitokoto.html 双分支）
+                // 非空则模板渲染指定句子，为空则渲染随机句子（见 hitokoto.html 三元表达式）
                 model.put("sharedSentence",
                     sharedSentences.isEmpty() ? null : sharedSentences);
                 model.put("templateTheme", templateConfig.getTemplateTheme());
@@ -56,6 +57,8 @@ public class HitokotoTemplateRouter {
                 model.put("templateShowHint", templateConfig.getTemplateShowHint());
                 model.put("enableAutoRefresh", templateConfig.getEnableAutoRefresh());
                 model.put("autoRefreshInterval", templateConfig.getAutoRefreshInterval());
+                // 分享链接直达视图：禁用自动切换句子，避免打断被分享句子的展示
+                model.put("shareView", shareView);
                 return templateNameResolver.resolveTemplateNameOrDefault(request.exchange(),
                         "hitokoto")
                     .flatMap(templateName -> ServerResponse.ok().render(templateName, model));
