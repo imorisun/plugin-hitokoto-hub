@@ -267,12 +267,14 @@ watch(
   border-radius: 8px;
   background: #f9fafb;
   margin-bottom: 16px;
+  /* 内边距让卡片四周留白，上下边距均匀 */
+  padding: 8px;
 }
 
 .share-card-preview {
   display: block;
   max-width: 100%;
-  max-height: 46vh;
+  max-height: calc(46vh - 16px);
   width: 100%;
   object-fit: contain;
 }

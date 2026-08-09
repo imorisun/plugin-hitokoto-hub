@@ -21,10 +21,6 @@ public class SentenceShareServiceImpl implements SentenceShareService {
 
     /** 未配置站点名称时的默认站点名称 */
     private static final String DEFAULT_SITE_NAME = "轻言";
-    /** 未配置标语时的默认分享标语 */
-    private static final String DEFAULT_TAGLINE = "轻拾人间辞藻，言说万千心绪";
-    /** 未配置英文标识时的默认英文标识 */
-    private static final String DEFAULT_WORDMARK = "LITEWORDS";
 
     private final ReactiveExtensionClient client;
     private final SettingConfig settingConfig;
@@ -41,11 +37,9 @@ public class SentenceShareServiceImpl implements SentenceShareService {
     @Override
     public Mono<String> buildShareCardSvg(String sentenceName, boolean requirePublished) {
         return loadSentence(sentenceName, requirePublished)
-            .flatMap(sentence -> loadCategoryDisplayName(sentence.getSpec().getCategoryName())
-                .flatMap(displayName -> loadShareConfig()
-                    .flatMap(config -> loadSiteName(config)
-                        .map(siteName -> ShareCardSvgBuilder.build(sentence, displayName,
-                            siteName, loadTagline(config), loadWordmark(config))))));
+            .flatMap(sentence -> loadShareConfig()
+                .flatMap(config -> loadSiteName(config)
+                    .map(siteName -> ShareCardSvgBuilder.build(sentence, siteName))));
     }
 
     private Mono<ShareConfig> loadShareConfig() {
@@ -61,16 +55,6 @@ public class SentenceShareServiceImpl implements SentenceShareService {
             .map(SystemInfo::getTitle)
             .filter(StringUtils::isNotBlank)
             .defaultIfEmpty(DEFAULT_SITE_NAME);
-    }
-
-    /** 分享标语：优先插件配置，未配置时使用默认值 */
-    private String loadTagline(ShareConfig config) {
-        return StringUtils.defaultIfBlank(config.getTagline(), DEFAULT_TAGLINE);
-    }
-
-    /** 英文标识：优先插件配置，未配置时使用默认值 */
-    private String loadWordmark(ShareConfig config) {
-        return StringUtils.defaultIfBlank(config.getWordmark(), DEFAULT_WORDMARK);
     }
 
     private Mono<Sentence> loadSentence(String sentenceName, boolean requirePublished) {

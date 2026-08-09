@@ -356,15 +356,3 @@ spec:
           value: 轻言
           placeholder: 请输入站点名称
           help: 展示在分享卡片上的站点名称；留空则使用 Halo 站点标题
-        - $formkit: text
-          name: tagline
-          label: 分享标语
-          value: 轻拾人间辞藻，言说万千心绪
-          placeholder: 请输入分享标语
-          help: 展示在分享卡片底部的标语
-        - $formkit: text
-          name: wordmark
-          label: 英文标识
-          value: LITEWORDS
-          placeholder: 请输入英文标识
-          help: 展示在分享卡片右上角的英文标识

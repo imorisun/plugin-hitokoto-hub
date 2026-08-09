@@ -1907,6 +1907,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            /* 内边距让卡片四周留白，上下边距均匀，不贴容器边框 */
+            padding: 0.75rem;
             border-radius: 0.85rem;
             overflow: hidden;
             background: var(--bg-input);
@@ -1919,9 +1921,13 @@
         }
 
         .share-preview__card {
-            max-width: 100%;
-            max-height: 52vh;
             display: block;
+            width: 100%;
+            max-width: 100%;
+            /* 扣除容器内边距，避免超高时被容器裁切 */
+            max-height: calc(52vh - 1.5rem);
+            /* 高度受限时按比例缩放居中，防止拉伸变形 */
+            object-fit: contain;
             border-radius: 0.6rem;
         }
 
@@ -2209,7 +2215,7 @@
             }
 
             .share-preview__card {
-                max-height: 42vh;
+                max-height: calc(42vh - 1.5rem);
             }
 
             .share-options {
