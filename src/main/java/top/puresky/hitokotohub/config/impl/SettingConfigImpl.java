@@ -36,4 +36,9 @@ public class SettingConfigImpl implements SettingConfig {
         return settingFetcher.fetch(TemplateConfig.GROUP,
             TemplateConfig.class);
     }
+    @Override
+    public Mono<ShareConfig> getShareConfig() {
+        return settingFetcher.fetch(ShareConfig.GROUP,
+            ShareConfig.class);
+    }
 }

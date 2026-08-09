@@ -1672,6 +1672,393 @@
             color: var(--accent);
         }
 
+        .category-dropdown__option--placeholder {
+            cursor: default;
+            opacity: 0.7;
+        }
+
+        .category-dropdown__option--placeholder:hover {
+            background: transparent;
+            color: var(--text-dim);
+        }
+
+        /* ==================== 分享按钮 ==================== */
+        .share-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            border: 1px solid var(--border-default);
+            background: var(--bg-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
+            padding: 0;
+            opacity: 0;
+            animation: authorFadeIn 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            animation-delay: 1s;
+        }
+
+        .share-btn svg {
+            width: 15px;
+            height: 15px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .share-btn:active {
+            transform: scale(0.9);
+        }
+
+        /* 触屏设备不显示 sticky hover */
+        @media (hover: hover) {
+            .share-btn:hover {
+                color: var(--accent);
+                background-color: var(--bg-glass-hover);
+                border-color: var(--border-hover);
+            }
+        }
+
+        /* Tooltip */
+        .share-btn::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            padding: 4px 12px;
+            font-family: var(--ui-font);
+            font-size: 0.7rem;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            color: var(--text-dim);
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-default);
+            border-radius: 99px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            z-index: 100;
+        }
+
+        @media (hover: hover) {
+            .share-btn:hover::after {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        /* ==================== 分享弹窗 ==================== */
+        .share-modal {
+            position: fixed;
+            inset: 0;
+            z-index: var(--z-modal);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .share-modal.open,
+        .share-modal.closing {
+            display: flex;
+        }
+
+        .share-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .share-modal.open .share-modal__backdrop {
+            opacity: 1;
+        }
+
+        .share-modal__card {
+            position: relative;
+            width: 100%;
+            max-width: 22rem;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-card);
+            transform: translateY(20px) scale(0.98);
+            opacity: 0;
+            transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        opacity 0.35s ease,
+                        background-color 0.4s ease,
+                        border-color 0.4s ease,
+                        box-shadow 0.4s ease;
+            color-scheme: var(--color-scheme);
+            scrollbar-width: thin;
+            scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+        }
+
+        .share-modal__card::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .share-modal__card::-webkit-scrollbar-track {
+            background: var(--scrollbar-track);
+            border-radius: 3px;
+        }
+
+        .share-modal__card::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 3px;
+            transition: background 0.3s;
+        }
+
+        .share-modal__card::-webkit-scrollbar-thumb:hover {
+            background: var(--scrollbar-thumb-hover);
+        }
+
+        .share-modal.open .share-modal__card {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .share-modal.closing .share-modal__card {
+            transform: translateY(10px) scale(0.98);
+            opacity: 0;
+            transition: transform 0.25s cubic-bezier(0.55, 0.06, 0.68, 0.19),
+                        opacity 0.25s ease;
+        }
+
+        .share-modal.closing .share-modal__backdrop {
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .share-modal__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+        }
+
+        .share-modal.open .share-modal__header {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.15s both;
+        }
+
+        .share-modal__title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text);
+            letter-spacing: 0.04em;
+        }
+
+        .share-modal__close {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: color 0.3s, background-color 0.3s;
+        }
+
+        @media (hover: hover) {
+            .share-modal__close:hover {
+                color: var(--accent);
+                background-color: rgba(251, 113, 133, 0.1);
+            }
+        }
+
+        .share-modal__close svg {
+            width: 16px;
+            height: 16px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        /* ==================== 分享卡片预览 ==================== */
+        .share-preview {
+            position: relative;
+            width: 100%;
+            max-height: 52vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.85rem;
+            overflow: hidden;
+            background: var(--bg-input);
+            border: 1px solid var(--border-input);
+            margin-bottom: 1.25rem;
+        }
+
+        .share-modal.open .share-preview {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.22s both;
+        }
+
+        .share-preview__card {
+            max-width: 100%;
+            max-height: 52vh;
+            display: block;
+            border-radius: 0.6rem;
+        }
+
+        .share-preview__loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.7rem;
+            font-family: var(--ui-font);
+            font-size: 0.72rem;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .share-preview__loading::before {
+            content: '';
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid rgba(251, 113, 133, 0.2);
+            border-top-color: var(--accent);
+            animation: shareSpin 0.8s linear infinite;
+        }
+
+        @keyframes shareSpin {
+            to { transform: rotate(360deg); }
+        }
+
+        .share-preview__error {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--ui-font);
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            color: var(--accent);
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .share-preview--loaded .share-preview__loading,
+        .share-preview--error .share-preview__loading {
+            display: none;
+        }
+
+        .share-preview--error .share-preview__error {
+            display: flex;
+        }
+
+        /* ==================== 分享选项 ==================== */
+        .share-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.6rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .share-modal.open .share-options {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.3s both;
+        }
+
+        .share-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.7rem 0.3rem;
+            border-radius: 0.7rem;
+            border: 1px solid var(--border-input);
+            background: var(--bg-input);
+            color: var(--text-dim);
+            font-family: var(--ui-font);
+            font-size: 0.68rem;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
+        }
+
+        .share-option svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        @media (hover: hover) {
+            .share-option:hover {
+                color: var(--accent);
+                background-color: var(--bg-glass-hover);
+                border-color: var(--border-hover);
+            }
+        }
+
+        .share-option:active {
+            transform: scale(0.95);
+        }
+
+        .share-modal__footer {
+            display: flex;
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+
+        .share-modal.open .share-modal__footer {
+            animation: fieldSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.38s both;
+        }
+
+        .share-modal__btn {
+            font-family: var(--ui-font);
+            font-size: 0.75rem;
+            letter-spacing: 0.06em;
+            padding: 0.55rem 1.3rem;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: color 0.3s, background-color 0.3s, border-color 0.3s, transform 0.2s;
+            border: 1px solid rgba(251, 113, 133, 0.2);
+            background: transparent;
+            color: var(--text-dim);
+        }
+
+        @media (hover: hover) {
+            .share-modal__btn:hover {
+                color: var(--text);
+                background-color: var(--bg-glass-hover);
+            }
+        }
+
         /* ==================== 极窄屏幕适配（≤ 420px） ====================
            典型场景：小屏手机竖屏。核心优化：
            - 投递按钮隐藏文字，仅保留圆形图标按钮
@@ -1696,7 +2083,8 @@
             /* 圆形图标按钮统一尺寸 30px */
             .theme-toggle,
             .auto-refresh-toggle,
-            .category-toggle {
+            .category-toggle,
+            .share-btn {
                 width: 30px;
                 height: 30px;
             }
@@ -1711,7 +2099,8 @@
                 height: 12px;
             }
 
-            .category-toggle svg {
+            .category-toggle svg,
+            .share-btn svg {
                 width: 14px;
                 height: 14px;
             }
@@ -1802,6 +2191,40 @@
             .submit-modal__title {
                 font-size: 0.95rem;
             }
+
+            /* 分享弹窗适配窄屏：预览与选项更紧凑 */
+            .share-modal__card {
+                padding: 1.25rem 1rem;
+                border-radius: 0.85rem;
+                max-height: 85vh;
+                margin: 0.5rem;
+            }
+
+            .share-modal__title {
+                font-size: 0.95rem;
+            }
+
+            .share-preview {
+                max-height: 42vh;
+            }
+
+            .share-preview__card {
+                max-height: 42vh;
+            }
+
+            .share-options {
+                gap: 0.45rem;
+            }
+
+            .share-option {
+                padding: 0.6rem 0.2rem;
+                font-size: 0.64rem;
+            }
+
+            .share-option svg {
+                width: 16px;
+                height: 16px;
+            }
         }
 
         /* 超窄屏幕（≤ 360px，如 iPhone SE 初代）进一步压缩 */
@@ -1815,7 +2238,8 @@
             }
 
             .theme-toggle,
-            .auto-refresh-toggle {
+            .auto-refresh-toggle,
+            .share-btn {
                 width: 28px;
                 height: 28px;
             }

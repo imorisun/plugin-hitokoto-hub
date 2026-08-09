@@ -151,6 +151,7 @@
     /* ==================== 分类切换 ==================== */
     let selectedCategory = '';
     let browseCategoriesLoaded = false;
+    let browseCategoriesLoading = false;
     const categoryToggleBtn = document.getElementById('categoryToggle');
     const browseCategoryDropdown = document.getElementById('categoryDropdown');
 
@@ -194,7 +195,11 @@
     }
 
     async function loadBrowseCategories() {
+        if (browseCategoriesLoading) return;
+        browseCategoriesLoading = true;
         try {
+            /* 请求期间先显示占位提示，避免下拉打开时空白闪烁 */
+            browseCategoryDropdown.innerHTML = '<div class="category-dropdown__option category-dropdown__option--placeholder">分类加载中…</div>';
             const res = await fetch(CATEGORY_API);
             if (!res.ok) throw new Error('fetch failed');
             const list = await res.json();
@@ -225,6 +230,8 @@
             browseCategoriesLoaded = true;
         } catch (e) {
             browseCategoryDropdown.innerHTML = '<div class="category-dropdown__option">分类加载失败</div>';
+        } finally {
+            browseCategoriesLoading = false;
         }
     }
 
@@ -671,6 +678,9 @@
         /* 分类切换初始化：从 localStorage 恢复上次选择 */
         selectedCategory = getStoredCategory();
         updateCategoryToggleVisual();
+
+        /* 页面加载即预取分类列表，首次点击切换按钮时下拉直接就有内容，避免空白闪烁 */
+        loadBrowseCategories();
     });
 
     /* ==================== 分类切换事件绑定 ==================== */
@@ -958,11 +968,200 @@
         }
     });
 
+    /* ==================== 分享句子 ==================== */
+    const shareBtn = document.getElementById('shareBtn');
+    const shareModal = document.getElementById('shareModal');
+    const sharePreview = document.getElementById('sharePreview');
+    const shareCardPreview = document.getElementById('shareCardPreview');
+    const SHARE_API_BASE = '/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/';
+    let shareData = null;
+    let shareCardReady = false;
+    /* 记录打开 modal 前的焦点元素，关闭后返回焦点（满足 WCAG 模态对话框规范） */
+    let shareModalLastFocused = null;
+
+    function openShareModal() {
+        if (!state.name) {
+            showToast('当前没有可分享的句子');
+            return;
+        }
+        shareModalLastFocused = document.activeElement;
+        /* 每次打开重置预览并重新加载，避免展示旧句子的卡片 */
+        shareData = null;
+        shareCardReady = false;
+        shareCardPreview.removeAttribute('src');
+        sharePreview.classList.remove('share-preview--loaded', 'share-preview--error');
+        sharePreview.classList.add('share-preview--loading');
+        shareModal.classList.add('open');
+        loadShareData();
+    }
+
+    function closeShareModal() {
+        shareModal.classList.add('closing');
+        shareModal.classList.remove('open');
+        setTimeout(() => {
+            shareModal.classList.remove('closing');
+            /* 焦点返回触发按钮，保证键盘用户操作连续性 */
+            if (shareModalLastFocused && typeof shareModalLastFocused.focus === 'function') {
+                shareModalLastFocused.focus();
+                shareModalLastFocused = null;
+            }
+        }, 250);
+    }
+
+    async function loadShareData() {
+        try {
+            const res = await fetch(SHARE_API_BASE + encodeURIComponent(state.name) + '/share');
+            if (!res.ok) throw new Error('fetch failed');
+            shareData = await res.json();
+            loadShareCard();
+        } catch (e) {
+            showSharePreviewError();
+        }
+    }
+
+    function loadShareCard() {
+        shareCardPreview.onload = () => {
+            shareCardReady = true;
+            sharePreview.classList.add('share-preview--loaded');
+            sharePreview.classList.remove('share-preview--loading', 'share-preview--error');
+        };
+        shareCardPreview.onerror = () => {
+            showSharePreviewError();
+        };
+        shareCardPreview.src = SHARE_API_BASE + encodeURIComponent(state.name) + '/share/card';
+    }
+
+    function showSharePreviewError() {
+        sharePreview.classList.add('share-preview--error');
+        sharePreview.classList.remove('share-preview--loading');
+    }
+
+    /* 剪贴板写入：优先 Clipboard API，非安全上下文/旧浏览器降级为 execCommand */
+    async function copyToClipboard(text) {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+            throw new Error('clipboard api unavailable');
+        } catch (e) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                ta.style.pointerEvents = 'none';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                const ok = document.execCommand('copy');
+                ta.remove();
+                if (ok) return true;
+            } catch (e2) { /* 忽略降级失败 */ }
+            return false;
+        }
+    }
+
+    async function copyShareLink() {
+        if (!shareData || !shareData.sharePath) {
+            showToast('分享链接暂不可用');
+            return;
+        }
+        /* 后端不感知域名，分享链接由前端基于当前站点拼装 */
+        const link = window.location.origin + shareData.sharePath;
+        const ok = await copyToClipboard(link);
+        showToast(ok ? '分享链接已复制' : '复制失败，请手动复制');
+    }
+
+    async function copyShareText() {
+        if (!shareData) {
+            showToast('分享内容暂不可用');
+            return;
+        }
+        let text = shareData.content || '';
+        if (shareData.author) {
+            text += ' —— ' + shareData.author;
+        }
+        if (shareData.source) {
+            text += '《' + shareData.source + '》';
+        }
+        const ok = await copyToClipboard(text);
+        showToast(ok ? '句子内容已复制' : '复制失败，请手动复制');
+    }
+
+    function downloadShareCard() {
+        if (!shareCardReady) {
+            showToast('卡片尚未生成完成');
+            return;
+        }
+        try {
+            /* SVG 绘制到 canvas 再导出 PNG，保证跨浏览器下载效果一致 */
+            const canvas = document.createElement('canvas');
+            canvas.width = shareCardPreview.naturalWidth || 600;
+            canvas.height = shareCardPreview.naturalHeight || 800;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0a0606';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(shareCardPreview, 0, 0, canvas.width, canvas.height);
+            const a = document.createElement('a');
+            a.download = 'hitokoto-card-' + (state.name || 'share') + '.png';
+            a.href = canvas.toDataURL('image/png');
+            a.click();
+            showToast('卡片已保存');
+        } catch (e) {
+            showToast('图片生成失败，请稍后再试');
+        }
+    }
+
+    /* 分享按钮打开弹窗 */
+    shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openShareModal();
+    });
+    document.getElementById('shareModalClose').addEventListener('click', closeShareModal);
+    document.getElementById('shareModalCancel').addEventListener('click', closeShareModal);
+    document.getElementById('shareModalBackdrop').addEventListener('click', closeShareModal);
+    document.getElementById('shareCopyLink').addEventListener('click', copyShareLink);
+    document.getElementById('shareDownloadCard').addEventListener('click', downloadShareCard);
+    document.getElementById('shareCopyText').addEventListener('click', copyShareText);
+
+    /* Escape 关闭分享弹窗 + Tab 焦点陷阱（与提交弹窗一致） */
+    document.addEventListener('keydown', (e) => {
+        if (!shareModal.classList.contains('open')) return;
+        if (e.key === 'Escape') {
+            closeShareModal();
+            return;
+        }
+        if (e.key === 'Tab') {
+            const focusables = Array.prototype.slice.call(
+                shareModal.querySelectorAll(
+                    'button:not([disabled]), [href], input:not([disabled]),' +
+                    ' select:not([disabled]), textarea:not([disabled]),' +
+                    ' [tabindex]:not([tabindex="-1"])'
+                )
+            ).filter((el) => el.getClientRects().length > 0);
+            if (focusables.length === 0) return;
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+            if (e.shiftKey) {
+                if (document.activeElement === first || !shareModal.contains(document.activeElement)) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            } else {
+                if (document.activeElement === last || !shareModal.contains(document.activeElement)) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        }
+    });
+
     /* ==================== 交互绑定 ==================== */
     /* 双击屏幕任意位置点赞 / 取消点赞 */
     document.addEventListener('dblclick', (e) => {
         /* 忽略交互按钮与弹窗上的双击，避免与单击冲突 */
-        if (e.target.closest('.like-btn, .next-btn, .music-btn, .submit-btn, .submit-modal, .category-toggle, .category-dropdown, .theme-toggle, .auto-refresh-toggle')) return;
+        if (e.target.closest('.like-btn, .next-btn, .music-btn, .submit-btn, .submit-modal, .category-toggle, .category-dropdown, .theme-toggle, .auto-refresh-toggle, .share-btn, .share-modal')) return;
         const sel = window.getSelection && window.getSelection();
         if (sel && sel.removeAllRanges) sel.removeAllRanges();
         toggleLike(e.clientX, e.clientY);
@@ -1392,7 +1591,7 @@
         /* 点击触发绽放 */
         document.addEventListener('click', function(e) {
             /* 忽略交互元素上的点击 */
-            if (e.target.closest('.like-btn, .next-btn, .music-btn, .submit-btn, .submit-modal, .theme-toggle, button')) return;
+            if (e.target.closest('.like-btn, .next-btn, .music-btn, .submit-btn, .submit-modal, .theme-toggle, .share-modal, button')) return;
             createBurst(e.clientX, e.clientY);
         });
 
@@ -1457,9 +1656,11 @@
         async function autoFetchAndApply() {
             if (isAutoFetching || state.busy) return;
             if (userPaused) return;
-            /* 提交弹窗打开时暂停自动切换，避免打断用户操作 */
+            /* 提交或分享弹窗打开时暂停自动切换，避免打断用户操作 */
             var modal = document.getElementById('submitModal');
             if (modal && modal.classList.contains('open')) return;
+            var shareModalEl = document.getElementById('shareModal');
+            if (shareModalEl && shareModalEl.classList.contains('open')) return;
             isAutoFetching = true;
             try {
                 var s = await fetchNewSentence();

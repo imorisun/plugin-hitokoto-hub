@@ -90,6 +90,17 @@
                 <line x1="4" y1="18" x2="14" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
         </button>
+        <!-- 分享按钮：点击打开分享弹窗，分享当前展示的句子 -->
+        <button class="share-btn" id="shareBtn" type="button"
+                aria-label="分享句子" data-tooltip="分享">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="18" cy="5" r="3"/>
+                <circle cx="6" cy="12" r="3"/>
+                <circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+        </button>
         <button class="submit-btn" id="submitBtn" type="button" aria-label="提交句子">
             <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 5v14M5 12h14"/>
@@ -106,8 +117,9 @@
 </header>
 
 <main>
+    <!-- 分享链接直达的句子（?sentence=xxx）优先渲染；否则渲染默认随机句子（三元条件惰性求值，避免无谓调用 randomSentences） -->
     <div class="quote-container" id="quoteContainer"
-         th:each="s : ${hitokotoFinder.randomSentences(1, null)}"
+         th:each="s : ${sharedSentence != null ? sharedSentence : hitokotoFinder.randomSentences(1, null)}"
          th:attr="data-name=${s.name}, data-likes=${s.likeCount}, data-jump-url=${s.jumpUrl}"
          th:classappend="${s.jumpUrl} ? 'quote-container--clickable'"
          aria-live="polite" aria-atomic="true"
@@ -215,6 +227,57 @@
 <div class="custom-select__dropdown" id="submitCategoryDropdown"></div>
 <!-- 分类切换下拉面板 -->
 <div class="category-dropdown" id="categoryDropdown" role="menu" aria-label="分类选择"></div>
+
+<!-- 分享弹窗 -->
+<div class="share-modal" id="shareModal" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle">
+    <div class="share-modal__backdrop" id="shareModalBackdrop"></div>
+    <div class="share-modal__card">
+        <div class="share-modal__header">
+            <div class="share-modal__title" id="shareModalTitle">分享句子</div>
+            <button class="share-modal__close" id="shareModalClose" type="button" aria-label="关闭">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18 6 6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <!-- 分享卡片预览 -->
+        <div class="share-preview" id="sharePreview">
+            <img class="share-preview__card" id="shareCardPreview" alt="分享卡片预览"/>
+            <div class="share-preview__loading" id="shareCardLoading">卡片生成中...</div>
+            <div class="share-preview__error" id="shareCardError">卡片生成失败，请稍后重试</div>
+        </div>
+        <!-- 分享选项 -->
+        <div class="share-options" id="shareOptions">
+            <button class="share-option" id="shareCopyLink" type="button" aria-label="复制分享链接">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                <span>复制链接</span>
+            </button>
+            <button class="share-option" id="shareDownloadCard" type="button" aria-label="保存分享卡片图片">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span>保存图片</span>
+            </button>
+            <button class="share-option" id="shareCopyText" type="button" aria-label="复制句子内容">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                <span>复制内容</span>
+            </button>
+        </div>
+        <div class="share-modal__footer">
+            <button class="share-modal__btn" type="button" id="shareModalCancel">关闭</button>
+        </div>
+    </div>
+</div>
 <th:block th:replace="~{hitokoto-scripts :: scripts}"/>
 </body>
 </html>

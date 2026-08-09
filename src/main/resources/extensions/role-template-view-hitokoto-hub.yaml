@@ -13,6 +13,8 @@ rules:
   - apiGroups: [ "console.api.hitokotohub.puresky.top" ]
     resources:
       - "sentence"
+      - "sentence/share"
+      - "sentence/share/card"
       - "overview"
       - "ai-generate-logs"
       - "sentence-submissions"

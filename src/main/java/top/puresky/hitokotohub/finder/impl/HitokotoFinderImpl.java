@@ -123,6 +123,16 @@ public class HitokotoFinderImpl implements HitokotoFinder {
     }
 
     @Override
+    public Mono<SentenceVo> sentenceByName(String name) {
+        if (StringUtils.isBlank(name)) {
+            return Mono.empty();
+        }
+        return client.fetch(Sentence.class, name)
+            .filter(s -> s.getStatus() != null && s.getStatus().isPublished())
+            .flatMap(this::toSentenceVo);
+    }
+
+    @Override
     public Flux<CategoryVo> listCategories() {
         // 并行：分类列表 + 实时计数 map（单次 listAll + 内存分组，O(N)）
         var categoriesMono = client.listAll(Category.class, new ListOptions(), Sort.unsorted()).collectList();

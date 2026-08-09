@@ -331,6 +331,7 @@
                   </template>
                   <template v-if="canManage" #dropdownItems>
                     <VDropdownItem @click="handleEdit(sentence)">编辑</VDropdownItem>
+                    <VDropdownItem @click="handleShare(sentence)">分享</VDropdownItem>
                     <VDropdownItem
                             v-if="!isDeleting(sentence)"
                             type="danger"
@@ -920,6 +921,9 @@
         </div>
       </template>
     </VModal>
+
+    <!-- 分享句子弹窗 -->
+    <SentenceShareModal v-model:visible="shareModalVisible" :sentence="sharingSentence"/>
   </div>
 </template>
 
@@ -959,6 +963,7 @@ import {
   summarizeBatchResult,
   useBatchSelection,
 } from '@/composables/useBatchSelection'
+import SentenceShareModal from './SentenceShareModal.vue'
 
 const toast = useToast()
 
@@ -1006,6 +1011,11 @@ const isEditing = ref(false)
 const saving = ref(false)
 const editingSentenceName = ref('')
 const editingOriginalSentence = ref<Sentence | null>(null)
+
+// 分享弹窗状态
+const shareModalVisible = ref(false)
+const sharingSentence = ref<Sentence | null>(null)
+
 const formData = ref({
   content: '',
   categoryName: '',
@@ -1991,6 +2001,11 @@ const handleBatchSave = async () => {
   } finally {
     batchImporting.value = false
   }
+}
+
+const handleShare = (sentence: Sentence) => {
+  sharingSentence.value = sentence
+  shareModalVisible.value = true
 }
 
 const handleEdit = (sentence: Sentence) => {

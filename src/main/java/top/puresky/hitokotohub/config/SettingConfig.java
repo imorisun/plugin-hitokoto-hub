@@ -11,6 +11,7 @@ public interface SettingConfig {
     Mono<SubmissionConfig> getSubmissionConfig();
     Mono<SimilarityConfig> getSimilarityConfig();
     Mono<TemplateConfig> getTemplateConfig();
+    Mono<ShareConfig> getShareConfig();
 
     @Data
     class BasicConfig {
@@ -99,5 +100,16 @@ public interface SettingConfig {
         private Boolean enableAutoRefresh;
         @Schema(description = "自动切换间隔（秒）")
         private Integer autoRefreshInterval;
+    }
+
+    @Data
+    class ShareConfig {
+        public static final String GROUP = "share";
+        @Schema(description = "分享卡片上的站点名称，留空则使用 Halo 站点标题")
+        private String siteName;
+        @Schema(description = "分享卡片底部的标语")
+        private String tagline;
+        @Schema(description = "分享卡片右上角的英文标识")
+        private String wordmark;
     }
 }

@@ -35,6 +35,7 @@ declare module 'vue' {
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     Overview: typeof import('./src/components/Overview.vue')['default']
     SentenceList: typeof import('./src/components/SentenceList.vue')['default']
+    SentenceShareModal: typeof import('./src/components/SentenceShareModal.vue')['default']
     SimilarityCheck: typeof import('./src/components/SimilarityCheck.vue')['default']
     SubmissionList: typeof import('./src/components/SubmissionList.vue')['default']
   }

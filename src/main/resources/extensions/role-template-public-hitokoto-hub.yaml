@@ -13,6 +13,8 @@ rules:
   - apiGroups: [ "public.api.hitokotohub.puresky.top" ]
     resources:
       - "sentence"
+      - "sentence/share"
+      - "sentence/share/card"
       - "category"
       - "sentence-submission"
     verbs: [ "get", "list" ]
