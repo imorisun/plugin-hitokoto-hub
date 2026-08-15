@@ -693,14 +693,6 @@ const fetchViewStats = async () => {
   }
 }
 
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).then(() => {
-    toast.success("已复制到剪贴板");
-  }).catch(() => {
-    toast.error("复制失败");
-  });
-}
-
 // ==================== 数据指标详情弹窗 ====================
 type MetricType = 'totalView' | 'todayView' | 'totalLike' | 'todayLike'
 

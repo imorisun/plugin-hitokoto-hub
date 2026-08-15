@@ -162,7 +162,9 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
     }
 
     private @NonNull Mono<ServerResponse> getViewStatistics(ServerRequest request) {
-        int days = NumberUtils.toInt(request.queryParam("days").orElse("30"), 30);
+        // days 钳制在 [1, 365]，防止恶意超大值把全库记录拉进内存
+        int days = Math.max(1, Math.min(
+            NumberUtils.toInt(request.queryParam("days").orElse("30"), 30), 365));
         String granularity = request.queryParam("granularity").orElse("day");
         String eventType = request.queryParam("eventType").orElse("VIEW");
 

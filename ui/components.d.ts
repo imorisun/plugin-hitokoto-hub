@@ -12,7 +12,6 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AiGenerateLogList: typeof import('./src/components/AiGenerateLogList.vue')['default']
-    CategoryList: typeof import('./src/components/CategoryList.vue')['default']
     ElCard: typeof import('element-plus/es')['ElCard']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']

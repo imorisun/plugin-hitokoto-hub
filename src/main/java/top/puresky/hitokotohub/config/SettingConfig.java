@@ -26,6 +26,8 @@ public interface SettingConfig {
         private String encode;
         @Schema(description = "点赞冷却时间（小时）")
         private Integer likeCooldown;
+        @Schema(description = "是否信任反向代理头（X-Forwarded-For）")
+        private Boolean trustProxyHeaders;
         @Schema(description = "启用浏览量统计")
         private Boolean enableViewCount;
         @Schema(description = "统计数据最大保留条数")

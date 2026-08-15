@@ -83,9 +83,14 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
     }
 
     private @NonNull Mono<ServerResponse> submitSentence(@NonNull ServerRequest request) {
-        String ip = HttpUtils.getClientIp(request.exchange().getRequest());
-        return settingConfig.getSubmissionConfig()
-            .flatMap(config -> {
+        return Mono.zip(settingConfig.getSubmissionConfig(), settingConfig.getBasicConfig())
+            .flatMap(tuple -> {
+                SettingConfig.SubmissionConfig config = tuple.getT1();
+                // 与点赞/浏览接口一致：是否信任 X-Forwarded-For 由基本设置控制
+                boolean trustProxyHeaders = tuple.getT2().getTrustProxyHeaders() == null
+                    || Boolean.TRUE.equals(tuple.getT2().getTrustProxyHeaders());
+                String ip = HttpUtils.getClientIp(request.exchange().getRequest(),
+                    trustProxyHeaders);
                 if (!Boolean.TRUE.equals(config.getEnableSubmission())) {
                     return ServerResponse.status(HttpStatus.FORBIDDEN)
                         .bodyValue(buildResponse(false, "submitted_disabled",

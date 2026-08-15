@@ -49,6 +49,11 @@ spec:
           validation: required|number|min:1|max:72
           help: 同一 IP 对同一句子两次点赞的间隔时间
         - $formkit: switch
+          name: trustProxyHeaders
+          label: 信任反向代理头
+          value: true
+          help: 开启后优先从 X-Forwarded-For 头识别访客 IP（适用于 Nginx/CDN 等反向代理部署）。若 Halo 直接对外提供服务，关闭可防止伪造该头绕过点赞与提交限流。
+        - $formkit: switch
           name: enableViewCount
           label: 启用浏览量统计
           value: true
