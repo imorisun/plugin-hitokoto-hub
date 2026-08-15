@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +67,10 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
     private static final int MAX_CONTENT_LENGTH = 500;
     /** Excel 导入文件大小上限(10MB),防止 OOM */
     private static final long MAX_EXCEL_FILE_SIZE = 10 * 1024 * 1024L;
+    /** Halo 内置超级管理员角色名，用于决定批量创建的句子是否自动发布 */
+    private static final String SUPER_ROLE = "super-role";
+    /** 批量创建/导入的入库并发度：限制数据库写入压力 */
+    private static final int IMPORT_CONCURRENCY = 16;
 
     private final ReactiveExtensionClient client;
     private final RoleService roleService;
@@ -180,10 +185,9 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
         AtomicInteger success = new AtomicInteger(0);
         AtomicInteger failed = new AtomicInteger(0);
 
-        return roleService.getRolesByUsername(username).collectList().flatMapMany(roles -> {
-            boolean hasSuperRole = roles.contains("super-role");
-
-            return sentenceFlux.flatMap(sentence -> {
+        return roleService.contains(List.of(username), Set.of(SUPER_ROLE)).flatMapMany(hasSuperRole -> {
+            // concatMap + 固定并发度：大量导入时避免瞬时高并发写库
+            return sentenceFlux.concatMap(sentence -> {
                 sentence.getSpec().setCreatedBy(username);
                 sanitizeSentenceInput(sentence);
                 if (sentence.getStatus() == null) {
@@ -198,7 +202,7 @@ public class SentenceConsoleEndpoint implements CustomEndpoint {
                     total.incrementAndGet();
                     return Mono.empty();
                 });
-            });
+            }, IMPORT_CONCURRENCY);
         }).then(Mono.fromCallable(() -> {
             BatchCreateSentenceResult result = new BatchCreateSentenceResult();
             result.setTotal(total.get());

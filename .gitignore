@@ -5,6 +5,7 @@ logs/
 
 ### Gradle
 .gradle
+.gradle-home/
 /build/
 /out/
 !gradle/wrapper/gradle-wrapper.jar
@@ -12,6 +13,7 @@ bin/
 
 ### Node
 node_modules/
+.pnpm-store/
 
 ### STS
 .apt_generated

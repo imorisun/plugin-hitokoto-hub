@@ -708,17 +708,14 @@ const removeSentenceFromGroups = (name: string) => {
  */
 const removeAllNonOptimalFromGroups = () => {
   const newGroups: SimilarityGroup[] = []
-  let removed = 0
   for (const group of groups.value) {
     if (group.similarSentences.length > 0) {
-      removed++
       continue
     }
     newGroups.push(group)
   }
   groups.value = newGroups
   groupTotal.value = newGroups.length
-  return removed
 }
 
 const handleBatchDeleteNonOptimal = () => {

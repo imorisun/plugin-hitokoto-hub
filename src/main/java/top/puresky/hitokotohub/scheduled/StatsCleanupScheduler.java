@@ -19,7 +19,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import run.halo.app.extension.AbstractExtension;
 import run.halo.app.extension.ListOptions;
+import run.halo.app.extension.PageRequestImpl;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.index.query.Queries;
 import run.halo.app.plugin.PluginConfigUpdatedEvent;
@@ -40,6 +42,8 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
 
     private static final String DEFAULT_AI_CRON = "0 0 2 * * *";
     private static final String DEFAULT_SIMILARITY_CRON = "0 0 2 * * *";
+    /** 按条数清理时单次最多删除的记录数，超量部分留待下次任务继续，避免单次内存峰值过高 */
+    private static final int MAX_CLEANUP_BATCH = 50_000;
 
     private final ReactiveExtensionClient client;
     private final SettingConfig settingConfig;
@@ -169,23 +173,12 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
                         }
                     });
 
-                Mono<Long> byCount = client.listAll(CategoryViewRecord.class,
-                        ListOptions.builder().build(),
-                        Sort.by("metadata.creationTimestamp").ascending())
-                    .collectList()
-                    .flatMap(records -> {
-                        if (records.size() <= maxKeep) {
-                            return Mono.empty();
+                Mono<Long> byCount = cleanupOldestRecords(CategoryViewRecord.class,
+                        new ListOptions(), maxKeep)
+                    .doOnNext(count -> {
+                        if (count > 0) {
+                            log.info("按条数清理了 {} 条统计数据", count);
                         }
-                        int deleteCount = records.size() - maxKeep;
-                        return Flux.fromIterable(records.subList(0, deleteCount))
-                            .flatMap(client::delete, 16)
-                            .count()
-                            .doOnNext(count -> {
-                                if (count > 0) {
-                                    log.info("按条数清理了 {} 条统计数据", count);
-                                }
-                            });
                     });
 
                 return byDays.then(byCount);
@@ -219,23 +212,12 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
                         }
                     });
 
-                Mono<Long> byCount = client.listAll(AiGenerateLog.class,
-                        ListOptions.builder().build(),
-                        Sort.by("metadata.creationTimestamp").ascending())
-                    .collectList()
-                    .flatMap(logs -> {
-                        if (logs.size() <= maxKeep) {
-                            return Mono.empty();
+                Mono<Long> byCount = cleanupOldestRecords(AiGenerateLog.class,
+                        new ListOptions(), maxKeep)
+                    .doOnNext(count -> {
+                        if (count > 0) {
+                            log.info("按条数清理了 {} 条AI生成日志", count);
                         }
-                        int deleteCount = logs.size() - maxKeep;
-                        return Flux.fromIterable(logs.subList(0, deleteCount))
-                            .flatMap(client::delete, 16)
-                            .count()
-                            .doOnNext(count -> {
-                                if (count > 0) {
-                                    log.info("按条数清理了 {} 条AI生成日志", count);
-                                }
-                            });
                     });
 
                 return byDays.then(byCount);
@@ -252,27 +234,16 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
                 int maxKeep =
                     config.getSubmissionMaxKeep() != null ? config.getSubmissionMaxKeep() : 1000;
                 // 仅清理已处理记录（非 PENDING），保留待审核记录供管理员处理
-                return client.listAll(SentenceSubmission.class,
-                        ListOptions.builder().fieldQuery(Queries.and(
-                            Queries.notEqual("spec.status",
-                                SentenceSubmission.Status.PENDING.name()),
-                            Queries.isNull("metadata.deletionTimestamp")
-                        )).build(),
-                        Sort.by("metadata.creationTimestamp").ascending())
-                    .collectList()
-                    .flatMap(submissions -> {
-                        if (submissions.size() <= maxKeep) {
-                            return Mono.<Long>empty();
+                var options = ListOptions.builder().fieldQuery(Queries.and(
+                    Queries.notEqual("spec.status",
+                        SentenceSubmission.Status.PENDING.name()),
+                    Queries.isNull("metadata.deletionTimestamp")
+                )).build();
+                return cleanupOldestRecords(SentenceSubmission.class, options, maxKeep)
+                    .doOnNext(count -> {
+                        if (count > 0) {
+                            log.info("按条数清理了 {} 条已处理提交记录", count);
                         }
-                        int deleteCount = submissions.size() - maxKeep;
-                        return Flux.fromIterable(submissions.subList(0, deleteCount))
-                            .flatMap(client::delete, 16)
-                            .count()
-                            .doOnNext(count -> {
-                                if (count > 0) {
-                                    log.info("按条数清理了 {} 条已处理提交记录", count);
-                                }
-                            });
                     });
             })
             .doOnError(e -> log.error("访客提交记录清理失败", e))
@@ -378,6 +349,34 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
             })
             .doOnError(e -> log.error("相似度检查定时任务执行失败", e))
             .subscribe();
+    }
+
+    // ===================== 按条数清理 =====================
+
+    /**
+     * 按条数保留策略清理：仅分页取出最旧的 {@code total - maxKeep} 条记录删除，
+     * 避免此前 {@code listAll + collectList} 全量驻留内存的峰值问题。
+     *
+     * <p>单次最多删除 {@link #MAX_CLEANUP_BATCH} 条，超量部分留待下次任务继续。
+     *
+     * @param type    扩展模型类型
+     * @param options 查询条件（复用按天数清理的过滤条件或全量）
+     * @param maxKeep 最大保留条数
+     * @return 实际删除的条数
+     */
+    private <E extends AbstractExtension> Mono<Long> cleanupOldestRecords(Class<E> type,
+        ListOptions options, int maxKeep) {
+        return client.countBy(type, options)
+            .filter(total -> total > maxKeep)
+            .flatMap(total -> {
+                int pageSize = (int) Math.min(total - maxKeep, MAX_CLEANUP_BATCH);
+                return client.listBy(type, options,
+                        PageRequestImpl.of(1, pageSize,
+                            Sort.by("metadata.creationTimestamp").ascending()))
+                    .flatMapMany(result -> Flux.fromIterable(result.getItems()))
+                    .flatMap(client::delete, 16)
+                    .count();
+            });
     }
 
 }

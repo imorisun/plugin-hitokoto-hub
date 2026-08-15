@@ -7,7 +7,7 @@ import SubmissionList from '@/components/SubmissionList.vue'
 import SimilarityCheck from '@/components/SimilarityCheck.vue'
 import {useRouteQuery} from '@vueuse/router'
 import {VPageHeader, VTabbar} from '@halo-dev/components'
-import IconBob from '~icons/my-icons/bob';
+import IconHitokotoLogo from '~icons/my-icons/hitokoto-logo';
 
 const tabs = shallowRef([
   {
@@ -53,7 +53,7 @@ watch(
 <template>
   <VPageHeader title="轻言数据管理">
     <template #icon>
-      <IconBob></IconBob>
+      <IconHitokotoLogo></IconHitokotoLogo>
     </template>
   </VPageHeader>
 
@@ -66,8 +66,8 @@ watch(
               type="outline"
       ></VTabbar>
     </div>
-    <Overview ref="overview" v-if="activeIndex == 'Overview'"/>
-    <SentenceList ref="sentenceList" v-if="activeIndex == 'SentenceList'"/>
+    <Overview v-if="activeIndex == 'Overview'"/>
+    <SentenceList v-if="activeIndex == 'SentenceList'"/>
     <SubmissionList v-if="activeIndex == 'SubmissionList'"/>
     <AiGenerateLogList v-if="activeIndex == 'AiGenerateLog'"/>
     <SimilarityCheck v-if="activeIndex == 'SimilarityCheck'"/>

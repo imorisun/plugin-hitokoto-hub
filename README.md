@@ -210,6 +210,7 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 | 默认分类 | 空（全部） | 随机接口未指定分类时使用的默认分类，可多选 |
 | 默认返回格式 | JSON | 随机接口默认返回格式：`json` 或 `text` |
 | 点赞冷却时间 | 12 小时 | 同一 IP 对同一句子两次操作的间隔时间 |
+| 信任反向代理头 | true | 开启后优先从 `X-Forwarded-For` 识别访客 IP（适用于 Nginx/CDN 反代部署）；Halo 直连公网时建议关闭，防止伪造该头绕过点赞/提交限流 |
 | 启用浏览量统计 | true | 随机获取句子时是否自动增加浏览量 |
 | 统计数据最大保留条数 | 1000 | 超过此数量将自动删除最旧的统计记录 |
 | 统计数据保留天数 | 90 | 超过此天数的统计数据将被清理 |
@@ -385,7 +386,6 @@ plugin-hitokoto-hub/
 │       ├── api/generated/                  # OpenAPI 自动生成的 API 客户端
 │       ├── components/
 │       │   ├── Overview.vue
-│       │   ├── CategoryList.vue
 │       │   ├── SentenceList.vue
 │       │   ├── SentenceShareModal.vue      # 句子分享弹窗
 │       │   ├── SubmissionList.vue
