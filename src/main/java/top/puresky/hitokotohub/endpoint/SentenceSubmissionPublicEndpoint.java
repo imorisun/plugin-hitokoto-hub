@@ -21,8 +21,10 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 import run.halo.app.core.extension.endpoint.CustomEndpoint;
 import run.halo.app.extension.GroupVersion;
+import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.Metadata;
 import run.halo.app.extension.ReactiveExtensionClient;
+import run.halo.app.extension.index.query.Queries;
 import top.puresky.hitokotohub.config.SettingConfig;
 import top.puresky.hitokotohub.extension.Category;
 import top.puresky.hitokotohub.extension.SentenceSubmission;
@@ -75,9 +77,12 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
             .flatMap(config -> {
                 boolean enabled = Boolean.TRUE.equals(config.getEnableSubmission());
                 String defaultCategory = config.getSubmissionDefaultCategory();
+                int maxPending = config.getSubmissionMaxPending() == null
+                    ? 0 : config.getSubmissionMaxPending();
                 return ServerResponse.ok().bodyValue(Map.of(
                     "enableSubmission", enabled,
-                    "defaultCategory", defaultCategory != null ? defaultCategory : ""
+                    "defaultCategory", defaultCategory != null ? defaultCategory : "",
+                    "maxPendingSubmissions", maxPending
                 ));
             });
     }
@@ -123,25 +128,46 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
                                     + " 后再试"));
                     }
                 }
-                return request.bodyToMono(SubmitRequest.class)
-                    .flatMap(submitRequest -> validateAndCreate(submitRequest, config, ip))
-                    .doOnSuccess(v -> {
-                        if (cooldownMinutes > 0) {
-                            BatchCooldownState state = submitCache.get(ip);
-                            long currentTime = System.currentTimeMillis();
-                            if (state == null) {
-                                submitCache.put(ip, new BatchCooldownState(currentTime));
-                            } else {
-                                long elapsed = currentTime - state.getFirstSubmitTime();
-                                if (elapsed >= cooldownMs) {
-                                    // 冷却周期已过，重置计数
+                // 待审核数量上限检查：同一 IP 待审核提交数量达到上限后禁止继续提交
+                Integer maxPending = config.getSubmissionMaxPending();
+                Mono<Long> pendingCountMono = (maxPending == null || maxPending <= 0)
+                    ? Mono.just(0L)
+                    : client.countBy(SentenceSubmission.class,
+                            ListOptions.builder()
+                                .fieldQuery(Queries.and(
+                                    Queries.equal("spec.submitterIp", ip),
+                                    Queries.equal("spec.status",
+                                        SentenceSubmission.Status.PENDING.name())))
+                                .build())
+                        .defaultIfEmpty(0L);
+                return pendingCountMono.flatMap(pendingCount -> {
+                    if (maxPending != null && maxPending > 0
+                        && pendingCount >= maxPending) {
+                        return ServerResponse.status(HttpStatus.TOO_MANY_REQUESTS)
+                            .bodyValue(buildResponse(false, "pending_limit_reached",
+                                "您已有 " + pendingCount + " 条句子待审核，已达上限 "
+                                    + maxPending + " 条，请等待审核完成后再提交"));
+                    }
+                    return request.bodyToMono(SubmitRequest.class)
+                        .flatMap(submitRequest -> validateAndCreate(submitRequest, config, ip))
+                        .doOnSuccess(v -> {
+                            if (cooldownMinutes > 0) {
+                                BatchCooldownState state = submitCache.get(ip);
+                                long currentTime = System.currentTimeMillis();
+                                if (state == null) {
                                     submitCache.put(ip, new BatchCooldownState(currentTime));
                                 } else {
-                                    state.increment();
+                                    long elapsed = currentTime - state.getFirstSubmitTime();
+                                    if (elapsed >= cooldownMs) {
+                                        // 冷却周期已过，重置计数
+                                        submitCache.put(ip, new BatchCooldownState(currentTime));
+                                    } else {
+                                        state.increment();
+                                    }
                                 }
                             }
-                        }
-                    });
+                        });
+                });
             })
             .onErrorResume(IllegalArgumentException.class,
                 e -> ServerResponse.badRequest()
@@ -241,7 +267,7 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
     public static class SubmitResponse {
         @Schema(description = "是否成功")
         private boolean success;
-        @Schema(description = "状态码：ok / invalid_param / rate_limited / submitted_disabled")
+        @Schema(description = "状态码：ok / invalid_param / rate_limited / submitted_disabled / pending_limit_reached")
         private String code;
         @Schema(description = "提示信息")
         private String message;

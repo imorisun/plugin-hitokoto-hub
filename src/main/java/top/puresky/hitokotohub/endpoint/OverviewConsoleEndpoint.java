@@ -174,7 +174,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
             CategoryViewRecord.class,
             ListOptions.builder()
                 .fieldQuery(Queries.and(
-                    Queries.greaterThan("metadata.creationTimestamp", startTime.toString()),
+                    Queries.greaterThan("metadata.creationTimestamp", startTime),
                     Queries.equal("spec.eventType", eventType)
                 ))
                 .build(),
@@ -197,7 +197,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
         Mono<Long> todayCount = client.countBy(CategoryViewRecord.class,
             ListOptions.builder()
                 .fieldQuery(Queries.and(
-                    Queries.greaterThan("metadata.creationTimestamp", todayStart.toString()),
+                    Queries.greaterThan("metadata.creationTimestamp", todayStart),
                     Queries.equal("spec.eventType", eventType)
                 ))
                 .build());
@@ -245,7 +245,7 @@ public class OverviewConsoleEndpoint implements CustomEndpoint {
                 CategoryViewRecord.class,
                 ListOptions.builder()
                     .fieldQuery(Queries.and(
-                        Queries.greaterThan("metadata.creationTimestamp", todayStart.toString()),
+                        Queries.greaterThan("metadata.creationTimestamp", todayStart),
                         Queries.equal("spec.eventType", eventType)
                     ))
                     .build(),

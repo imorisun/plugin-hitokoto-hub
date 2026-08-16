@@ -63,13 +63,32 @@ spec:
           label: 统计数据最大保留条数
           value: 1000
           validation: required|number|min:100|max:10000
-          help: 超过此数量将自动删除最旧的数据
+          help: 浏览量记录与点赞记录分别计算，超过此数量将自动删除各自最旧的数据
         - $formkit: number
           name: statsRetentionDays
           label: 统计数据保留天数
           value: 90
           validation: required|number|min:7|max:365
           help: 超过此天数的数据将被清理
+        - $formkit: select
+          name: statsCleanupCron
+          label: 统计数据清理时间
+          value: "0 0 3 * * *"
+          searchable: true
+          allowCreate: true
+          clearable: false
+          options:
+            - label: 每天凌晨 0 点
+              value: "0 0 0 * * *"
+            - label: 每天凌晨 3 点
+              value: "0 0 3 * * *"
+            - label: 每天凌晨 4 点
+              value: "0 0 4 * * *"
+            - label: 每周日凌晨 3 点
+              value: "0 0 3 * * 0"
+            - label: 每月 1 号凌晨 3 点
+              value: "0 0 3 1 * *"
+          help: 统计清理任务的执行时间，支持从预设中选择或手动输入 6 位 Cron 表达式（秒 分 时 日 月 周）
     - group: ai
       label: AI设置
       formSchema:
@@ -211,6 +230,25 @@ spec:
           value: 30
           validation: required|number|min:1|max:365
           help: 超过此天数的AI生成日志将被清理
+        - $formkit: select
+          name: aiLogCleanupCron
+          label: AI日志清理时间
+          value: "0 30 3 * * *"
+          searchable: true
+          allowCreate: true
+          clearable: false
+          options:
+            - label: 每天凌晨 0 点
+              value: "0 0 0 * * *"
+            - label: 每天凌晨 3 点 30 分
+              value: "0 30 3 * * *"
+            - label: 每天凌晨 4 点
+              value: "0 0 4 * * *"
+            - label: 每周日凌晨 3 点 30 分
+              value: "0 30 3 * * 0"
+            - label: 每月 1 号凌晨 3 点 30 分
+              value: "0 30 3 1 * *"
+          help: AI日志清理任务的执行时间，支持从预设中选择或手动输入 6 位 Cron 表达式（秒 分 时 日 月 周）
     - group: submission
       label: 访客提交设置
       formSchema:
@@ -254,11 +292,35 @@ spec:
           if: "$get(enableSubmission).value === true"
           help: 达到连续提交上限后的冷却时间；未达上限时单次提交也受此时间限制，0 表示不限制
         - $formkit: number
+          name: submissionMaxPending
+          label: 待审核句子数量上限
+          value: 50
+          validation: required|number|min:0|max:1000
+          if: "$get(enableSubmission).value === true"
+          help: 同一访客（按 IP 识别）处于待审核状态的提交数量上限，达到上限后将无法继续提交；0 表示不限制
+        - $formkit: number
           name: submissionMaxKeep
           label: 提交记录最大保留条数
           value: 1000
           validation: required|number|min:100|max:10000
           help: 超过此数量将自动删除最旧的已处理提交记录
+        - $formkit: select
+          name: submissionCleanupCron
+          label: 提交记录清理时间
+          value: "0 0 4 * * *"
+          searchable: true
+          allowCreate: true
+          clearable: false
+          options:
+            - label: 每天凌晨 0 点
+              value: "0 0 0 * * *"
+            - label: 每天凌晨 4 点
+              value: "0 0 4 * * *"
+            - label: 每周日凌晨 4 点
+              value: "0 0 4 * * 0"
+            - label: 每月 1 号凌晨 4 点
+              value: "0 0 4 1 * *"
+          help: 提交记录清理任务的执行时间，支持从预设中选择或手动输入 6 位 Cron 表达式（秒 分 时 日 月 周）
     - group: similarity
       label: 相似度检查设置
       formSchema:

@@ -2,6 +2,7 @@ package top.puresky.hitokotohub.scheduled;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -42,6 +43,12 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
 
     private static final String DEFAULT_AI_CRON = "0 0 2 * * *";
     private static final String DEFAULT_SIMILARITY_CRON = "0 0 2 * * *";
+    /** 统计数据清理默认 Cron（每天凌晨 3 点） */
+    private static final String DEFAULT_STATS_CLEANUP_CRON = "0 0 3 * * *";
+    /** AI 日志清理默认 Cron（每天凌晨 3 点 30 分） */
+    private static final String DEFAULT_AI_LOG_CLEANUP_CRON = "0 30 3 * * *";
+    /** 提交记录清理默认 Cron（每天凌晨 4 点） */
+    private static final String DEFAULT_SUBMISSION_CLEANUP_CRON = "0 0 4 * * *";
     /** 按条数清理时单次最多删除的记录数，超量部分留待下次任务继续，避免单次内存峰值过高 */
     private static final int MAX_CLEANUP_BATCH = 50_000;
 
@@ -54,19 +61,26 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
     private ScheduledTaskRegistrar taskRegistrar;
     private volatile ScheduledTask aiGenerateTask;
     private volatile ScheduledTask similarityCheckTask;
+    private volatile ScheduledTask statsCleanupTask;
+    private volatile ScheduledTask aiLogCleanupTask;
+    private volatile ScheduledTask submissionCleanupTask;
 
     /**
-     * AI Cron 表达式缓存。由 {@link #refreshAiConfigAndSchedule()} 异步刷新,
-     * {@link #scheduleAiGenerateTask()} 同步读取,避免 synchronized 方法内阻塞 I/O。
+     * Cron 表达式缓存。由 refresh 方法异步刷新, schedule 方法同步读取,
+     * 避免 synchronized 方法内阻塞 I/O。
      */
     private volatile String cachedAiCron;
+    private volatile String cachedStatsCleanupCron;
+    private volatile String cachedAiLogCleanupCron;
+    private volatile String cachedSubmissionCleanupCron;
 
     @Override
     public void configureTasks(@NonNull ScheduledTaskRegistrar taskRegistrar) {
         this.taskRegistrar = taskRegistrar;
-        // 异步刷新 AI 配置并注册任务(完成后回调 scheduleAiGenerateTask)
+        // 异步刷新配置并注册任务(完成后回调对应的 schedule 方法)
         refreshAiConfigAndSchedule();
         scheduleSimilarityCheckTask();
+        refreshCleanupConfigAndSchedule();
     }
 
     /**
@@ -76,9 +90,14 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
     public void onPluginConfigUpdated(PluginConfigUpdatedEvent event) {
         if (event.getNewSettingValues().containsKey(SettingConfig.AiConfig.GROUP)) {
             refreshAiConfigAndSchedule();
+            refreshCleanupConfigAndSchedule();
         }
         if (event.getNewSettingValues().containsKey(SettingConfig.SimilarityConfig.GROUP)) {
             scheduleSimilarityCheckTask();
+        }
+        if (event.getNewSettingValues().containsKey(SettingConfig.BasicConfig.GROUP)
+            || event.getNewSettingValues().containsKey(SettingConfig.SubmissionConfig.GROUP)) {
+            refreshCleanupConfigAndSchedule();
         }
     }
 
@@ -119,21 +138,97 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
      * <p>缓存为空时返回默认值(启动初期或刷新失败的场景)。
      */
     private String resolveAiCron() {
-        String cron = cachedAiCron;
-        return StringUtils.hasText(cron) ? cron : DEFAULT_AI_CRON;
+        return resolveCachedCron(cachedAiCron, DEFAULT_AI_CRON);
     }
 
     /** 从配置对象提取并校验 Cron 表达式,无效时返回默认值。 */
     private String extractValidAiCron(SettingConfig.AiConfig aiConfig) {
-        if (aiConfig != null && StringUtils.hasText(aiConfig.getAiCron())) {
+        return aiConfig != null
+            ? resolveValidCron(aiConfig.getAiCron(), DEFAULT_AI_CRON) : DEFAULT_AI_CRON;
+    }
+
+    // ===================== 数据清理定时任务（Cron 可从设置中配置） =====================
+
+    /**
+     * 异步读取统计/AI日志/提交记录三组配置并刷新 Cron 缓存,
+     * 完成后统一重新注册三个清理任务。
+     */
+    private void refreshCleanupConfigAndSchedule() {
+        if (taskRegistrar == null) {
+            return;
+        }
+        Mono.zip(
+                settingConfig.getBasicConfig().defaultIfEmpty(new SettingConfig.BasicConfig()),
+                settingConfig.getAiConfig().defaultIfEmpty(new SettingConfig.AiConfig()),
+                settingConfig.getSubmissionConfig()
+                    .defaultIfEmpty(new SettingConfig.SubmissionConfig()))
+            .doOnNext(tuple -> {
+                cachedStatsCleanupCron = resolveValidCron(tuple.getT1().getStatsCleanupCron(),
+                    DEFAULT_STATS_CLEANUP_CRON);
+                cachedAiLogCleanupCron = resolveValidCron(tuple.getT2().getAiLogCleanupCron(),
+                    DEFAULT_AI_LOG_CLEANUP_CRON);
+                cachedSubmissionCleanupCron = resolveValidCron(
+                    tuple.getT3().getSubmissionCleanupCron(), DEFAULT_SUBMISSION_CLEANUP_CRON);
+            })
+            .doOnError(e -> log.warn("刷新清理任务 Cron 配置失败,使用默认值", e))
+            .doFinally(signal -> scheduleCleanupTasks())
+            .subscribe();
+    }
+
+    private synchronized void scheduleCleanupTasks() {
+        if (taskRegistrar == null) {
+            return;
+        }
+        statsCleanupTask = reschedule(statsCleanupTask,
+            () -> new CronTask(this::cleanOldCategoryViewRecords, resolveStatsCleanupCron()));
+        log.info("统计数据清理定时任务已注册，Cron 表达式: {}", resolveStatsCleanupCron());
+
+        aiLogCleanupTask = reschedule(aiLogCleanupTask,
+            () -> new CronTask(this::cleanOldAiGenerateLogs, resolveAiLogCleanupCron()));
+        log.info("AI 日志清理定时任务已注册，Cron 表达式: {}", resolveAiLogCleanupCron());
+
+        submissionCleanupTask = reschedule(submissionCleanupTask,
+            () -> new CronTask(this::cleanOldSentenceSubmissions,
+                resolveSubmissionCleanupCron()));
+        log.info("提交记录清理定时任务已注册，Cron 表达式: {}", resolveSubmissionCleanupCron());
+    }
+
+    /** 取消旧任务并注册新任务。 */
+    private ScheduledTask reschedule(ScheduledTask existing, Supplier<CronTask> taskSupplier) {
+        if (existing != null) {
+            existing.cancel();
+        }
+        return taskRegistrar.scheduleCronTask(taskSupplier.get());
+    }
+
+    private String resolveStatsCleanupCron() {
+        return resolveCachedCron(cachedStatsCleanupCron, DEFAULT_STATS_CLEANUP_CRON);
+    }
+
+    private String resolveAiLogCleanupCron() {
+        return resolveCachedCron(cachedAiLogCleanupCron, DEFAULT_AI_LOG_CLEANUP_CRON);
+    }
+
+    private String resolveSubmissionCleanupCron() {
+        return resolveCachedCron(cachedSubmissionCleanupCron, DEFAULT_SUBMISSION_CLEANUP_CRON);
+    }
+
+    /** 从缓存读取 Cron 表达式,无 I/O 阻塞;缓存为空时返回默认值。 */
+    private String resolveCachedCron(String cached, String defaultCron) {
+        return StringUtils.hasText(cached) ? cached : defaultCron;
+    }
+
+    /** 校验 Cron 表达式,空或无效时返回默认值。 */
+    private String resolveValidCron(String cron, String defaultCron) {
+        if (StringUtils.hasText(cron)) {
             try {
-                new CronTrigger(aiConfig.getAiCron());
-                return aiConfig.getAiCron();
+                new CronTrigger(cron);
+                return cron;
             } catch (Exception e) {
-                log.warn("AI Cron 表达式无效: {}，使用默认值: {}", aiConfig.getAiCron(), DEFAULT_AI_CRON);
+                log.warn("Cron 表达式无效: {}，使用默认值: {}", cron, defaultCron);
             }
         }
-        return DEFAULT_AI_CRON;
+        return defaultCron;
     }
 
     // 每 6 小时清理一次过期的点赞缓存
@@ -148,8 +243,7 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
         sentencePublicEndpoint.cleanExpiredViewDedupCache();
     }
 
-    // 每天凌晨 3 点清理一次过期的统计数据
-    @Scheduled(cron = "0 0 3 * * *")
+    // 清理过期的统计数据（Cron 表达式从设置中读取，默认每天凌晨 3 点）
     public void cleanOldCategoryViewRecords() {
         settingConfig.getBasicConfig()
             .flatMap(config -> {
@@ -160,35 +254,62 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
 
                 Mono<Long> byDays = client.listAll(CategoryViewRecord.class,
                         ListOptions.builder()
-                            .fieldQuery(
-                                Queries.lessThan("metadata.creationTimestamp",
-                                    cutoffTime.toString()))
+                            .fieldQuery(Queries.and(
+                                Queries.lessThan("metadata.creationTimestamp", cutoffTime),
+                                Queries.isNull("metadata.deletionTimestamp")))
                             .build(),
                         Sort.unsorted())
-                    .flatMap(client::delete)
+                    .flatMap(client::delete, 16)
                     .count()
                     .doOnNext(count -> {
                         if (count > 0) {
                             log.info("按天数清理了 {} 条统计数据", count);
                         }
+                    })
+                    .onErrorResume(e -> {
+                        log.warn("按天数清理统计数据失败", e);
+                        return Mono.just(0L);
                     });
 
-                Mono<Long> byCount = cleanupOldestRecords(CategoryViewRecord.class,
-                        new ListOptions(), maxKeep)
+                // 条数上限按事件类型分别执行：浏览量记录量远大于点赞记录，
+                // 若共用同一配额，高频浏览会挤掉点赞记录，导致 hasLiked 状态丢失、
+                // 点赞统计失真（同 IP 可重复点赞造成计数虚高）。
+                Mono<Long> byCount = Mono.zip(
+                        cleanupOldestRecords(CategoryViewRecord.class,
+                            statsOptions(CategoryViewRecord.EventType.VIEW), maxKeep)
+                            .onErrorResume(e -> {
+                                log.warn("按条数清理浏览记录失败", e);
+                                return Mono.just(0L);
+                            }),
+                        cleanupOldestRecords(CategoryViewRecord.class,
+                            statsOptions(CategoryViewRecord.EventType.LIKE), maxKeep)
+                            .onErrorResume(e -> {
+                                log.warn("按条数清理点赞记录失败", e);
+                                return Mono.just(0L);
+                            }))
+                    .map(tuple -> tuple.getT1() + tuple.getT2())
                     .doOnNext(count -> {
                         if (count > 0) {
                             log.info("按条数清理了 {} 条统计数据", count);
                         }
                     });
 
-                return byDays.then(byCount);
+                // 两类策略相互独立：按天数清理失败不应连带跳过按条数清理
+                return Mono.when(byDays, byCount);
             })
             .doOnError(e -> log.error("统计数据清理失败", e))
             .subscribe();
     }
 
-    // 每天凌晨 3 点 30 分清理一次过期的 AI 生成日志
-    @Scheduled(cron = "0 30 3 * * *")
+    /** 构建按事件类型过滤（且未删除）的统计数据查询条件。 */
+    private ListOptions statsOptions(CategoryViewRecord.EventType eventType) {
+        return ListOptions.builder().fieldQuery(Queries.and(
+            Queries.equal("spec.eventType", eventType.name()),
+            Queries.isNull("metadata.deletionTimestamp")
+        )).build();
+    }
+
+    // 清理过期的 AI 生成日志（Cron 表达式从设置中读取，默认每天凌晨 3 点 30 分）
     public void cleanOldAiGenerateLogs() {
         settingConfig.getAiConfig()
             .flatMap(config -> {
@@ -199,35 +320,46 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
 
                 Mono<Long> byDays = client.listAll(AiGenerateLog.class,
                         ListOptions.builder()
-                            .fieldQuery(
-                                Queries.lessThan("metadata.creationTimestamp",
-                                    cutoffTime.toString()))
+                            .fieldQuery(Queries.and(
+                                Queries.lessThan("metadata.creationTimestamp", cutoffTime),
+                                Queries.isNull("metadata.deletionTimestamp")))
                             .build(),
                         Sort.unsorted())
-                    .flatMap(client::delete)
+                    .flatMap(client::delete, 16)
                     .count()
                     .doOnNext(count -> {
                         if (count > 0) {
                             log.info("按天数清理了 {} 条AI生成日志", count);
                         }
+                    })
+                    .onErrorResume(e -> {
+                        log.warn("按天数清理AI生成日志失败", e);
+                        return Mono.just(0L);
                     });
 
                 Mono<Long> byCount = cleanupOldestRecords(AiGenerateLog.class,
-                        new ListOptions(), maxKeep)
+                        ListOptions.builder()
+                            .fieldQuery(Queries.isNull("metadata.deletionTimestamp"))
+                            .build(),
+                        maxKeep)
                     .doOnNext(count -> {
                         if (count > 0) {
                             log.info("按条数清理了 {} 条AI生成日志", count);
                         }
+                    })
+                    .onErrorResume(e -> {
+                        log.warn("按条数清理AI生成日志失败", e);
+                        return Mono.just(0L);
                     });
 
-                return byDays.then(byCount);
+                return Mono.when(byDays, byCount);
             })
             .doOnError(e -> log.error("AI生成日志清理失败", e))
             .subscribe();
     }
 
-    // 每天凌晨 4 点清理一次已处理的访客提交记录（仅清理 APPROVED/REJECTED，保留 PENDING）
-    @Scheduled(cron = "0 0 4 * * *")
+    // 清理已处理的访客提交记录（Cron 表达式从设置中读取，默认每天凌晨 4 点；
+    // 仅清理 APPROVED/REJECTED，保留 PENDING）
     public void cleanOldSentenceSubmissions() {
         settingConfig.getSubmissionConfig()
             .flatMap(config -> {
@@ -311,15 +443,7 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
     }
 
     private String resolveSimilarityCron(String cron) {
-        if (StringUtils.hasText(cron)) {
-            try {
-                new CronTrigger(cron);
-                return cron;
-            } catch (Exception e) {
-                log.warn("相似度检查 Cron 表达式无效: {}，使用默认值: {}", cron, DEFAULT_SIMILARITY_CRON);
-            }
-        }
-        return DEFAULT_SIMILARITY_CRON;
+        return resolveValidCron(cron, DEFAULT_SIMILARITY_CRON);
     }
 
     public void runScheduledSimilarityCheck() {
