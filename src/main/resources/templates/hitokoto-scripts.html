@@ -847,6 +847,8 @@
             if (res.ok && data.success) {
                 showToast(data.message || '投递成功，等待审核');
                 closeSubmitModal();
+            } else if (data.code === 'pending_limit_reached') {
+                showToast(data.message || '待审核的句子已达上限，请等待审核完成后再提交');
             } else if (res.status === 429) {
                 showToast(data.message || '提交过于频繁，请稍后再试');
             } else if (res.status === 403) {

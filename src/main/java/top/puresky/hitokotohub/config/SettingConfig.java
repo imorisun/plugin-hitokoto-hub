@@ -34,6 +34,8 @@ public interface SettingConfig {
         private Integer statsMaxKeep;
         @Schema(description = "统计数据保留天数")
         private Integer statsRetentionDays;
+        @Schema(description = "统计数据清理任务的 Cron 表达式")
+        private String statsCleanupCron;
     }
     @Data
     class AiConfig {
@@ -58,6 +60,8 @@ public interface SettingConfig {
         private Integer aiLogMaxKeep;
         @Schema(description = "AI日志保留天数")
         private Integer aiLogRetentionDays;
+        @Schema(description = "AI日志清理任务的 Cron 表达式")
+        private String aiLogCleanupCron;
     }
     @Data
     class SubmissionConfig {
@@ -72,8 +76,12 @@ public interface SettingConfig {
         private Integer submissionCooldown;
         @Schema(description = "连续提交上限")
         private Integer submissionBatchLimit;
+        @Schema(description = "待审核句子数量上限")
+        private Integer submissionMaxPending;
         @Schema(description = "提交记录最大保留条数")
         private Integer submissionMaxKeep;
+        @Schema(description = "提交记录清理任务的 Cron 表达式")
+        private String submissionCleanupCron;
     }
 
     @Data
