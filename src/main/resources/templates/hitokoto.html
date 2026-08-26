@@ -42,7 +42,11 @@
 <div class="noise-overlay"></div>
 
 <header>
-    <div class="music-btn">LiteWords</div>
+    <!-- 左上角文字：开启"点击回到站点首页"时渲染为链接，否则仅作展示 -->
+    <a class="music-btn" th:if="${templateLogoLinkEnabled}" th:href="@{/}"
+       th:text="${templateLogoText}" aria-label="回到站点首页">LiteWords</a>
+    <div class="music-btn" th:unless="${templateLogoLinkEnabled}"
+         th:text="${templateLogoText}">LiteWords</div>
     <div class="header-actions">
         <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换主题" data-tooltip="切换主题">
             <!-- 太阳图标：暗色模式下显示，点击切换到亮色 -->

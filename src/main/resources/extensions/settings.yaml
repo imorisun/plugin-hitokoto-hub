@@ -369,6 +369,17 @@ spec:
     - group: template
       label: 模板展示设置
       formSchema:
+        - $formkit: text
+          name: templateLogoText
+          label: 左上角文字
+          value: LiteWords
+          placeholder: 请输入左上角展示的文字
+          help: 模板页面左上角展示的文字，留空则使用默认文字 LiteWords
+        - $formkit: switch
+          name: templateLogoLinkEnabled
+          label: 点击回到站点首页
+          value: false
+          help: 开启后，点击模板页面左上角的文字将跳转回主站首页；关闭则仅作展示，不可点击
         - $formkit: select
           name: templateTheme
           label: 默认主题

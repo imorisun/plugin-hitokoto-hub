@@ -57,6 +57,11 @@ public class HitokotoTemplateRouter {
                 model.put("templateShowHint", templateConfig.getTemplateShowHint());
                 model.put("enableAutoRefresh", templateConfig.getEnableAutoRefresh());
                 model.put("autoRefreshInterval", templateConfig.getAutoRefreshInterval());
+                // 左上角文字：留空回退为默认文字；链接开关未设置时默认关闭（保持原行为）
+                model.put("templateLogoText", StringUtils.defaultIfBlank(
+                    templateConfig.getTemplateLogoText(), "LiteWords"));
+                model.put("templateLogoLinkEnabled",
+                    Boolean.TRUE.equals(templateConfig.getTemplateLogoLinkEnabled()));
                 // 分享链接直达视图：禁用自动切换句子，避免打断被分享句子的展示
                 model.put("shareView", shareView);
                 return templateNameResolver.resolveTemplateNameOrDefault(request.exchange(),

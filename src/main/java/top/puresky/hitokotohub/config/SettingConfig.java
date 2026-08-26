@@ -100,6 +100,10 @@ public interface SettingConfig {
     @Data
     class TemplateConfig {
         public static final String GROUP = "template";
+        @Schema(description = "模板左上角展示的文字，留空则使用默认文字 LiteWords")
+        private String templateLogoText;
+        @Schema(description = "是否开启点击左上角文字回到站点首页")
+        private Boolean templateLogoLinkEnabled;
         @Schema(description = "模板默认主题：auto 跟随系统, dark 暗色, light 亮色")
         private String templateTheme;
         @Schema(description = "是否显示花瓣飘落动画")
