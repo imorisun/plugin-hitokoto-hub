@@ -247,9 +247,8 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
     public void cleanOldCategoryViewRecords() {
         settingConfig.getBasicConfig()
             .flatMap(config -> {
-                int maxKeep = config.getStatsMaxKeep() != null ? config.getStatsMaxKeep() : 1000;
-                int retentionDays =
-                    config.getStatsRetentionDays() != null ? config.getStatsRetentionDays() : 90;
+                int maxKeep = config.statsMaxKeepOrDefault();
+                int retentionDays = config.statsRetentionDaysOrDefault();
                 Instant cutoffTime = Instant.now().minus(Duration.ofDays(retentionDays));
 
                 Mono<Long> byDays = client.listAll(CategoryViewRecord.class,
@@ -403,7 +402,7 @@ public class StatsCleanupScheduler implements SchedulingConfigurer {
                         aiConfig.getAiTopic(),
                         aiConfig.getAiSentenceCount(),
                         aiConfig.getAiSentenceCategory(),
-                        aiConfig.getAiSentenceAutoPublish()
+                        aiConfig.autoPublishOrDefault()
                     );
                 } else {
                     log.info("AI 自动生成未开启，跳过本次任务");

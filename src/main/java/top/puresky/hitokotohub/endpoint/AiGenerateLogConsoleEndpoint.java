@@ -134,7 +134,7 @@ public class AiGenerateLogConsoleEndpoint implements CustomEndpoint {
                             aiConfig.getAiTopic(),
                             aiConfig.getAiSentenceCount(),
                             aiConfig.getAiSentenceCategory(),
-                            aiConfig.getAiSentenceAutoPublish())
+                            aiConfig.autoPublishOrDefault())
                         .doOnError(e -> log.error("手动触发AI生成失败, user={}, model={}, topic={}, count={}, category={}",
                             username, aiConfig.getLanguageModelName(), aiConfig.getAiTopic(),
                             aiConfig.getAiSentenceCount(), aiConfig.getAiSentenceCategory(), e))

@@ -59,10 +59,6 @@ public class SentencePublicEndpoint implements CustomEndpoint {
     private static final int MAX_SEARCH_RESULTS = 20;
     /** 热门榜单单次最大返回数量 */
     private static final int MAX_HOT_LIMIT = 50;
-    /** 设置缺失时随机接口的兜底默认值 */
-    private static final int DEFAULT_MAX_RANDOM_LIMIT = 20;
-    private static final int DEFAULT_RANDOM_LIMIT = 1;
-    private static final int DEFAULT_LIKE_COOLDOWN_HOURS = 12;
     /**
      * 计数自增的乐观锁冲突重试策略：并发读改写导致版本冲突时，重新拉取最新数据再自增。
      * 首次尝试复用已持有的对象避免额外查询，仅冲突后才重新 fetch。
@@ -146,22 +142,20 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                 .filter(StringUtils::isNotBlank).orElse(null);
 
             // 防御性解析：非数字或非正数回退为设置默认值，避免 NumberFormatException 与非法分页
-            int maxRandomLimit = config.getMaxRandomLimit() != null
-                ? config.getMaxRandomLimit() : DEFAULT_MAX_RANDOM_LIMIT;
-            int defaultLimit = config.getRandomLimit() != null
-                ? config.getRandomLimit() : DEFAULT_RANDOM_LIMIT;
+            int maxRandomLimit = config.maxRandomLimitOrDefault();
+            int defaultLimit = config.randomLimitOrDefault();
             int limit = NumberUtils.toInt(request.queryParam("limit").orElse(null), defaultLimit);
             int actualLimit = Math.max(1, Math.min(limit, maxRandomLimit));
             String encode = request.queryParam("encode").filter(StringUtils::isNotBlank)
-                .orElse(config.getEncode());
+                .orElse(config.encodeOrDefault());
 
-            List<String> defaultCategories = config.getDefaultCategory();
+            List<String> defaultCategories = config.defaultCategoriesOrDefault();
 
             // 请求参数优先，没有则用设置里的
             List<String> finalCategories = null;
             if (StringUtils.isNotBlank(categoryNameParam)) {
                 finalCategories = List.of(categoryNameParam);
-            } else if (defaultCategories != null && !defaultCategories.isEmpty()) {
+            } else if (!defaultCategories.isEmpty()) {
                 finalCategories = defaultCategories;
             }
 
@@ -199,7 +193,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
                                     java.util.concurrent.ThreadLocalRandom.current());
                                 return randomItems;
                             });
-                    }).flatMap(sentences -> Boolean.TRUE.equals(config.getEnableViewCount())
+                    }).flatMap(sentences -> config.viewCountEnabledOrDefault()
                         ? incrementAndRecordViews(sentences, ip) : Mono.just(sentences))
                     .switchIfEmpty(Mono.just(Collections.emptyList()));
 
@@ -331,8 +325,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
             String checkKey = isUnlike ? unlikeKey : likeKey;
             SimpleCooldownState state = likeCache.get(checkKey);
             long now = System.currentTimeMillis();
-            int cooldownHours = config.getLikeCooldown() != null
-                ? config.getLikeCooldown() : DEFAULT_LIKE_COOLDOWN_HOURS;
+            int cooldownHours = config.likeCooldownHoursOrDefault();
             long likeCooldown = Duration.ofHours(cooldownHours).toMillis();
             if (state != null && state.isCoolingDown(likeCooldown, now)) {
                 long remainingSeconds = state.remainingMillis(likeCooldown, now) / 1000;
@@ -393,8 +386,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
 
     /** 是否信任反向代理头：设置缺失时默认 true，兼容既有反代部署。 */
     private static boolean isTrustProxyHeaders(SettingConfig.BasicConfig config) {
-        return config.getTrustProxyHeaders() == null
-            || Boolean.TRUE.equals(config.getTrustProxyHeaders());
+        return config.trustProxyHeadersOrDefault();
     }
 
     /** 仅允许对已发布且未删除的句子点赞（防止未发布内容被点赞并泄露内容）。 */
@@ -530,8 +522,7 @@ public class SentencePublicEndpoint implements CustomEndpoint {
     public void cleanExpiredLikeCache() {
         settingConfig.getBasicConfig().doOnNext(config -> {
             long now = System.currentTimeMillis();
-            int cooldownHours = config.getLikeCooldown() != null
-                ? config.getLikeCooldown() : DEFAULT_LIKE_COOLDOWN_HOURS;
+            int cooldownHours = config.likeCooldownHoursOrDefault();
             long cooldown = Duration.ofHours(cooldownHours).toMillis();
             int removed = likeCache.cleanIf(state -> state.isExpired(cooldown, now));
             if (removed > 0) {

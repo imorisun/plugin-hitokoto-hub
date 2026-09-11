@@ -77,8 +77,7 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
             .flatMap(config -> {
                 boolean enabled = Boolean.TRUE.equals(config.getEnableSubmission());
                 String defaultCategory = config.getSubmissionDefaultCategory();
-                int maxPending = config.getSubmissionMaxPending() == null
-                    ? 0 : config.getSubmissionMaxPending();
+                int maxPending = config.maxPendingOrDefault();
                 return ServerResponse.ok().bodyValue(Map.of(
                     "enableSubmission", enabled,
                     "defaultCategory", defaultCategory != null ? defaultCategory : "",
@@ -92,8 +91,7 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
             .flatMap(tuple -> {
                 SettingConfig.SubmissionConfig config = tuple.getT1();
                 // 与点赞/浏览接口一致：是否信任 X-Forwarded-For 由基本设置控制
-                boolean trustProxyHeaders = tuple.getT2().getTrustProxyHeaders() == null
-                    || Boolean.TRUE.equals(tuple.getT2().getTrustProxyHeaders());
+                boolean trustProxyHeaders = tuple.getT2().trustProxyHeadersOrDefault();
                 String ip = HttpUtils.getClientIp(request.exchange().getRequest(),
                     trustProxyHeaders);
                 if (!Boolean.TRUE.equals(config.getEnableSubmission())) {
@@ -101,10 +99,9 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
                         .bodyValue(buildResponse(false, "submitted_disabled",
                             "访客提交功能未开启"));
                 }
-                int cooldownMinutes = config.getSubmissionCooldown() == null
-                    ? 0 : config.getSubmissionCooldown();
-                int batchLimit = config.getSubmissionBatchLimit() == null
-                    ? 1 : Math.max(1, config.getSubmissionBatchLimit());
+                // 设置缺失时回退到设置项默认值，避免限流被静默关闭
+                int cooldownMinutes = config.cooldownMinutesOrDefault();
+                int batchLimit = config.batchLimitOrDefault();
                 long now = System.currentTimeMillis();
                 long cooldownMs = Duration.ofMinutes(cooldownMinutes).toMillis();
 
@@ -129,8 +126,8 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
                     }
                 }
                 // 待审核数量上限检查：同一 IP 待审核提交数量达到上限后禁止继续提交
-                Integer maxPending = config.getSubmissionMaxPending();
-                Mono<Long> pendingCountMono = (maxPending == null || maxPending <= 0)
+                int maxPending = config.maxPendingOrDefault();
+                Mono<Long> pendingCountMono = maxPending <= 0
                     ? Mono.just(0L)
                     : client.countBy(SentenceSubmission.class,
                             ListOptions.builder()
@@ -141,8 +138,7 @@ public class SentenceSubmissionPublicEndpoint implements CustomEndpoint {
                                 .build())
                         .defaultIfEmpty(0L);
                 return pendingCountMono.flatMap(pendingCount -> {
-                    if (maxPending != null && maxPending > 0
-                        && pendingCount >= maxPending) {
+                    if (maxPending > 0 && pendingCount >= maxPending) {
                         return ServerResponse.status(HttpStatus.TOO_MANY_REQUESTS)
                             .bodyValue(buildResponse(false, "pending_limit_reached",
                                 "您已有 " + pendingCount + " 条句子待审核，已达上限 "

@@ -38,12 +38,13 @@ public class HitokotoFinderImpl implements HitokotoFinder {
     public Flux<SentenceVo> randomSentences(int size, String categoryName) {
         return settingConfig.getBasicConfig()
             .flatMapMany(config -> {
+                // 设置缺失时回退到与 settings.yaml 一致的默认值，避免自动拆箱空指针
                 int actualSize = size > 0
-                    ? Math.min(size, config.getMaxRandomLimit())
-                    : config.getRandomLimit();
+                    ? Math.min(size, config.maxRandomLimitOrDefault())
+                    : config.randomLimitOrDefault();
 
                 // 解析请求参数和默认分类
-                List<String> defaultCategories = config.getDefaultCategory();
+                List<String> defaultCategories = config.defaultCategoriesOrDefault();
 
                 List<String> finalCategories = null;
                 if (StringUtils.isNotBlank(categoryName)) {
@@ -89,7 +90,7 @@ public class HitokotoFinderImpl implements HitokotoFinder {
                                 Collections.shuffle(randomItems,
                                     java.util.concurrent.ThreadLocalRandom.current());
 
-                                if (config.getEnableViewCount()) {
+                                if (config.viewCountEnabledOrDefault()) {
                                     return Flux.fromIterable(randomItems)
                                         .concatMap(sentence -> {
                                             if (sentence.getStatus() == null) {

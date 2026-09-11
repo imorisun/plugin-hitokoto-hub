@@ -132,7 +132,7 @@ public class SentenceSubmissionConsoleEndpoint implements CustomEndpoint {
                         // 使用管理员可能编辑后的字段创建 Sentence
                         return settingConfig.getSubmissionConfig()
                             .flatMap(config -> createSentenceFromSubmission(submission,
-                                approveRequest, Boolean.TRUE.equals(config.getSubmissionAutoPublish())))
+                                approveRequest, config.autoPublishOrDefault()))
                             .flatMap(sentence -> {
                                 submission.getSpec().setSentenceName(
                                     sentence.getMetadata().getName());
