@@ -5,7 +5,7 @@
       "source": "halo-dev/dev-skills",
       "sourceType": "github",
       "skillPath": "skills/halo-plugin-dev/SKILL.md",
-      "computedHash": "cacdbde0d53b6d062b3acbe237c6dbe60fd564d7bb70172b22eb4cfbf43117dd"
+      "computedHash": "47e1464773bb4c8fa2751336a8c5d47908e0833f9cc4ab80941fbeeec703c2cc"
     },
     "use-ai-foundation-sdk": {
       "source": "halo-dev/plugin-ai-foundation",
