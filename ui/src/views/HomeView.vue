@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import {markRaw, shallowRef, watch} from 'vue'
+import { markRaw, shallowRef, watch } from 'vue'
 import SentenceList from '@/components/SentenceList.vue'
 import Overview from '@/components/Overview.vue'
 import AiGenerateLogList from '@/components/AiGenerateLogList.vue'
 import SubmissionList from '@/components/SubmissionList.vue'
 import SimilarityCheck from '@/components/SimilarityCheck.vue'
-import {useRouteQuery} from '@vueuse/router'
-import {VPageHeader, VTabbar} from '@halo-dev/components'
+import { useRouteQuery } from '@vueuse/router'
+import {
+  VPageHeader, VTabbar, VButton, IconExternalLinkLine
+} from '@halo-dev/components'
 import IconHitokotoLogo from '~icons/my-icons/hitokoto-logo';
 
 const tabs = shallowRef([
@@ -40,14 +42,18 @@ const tabs = shallowRef([
 const activeIndex = useRouteQuery<string>('tab', tabs.value[0].id)
 
 watch(
-        activeIndex,
-        (value) => {
-          if (!tabs.value.some((tab) => tab.id === value)) {
-            activeIndex.value = 'SentenceList'
-          }
-        },
-        {immediate: true},
+  activeIndex,
+  (value) => {
+    if (!tabs.value.some((tab) => tab.id === value)) {
+      activeIndex.value = 'SentenceList'
+    }
+  },
+  { immediate: true },
 )
+
+const handleRouteToFront = () => {
+  window.open('/hitokoto', '_blank')
+}
 </script>
 
 <template>
@@ -55,21 +61,25 @@ watch(
     <template #icon>
       <IconHitokotoLogo></IconHitokotoLogo>
     </template>
+    <template #actions>
+      <VButton @click="handleRouteToFront" size="sm" ghost>
+        <template #icon>
+          <IconExternalLinkLine></IconExternalLinkLine>
+        </template>
+        跳转到前台
+      </VButton>
+    </template>
   </VPageHeader>
 
   <div class="m-0 space-y-4 md:m-4">
     <div class="border-b border-gray-100 bg-white">
-      <VTabbar
-              v-model:active-id="activeIndex"
-              :items="tabs.map((item) => ({ id: item.id, label: item.label }))"
-              class="w-full rounded-none!"
-              type="outline"
-      ></VTabbar>
+      <VTabbar v-model:active-id="activeIndex" :items="tabs.map((item) => ({ id: item.id, label: item.label }))"
+        class="w-full rounded-none!" type="outline"></VTabbar>
     </div>
-    <Overview v-if="activeIndex == 'Overview'"/>
-    <SentenceList v-if="activeIndex == 'SentenceList'"/>
-    <SubmissionList v-if="activeIndex == 'SubmissionList'"/>
-    <AiGenerateLogList v-if="activeIndex == 'AiGenerateLog'"/>
-    <SimilarityCheck v-if="activeIndex == 'SimilarityCheck'"/>
+    <Overview v-if="activeIndex == 'Overview'" />
+    <SentenceList v-if="activeIndex == 'SentenceList'" />
+    <SubmissionList v-if="activeIndex == 'SubmissionList'" />
+    <AiGenerateLogList v-if="activeIndex == 'AiGenerateLog'" />
+    <SimilarityCheck v-if="activeIndex == 'SimilarityCheck'" />
   </div>
 </template>
