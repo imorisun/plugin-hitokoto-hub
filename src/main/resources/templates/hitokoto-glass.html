@@ -20,13 +20,13 @@
     <th:block th:replace="~{hitokoto-glass-styles :: styles}"/>
 </head>
 <body>
-<!-- 液态玻璃背景：缓慢流动的缤纷光斑 + 极细噪点，为玻璃层提供可"折射"的底色 -->
+<!-- 液态玻璃背景：缓慢流动的缤纷光斑，为玻璃层提供可"折射"的底色；
+     颗粒质感改由各玻璃面板自身的背景层承担，贴在页面底层会被面板整个盖住 -->
 <div class="glass-scene" aria-hidden="true">
     <span class="glass-orb glass-orb--1"></span>
     <span class="glass-orb glass-orb--2"></span>
     <span class="glass-orb glass-orb--3"></span>
 </div>
-<div class="glass-grain" aria-hidden="true"></div>
 
 <header class="glass-header">
     <div class="glass-header__bar glass">

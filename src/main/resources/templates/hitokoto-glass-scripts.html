@@ -140,8 +140,9 @@
             });
         })();
 
-        /* ==================== 滚动视差 ==================== */
-        /* 背景光斑层随滚动缓慢上移，营造纵深；rAF 节流 + 只改 transform，避免触发布局重排 */
+        /* ==================== 滚动视差与指针牵引 ==================== */
+        /* 背景光斑既随滚动缓慢上移（纵深），又被指针轻轻"拖"动（液面受力）。
+           两者合并到同一个 rAF 里读写，只改 transform，避免触发布局重排 */
         (function () {
             if (window.matchMedia
                 && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -149,20 +150,37 @@
             }
             var scene = document.querySelector('.glass-scene');
             if (!scene) return;
+            var scrollY = window.pageYOffset
+                || document.documentElement.scrollTop || 0;
+            var px = 0;   /* 指针归一化横向偏移（-1 ~ 1） */
+            var py = 0;   /* 指针归一化纵向偏移 */
             var ticking = false;
 
             function update() {
                 ticking = false;
-                var y = window.pageYOffset
-                    || document.documentElement.scrollTop || 0;
-                scene.style.transform = 'translate3d(0,' + (-y * 0.05) + 'px,0)';
+                scene.style.transform = 'translate3d(' + (px * 14).toFixed(2) + 'px,'
+                    + (-scrollY * 0.05 + py * 14).toFixed(2) + 'px,0)';
             }
 
-            window.addEventListener('scroll', function () {
+            function schedule() {
                 if (ticking) return;
                 ticking = true;
                 requestAnimationFrame(update);
+            }
+
+            window.addEventListener('scroll', function () {
+                scrollY = window.pageYOffset
+                    || document.documentElement.scrollTop || 0;
+                schedule();
             }, { passive: true });
+
+            if (window.matchMedia && window.matchMedia('(hover: hover)').matches) {
+                window.addEventListener('pointermove', function (e) {
+                    px = (e.clientX / window.innerWidth - 0.5) * 2;
+                    py = (e.clientY / window.innerHeight - 0.5) * 2;
+                    schedule();
+                }, { passive: true });
+            }
         })();
 
         /* ==================== 光线折射与液面倾斜 ==================== */
@@ -176,32 +194,53 @@
                 return;
             }
             var MAX_TILT = 6;
+            /* 指针落点的柔光对卡片、聚光卡片与所有控件都生效 */
+            var GLINT_CLASSES = ['glass-card', 'glass-spotlight',
+                'btn', 'icon-btn', 'glass-tab', 'glass-refresh'];
             var raf = null;
             var pending = null;
 
+            function hasGlint(node) {
+                var list = node.classList;
+                if (!list) return false;
+                for (var i = 0; i < GLINT_CLASSES.length; i++) {
+                    if (list.contains(GLINT_CLASSES[i])) return true;
+                }
+                return false;
+            }
+
             document.addEventListener('pointermove', function (e) {
                 if (!e.target || !e.target.closest) return;
-                var target = e.target.closest('.glass-card, .glass-spotlight');
-                if (!target) return;
-                pending = { target: target, x: e.clientX, y: e.clientY };
+                if (!e.target.closest('.glass-card, .glass-spotlight,'
+                    + ' .btn, .icon-btn, .glass-tab, .glass-refresh')) return;
+                pending = { target: e.target, x: e.clientX, y: e.clientY };
                 if (raf) return;
                 raf = requestAnimationFrame(function () {
                     raf = null;
                     var p = pending;
                     if (!p) return;
-                    var rect = p.target.getBoundingClientRect();
-                    if (!rect.width || !rect.height) return;
-                    var px = (p.x - rect.left) / rect.width;
-                    var py = (p.y - rect.top) / rect.height;
-                    /* 柔光位置：模拟光线在玻璃表面的折射落点 */
-                    p.target.style.setProperty('--mx', (px * 100) + '%');
-                    p.target.style.setProperty('--my', (py * 100) + '%');
-                    /* 倾斜只作用于网格卡片：聚光卡片体量大，倾斜会干扰长句阅读 */
-                    if (p.target.classList.contains('glass-card')) {
-                        p.target.style.setProperty('--ry',
-                            ((px - 0.5) * MAX_TILT * 2).toFixed(2) + 'deg');
-                        p.target.style.setProperty('--rx',
-                            ((0.5 - py) * MAX_TILT * 2).toFixed(2) + 'deg');
+                    /* 由内向外整条祖先链都写一遍：控件嵌在卡片里时，
+                       两者各自的高光都能跟上指针，不会有一方"卡住" */
+                    var node = p.target;
+                    while (node && node !== document.body) {
+                        if (hasGlint(node)) {
+                            var rect = node.getBoundingClientRect();
+                            if (rect.width && rect.height) {
+                                var px = (p.x - rect.left) / rect.width;
+                                var py = (p.y - rect.top) / rect.height;
+                                node.style.setProperty('--mx', (px * 100) + '%');
+                                node.style.setProperty('--my', (py * 100) + '%');
+                                /* 倾斜只作用于网格卡片：聚光卡片体量大，
+                                   倾斜会干扰长句阅读 */
+                                if (node.classList.contains('glass-card')) {
+                                    node.style.setProperty('--ry',
+                                        ((px - 0.5) * MAX_TILT * 2).toFixed(2) + 'deg');
+                                    node.style.setProperty('--rx',
+                                        ((0.5 - py) * MAX_TILT * 2).toFixed(2) + 'deg');
+                                }
+                            }
+                        }
+                        node = node.parentElement;
                     }
                 });
             }, { passive: true });
@@ -232,6 +271,12 @@
                 if (!host || host.disabled) return;
                 var rect = host.getBoundingClientRect();
                 if (!rect.width || !rect.height) return;
+                /* 触点同时充当缩放原点：形变从指尖处"陷"下去再回弹，
+                   比固定从中心缩放更像按在液面上 */
+                host.style.setProperty('--ox',
+                    ((e.clientX - rect.left) / rect.width * 100).toFixed(1) + '%');
+                host.style.setProperty('--oy',
+                    ((e.clientY - rect.top) / rect.height * 100).toFixed(1) + '%');
                 var size = Math.max(rect.width, rect.height) * 1.8;
                 var ripple = document.createElement('span');
                 ripple.className = 'glass-ripple';
