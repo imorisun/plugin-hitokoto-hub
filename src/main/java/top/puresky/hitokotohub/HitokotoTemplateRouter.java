@@ -44,9 +44,15 @@ public class HitokotoTemplateRouter {
 
     private Mono<ServerResponse> renderPage(ServerRequest request,
         List<HitokotoFinder.SentenceVo> sharedSentences, boolean shareView) {
-        return settingConfig.getTemplateConfig()
-            .defaultIfEmpty(new SettingConfig.TemplateConfig())
-            .flatMap(templateConfig -> {
+        Mono<SettingConfig.TemplateConfig> templateConfigMono = settingConfig.getTemplateConfig()
+            .defaultIfEmpty(new SettingConfig.TemplateConfig());
+        Mono<SettingConfig.SubmissionConfig> submissionConfigMono =
+            settingConfig.getSubmissionConfig()
+                .defaultIfEmpty(new SettingConfig.SubmissionConfig());
+        return Mono.zip(templateConfigMono, submissionConfigMono)
+            .flatMap(tuple -> {
+                SettingConfig.TemplateConfig templateConfig = tuple.getT1();
+                SettingConfig.SubmissionConfig submissionConfig = tuple.getT2();
                 var model = new HashMap<String, Object>();
                 model.put("sentences", List.of());
                 // 非空则模板渲染指定句子，为空则渲染随机句子（见 hitokoto.html 三元表达式）
@@ -64,8 +70,16 @@ public class HitokotoTemplateRouter {
                     Boolean.TRUE.equals(templateConfig.getTemplateLogoLinkEnabled()));
                 // 分享链接直达视图：禁用自动切换句子，避免打断被分享句子的展示
                 model.put("shareView", shareView);
+                // 投递入口是否渲染由服务端一次性决定，避免先渲染按钮再异步隐藏造成闪烁；
+                // 判定口径与 SentenceSubmissionPublicEndpoint 的 config 接口保持一致
+                model.put("submissionEnabled",
+                    Boolean.TRUE.equals(submissionConfig.getEnableSubmission()));
+                // 按插件设置选择模板风格：cards 渲染简约卡片列表，其余（含未配置）渲染经典单句模板
+                String defaultTemplateName = SettingConfig.TemplateConfig.TEMPLATE_STYLE_CARDS
+                    .equalsIgnoreCase(templateConfig.getTemplateStyle())
+                    ? "hitokoto-cards" : "hitokoto";
                 return templateNameResolver.resolveTemplateNameOrDefault(request.exchange(),
-                        "hitokoto")
+                        defaultTemplateName)
                     .flatMap(templateName -> ServerResponse.ok().render(templateName, model));
             });
     }

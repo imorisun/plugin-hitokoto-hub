@@ -203,6 +203,10 @@ public interface SettingConfig {
     @Data
     class TemplateConfig {
         public static final String GROUP = "template";
+        /** 模板风格：classic 经典单句沉浸式（默认），cards 简约卡片列表 */
+        public static final String TEMPLATE_STYLE_CARDS = "cards";
+        @Schema(description = "模板风格：classic 经典单句沉浸式，cards 简约卡片列表")
+        private String templateStyle;
         @Schema(description = "模板左上角展示的文字，留空则使用默认文字 LiteWords")
         private String templateLogoText;
         @Schema(description = "是否开启点击左上角文字回到站点首页")

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org"
+      th:attr="data-default-theme=${templateTheme}">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!-- 移动端浏览器顶栏跟随主题色（初始为暗色，applyTheme 时动态更新） -->
+    <meta name="theme-color" content="#0e0e11"/>
+    <meta name="color-scheme" content="dark light"/>
+    <!-- 首屏主题预设：必须在样式与内容之前同步执行，避免先渲染暗色再切亮色的闪烁 -->
+    <th:block th:replace="~{hitokoto-cards-scripts :: theme-init}"/>
+    <title>轻言 · 句子集</title>
+    <!-- Favicon 玫瑰色花瓣（与经典模板保持一致的品牌标识） -->
+    <link rel="icon" type="image/svg+xml"
+          href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23fb7185' d='M50 15 C70 25 85 45 75 65 C65 85 35 85 25 65 C15 45 30 25 50 15 Z' transform='rotate(45 50 50)'/%3E%3C/svg%3E"/>
+    <th:block th:replace="~{hitokoto-cards-styles :: styles}"/>
+</head>
+<body>
+<header class="site-header">
+    <div class="site-header__inner">
+        <!-- 左上角文字：开启"点击回到站点首页"时渲染为链接，否则仅作展示 -->
+        <a class="site-logo" th:if="${templateLogoLinkEnabled}" th:href="@{/}"
+           th:text="${templateLogoText}" aria-label="回到站点首页">LiteWords</a>
+        <span class="site-logo" th:unless="${templateLogoLinkEnabled}"
+              th:text="${templateLogoText}">LiteWords</span>
+        <div class="site-header__actions">
+            <button class="icon-btn theme-toggle" id="themeToggle" type="button"
+                    aria-label="切换主题" title="切换主题">
+                <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+                <!-- 跟随系统图标：与经典模板保持一致（圆环描边 + 右半实心） -->
+                <svg class="icon-auto" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <path class="icon-auto__half" d="M12 2a10 10 0 0 1 0 20"
+                          fill="currentColor" opacity="0.5"/>
+                </svg>
+            </button>
+            <!-- 投递入口：由服务端决定是否渲染，关闭时不会先出现再消失 -->
+            <button class="btn btn--primary submit-btn" id="submitBtn" type="button"
+                    th:if="${submissionEnabled}">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+                <span>投递句子</span>
+            </button>
+        </div>
+    </div>
+</header>
+
+<main class="page-main">
+    <div class="page-container">
+        <!-- 分享链接直达（?sentence=xxx）：置顶展示被分享的句子 -->
+        <section class="featured" th:if="${sharedSentence != null}" aria-label="来自分享的句子">
+            <div class="featured__label">来自分享</div>
+            <article class="sentence-card sentence-card--featured"
+                     th:each="s : ${sharedSentence}"
+                     th:attr="data-name=${s.name}">
+                <p class="sentence-card__content" th:text="${s.content}"></p>
+                <div class="sentence-card__footer">
+                    <div class="sentence-card__citation">
+                        <span class="sentence-card__author"
+                              th:text="${#strings.isEmpty(s.author)} ? '佚名' : ${s.author}">佚名</span>
+                        <a class="sentence-card__source"
+                           th:if="${!#strings.isEmpty(s.source) and !#strings.isEmpty(s.jumpUrl)}"
+                           th:href="${s.jumpUrl}" target="_blank" rel="noopener"
+                           th:text="'《' + ${s.source} + '》'"></a>
+                        <span class="sentence-card__source"
+                              th:if="${!#strings.isEmpty(s.source) and #strings.isEmpty(s.jumpUrl)}"
+                              th:text="'《' + ${s.source} + '》'"></span>
+                    </div>
+                    <div class="sentence-card__actions">
+                        <button class="icon-btn card-like" type="button" aria-label="点赞">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                            <span class="card-like__count"
+                                  th:attr="data-likes=${s.likeCount}"
+                                  th:text="${s.likeCount}">0</span>
+                        </button>
+                        <button class="icon-btn card-copy" type="button" aria-label="复制分享链接" title="复制分享链接">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <!-- 分类导航与"换一批"同处一行：分类条占满剩余宽度，右侧是一个独立的小胶囊 -->
+        <div class="tabs-row">
+            <nav class="category-tabs" id="categoryTabs" aria-label="句子分类">
+                <button class="category-tab is-active" type="button" data-cat=""
+                        title="按站点默认分类展示" aria-pressed="true">
+                    <span class="category-tab__name">全部</span>
+                </button>
+                <button class="category-tab" type="button" th:each="c : ${hitokotoFinder.listCategories()}"
+                        th:attr="data-cat=${c.name}, title=${c.description}" aria-pressed="false">
+                    <span class="category-tab__name" th:text="${c.displayName}"></span>
+                </button>
+            </nav>
+            <button class="refresh-btn" id="refreshBtn" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+                <span>换一批</span>
+            </button>
+        </div>
+
+        <!-- 句子卡片网格：SSR 渲染默认分类的随机句子，客户端"换一批"按当前分类重新拉取 -->
+        <section class="sentence-grid" id="sentenceGrid" aria-label="句子列表">
+            <article class="sentence-card"
+                     th:each="s, iterStat : ${hitokotoFinder.randomSentences(12, null)}"
+                     th:attr="data-name=${s.name}"
+                     th:styleappend="'--stagger:' + (${iterStat.index} * 60) + 'ms'">
+                <p class="sentence-card__content" th:text="${s.content}">加载中...</p>
+                <div class="sentence-card__footer">
+                    <div class="sentence-card__citation">
+                        <span class="sentence-card__author"
+                              th:text="${#strings.isEmpty(s.author)} ? '佚名' : ${s.author}">佚名</span>
+                        <a class="sentence-card__source"
+                           th:if="${!#strings.isEmpty(s.source) and !#strings.isEmpty(s.jumpUrl)}"
+                           th:href="${s.jumpUrl}" target="_blank" rel="noopener"
+                           th:text="'《' + ${s.source} + '》'"></a>
+                        <span class="sentence-card__source"
+                              th:if="${!#strings.isEmpty(s.source) and #strings.isEmpty(s.jumpUrl)}"
+                              th:text="'《' + ${s.source} + '》'"></span>
+                    </div>
+                    <div class="sentence-card__actions">
+                        <button class="icon-btn card-like" type="button" aria-label="点赞">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                            <span class="card-like__count"
+                                  th:attr="data-likes=${s.likeCount}"
+                                  th:text="${s.likeCount}">0</span>
+                        </button>
+                        <button class="icon-btn card-copy" type="button" aria-label="复制分享链接" title="复制分享链接">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <!-- 空态：分类下暂无句子 -->
+        <div class="grid-empty" id="gridEmpty">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+                <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+            </svg>
+            <p class="grid-empty__title" id="gridEmptyTitle">这里还没有句子</p>
+            <p class="grid-empty__hint">试试切换其他分类，或投递一句话</p>
+        </div>
+    </div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- 访客提交句子弹窗 -->
+<div class="submit-modal" id="submitModal" role="dialog" aria-modal="true"
+     aria-labelledby="submitModalTitle" aria-hidden="true">
+    <div class="submit-modal__backdrop" id="submitModalBackdrop"></div>
+    <div class="submit-modal__panel">
+        <div class="submit-modal__header">
+            <h2 class="submit-modal__title" id="submitModalTitle">投递一句</h2>
+            <button class="icon-btn submit-modal__close" id="submitModalClose" type="button" aria-label="关闭">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18 6 6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <form class="submit-modal__form" id="submitForm" autocomplete="off" novalidate>
+            <div class="form-field">
+                <label class="form-field__label" for="submitContent">句子内容<em>*</em></label>
+                <textarea
+                        class="form-field__control form-field__textarea"
+                        id="submitContent"
+                        name="content"
+                        maxlength="500"
+                        required
+                        placeholder="写下你想分享的那一句话..."
+                        rows="4"
+                ></textarea>
+                <span class="form-field__count"><span id="submitContentCount">0</span> / 500</span>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="submitCategory">分类<em>*</em></label>
+                <select class="form-field__control" id="submitCategory" required>
+                    <option value="" disabled selected>加载中...</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="submitAuthor">作者</label>
+                <input class="form-field__control" id="submitAuthor" name="author" type="text"
+                       maxlength="50" placeholder="留空则记为匿名">
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="submitSource">来源</label>
+                <input class="form-field__control" id="submitSource" name="source" type="text"
+                       maxlength="100" placeholder="如书名、电影、歌曲等">
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="submitterName">你的昵称</label>
+                <input class="form-field__control" id="submitterName" name="submitterName" type="text"
+                       maxlength="50" placeholder="让管理员知道是谁投递的">
+            </div>
+            <div class="submit-modal__footer">
+                <button class="btn" type="button" id="submitCancel">取消</button>
+                <button class="btn btn--primary" type="submit" id="submitConfirm" disabled>投递</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<th:block th:replace="~{hitokoto-cards-scripts :: scripts}"/>
+</body>
+</html>

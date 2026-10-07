@@ -1,7 +1,38 @@
 <!--
   访客模板脚本 fragment（从 hitokoto.html 拆分，零行为变更）。
-  通过 <th:block th:replace="~{hitokoto-scripts :: scripts}"/> 引用。
+  通过 <th:block th:replace="~{hitokoto-scripts :: scripts}"/> 引用；
+  其中 theme-init 必须单独引在 <head> 里。
 -->
+
+<!--
+  首屏主题预设：**必须**放在 <head> 中同步执行。
+  若等到 body 末尾的 scripts 才切换主题，浏览器会先用默认的暗色画一帧、再由脚本改成亮色，
+  表现为"每次打开都先黑一下"的闪烁。这里只做最小必要的事：
+  读偏好 → 定明暗 → 立刻写到 <html> 上，不碰 DOM、不注册监听。
+-->
+<th:block th:fragment="theme-init" xmlns:th="http://www.thymeleaf.org">
+<script>
+    (function () {
+        'use strict';
+        var html = document.documentElement;
+        /* 与下方 THEME_KEY 保持一致：两段脚本各自独立执行，无法共享变量 */
+        var mode = null;
+        try {
+            mode = localStorage.getItem('hitokoto:theme');
+        } catch (e) { /* 隐私模式下 localStorage 不可用，回落到服务端默认值 */ }
+        if (mode !== 'light' && mode !== 'dark' && mode !== 'auto') {
+            mode = html.getAttribute('data-default-theme') || 'auto';
+        }
+        var actual = (mode === 'dark' || mode === 'light') ? mode
+            : ((window.matchMedia
+                && window.matchMedia('(prefers-color-scheme: light)').matches)
+                ? 'light' : 'dark');
+        if (actual === 'light') {
+            html.setAttribute('data-theme', 'light');
+        }
+    })();
+</script>
+</th:block>
 <th:block th:fragment="scripts" xmlns:th="http://www.thymeleaf.org">
 <script>
     /* ==================== 主题切换 ==================== */
@@ -12,10 +43,10 @@
         /**
          * 获取服务端配置的默认主题（由管理员在插件设置中设定）。
          * 值：'auto' | 'dark' | 'light'
+         * 挂在 <html data-default-theme> 上，head 的 theme-init 读的是同一个值。
          */
         function getServerDefaultTheme() {
-            var cfg = document.getElementById('templateConfig');
-            return cfg ? cfg.getAttribute('data-theme') : 'auto';
+            return html.getAttribute('data-default-theme') || 'auto';
         }
 
         /**
@@ -664,17 +695,6 @@
                 }, 1200);
             }
         }
-        /* 查询访客提交是否启用，未启用则隐藏提交按钮 */
-        fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence-submission/config')
-            .then(r => r.json())
-            .then(data => {
-                if (!data.enableSubmission) {
-                    const submitBtn = document.getElementById('submitBtn');
-                    if (submitBtn) submitBtn.style.display = 'none';
-                }
-            })
-            .catch(() => {});
-
         /* 分类切换初始化：从 localStorage 恢复上次选择 */
         selectedCategory = getStoredCategory();
         updateCategoryToggleVisual();
@@ -919,7 +939,9 @@
             closeCategoryDropdown();
         }
     });
-    document.getElementById('submitBtn').addEventListener('click', openSubmitModal);
+    /* 投递入口由服务端按开关渲染：功能关闭时按钮不存在，需跳过绑定 */
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) submitBtn.addEventListener('click', openSubmitModal);
     document.getElementById('submitCancel').addEventListener('click', closeSubmitModal);
     document.getElementById('submitModalClose').addEventListener('click', closeSubmitModal);
     document.getElementById('submitModalBackdrop').addEventListener('click', closeSubmitModal);

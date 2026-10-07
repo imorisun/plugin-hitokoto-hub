@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org"
+      th:attr="data-default-theme=${templateTheme}">
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <!-- 移动端浏览器顶栏跟随主题色（初始为暗色，applyTheme 时动态更新） -->
     <meta name="theme-color" content="#0a0606"/>
     <meta name="color-scheme" content="dark light"/>
+    <!-- 首屏主题预设：必须在样式与内容之前同步执行，避免先渲染暗色再切亮色的闪烁 -->
+    <th:block th:replace="~{hitokoto-scripts :: theme-init}"/>
     <title>轻言-轻拾人间辞藻，言说万千心绪</title>
     <!-- Favicon 玫瑰色花瓣 -->
     <link rel="icon" type="image/svg+xml"
@@ -30,7 +33,7 @@
 <!-- 服务端配置注入，JS 通过 data 属性读取 -->
 <div id="templateConfig"
      style="display:none"
-     th:attr="data-theme=${templateTheme},data-sakura=${templateShowSakura},data-hint=${templateShowHint},
+     th:attr="data-sakura=${templateShowSakura},data-hint=${templateShowHint},
               data-auto-refresh=${enableAutoRefresh},data-auto-refresh-interval=${autoRefreshInterval},
               data-disable-auto-refresh=${shareView}">
 </div>
@@ -111,7 +114,9 @@
                 <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
             </svg>
         </button>
-        <button class="submit-btn" id="submitBtn" type="button" aria-label="提交句子">
+        <!-- 投递入口：由服务端决定是否渲染，关闭时不会先出现再消失 -->
+        <button class="submit-btn" id="submitBtn" type="button" aria-label="提交句子"
+                th:if="${submissionEnabled}">
             <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 5v14M5 12h14"/>
             </svg>

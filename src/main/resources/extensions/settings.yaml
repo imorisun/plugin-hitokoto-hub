@@ -369,6 +369,17 @@ spec:
     - group: template
       label: 模板展示设置
       formSchema:
+        - $formkit: select
+          name: templateStyle
+          id: templateStyle
+          label: 模板风格
+          value: classic
+          options:
+            - label: 经典 · 单句沉浸式
+              value: classic
+            - label: 简约 · 卡片列表
+              value: cards
+          help: 选择 /hitokoto 页面使用的模板风格；"简约卡片"以卡片流展示多条句子并支持分类切换。与所选风格无关的展示设置会自动隐藏
         - $formkit: text
           name: templateLogoText
           label: 左上角文字
@@ -396,22 +407,25 @@ spec:
           name: templateShowSakura
           label: 显示花瓣飘落动画
           value: true
+          if: "$get(templateStyle).value === 'classic'"
           help: 关闭后，模板页面将不展示花瓣飘落背景动画
         - $formkit: switch
           name: templateShowHint
           label: 显示首次操作提示
           value: true
+          if: "$get(templateStyle).value === 'classic'"
           help: 开启后，页面加载完成时将显示"双击屏幕任意位置点赞"的操作提示
         - $formkit: switch
           name: enableAutoRefresh
           id: enableAutoRefresh
           label: 定时自动切换句子
           value: false
+          if: "$get(templateStyle).value === 'classic'"
           help: 开启后，页面将按照设定的时间间隔自动切换展示新的句子
         - $formkit: number
           name: autoRefreshInterval
           label: 自动切换间隔（秒）
-          if: "$get(enableAutoRefresh).value === true"
+          if: "$get(templateStyle).value === 'classic' && $get(enableAutoRefresh).value === true"
           value: 10
           min: 3
           max: 3600
