@@ -118,6 +118,7 @@ spec:
 
         - $formkit: select
           name: aiCron
+          key: aiCron
           label: 自动生成时间
           if: "$get(enableAiGenerate).value === true"
           value: "0 0 2 * * *"
@@ -260,6 +261,7 @@ spec:
           help: 开启后，访客可在模板页面提交句子，管理员在后台审核
         - $formkit: select
           name: submissionDefaultCategory
+          key: submissionDefaultCategory
           label: 默认提交分类
           if: "$get(enableSubmission).value === true"
           value:
@@ -273,12 +275,14 @@ spec:
           help: 访客提交句子时默认选中的分类（留空则让访客自行选择）
         - $formkit: switch
           name: submissionAutoPublish
+          key: submissionAutoPublish
           label: 审核通过后自动发布
           value: true
           if: "$get(enableSubmission).value === true"
           help: 开启后审核通过的句子将直接发布并出现在随机接口中；关闭则需在后台手动发布
         - $formkit: number
           name: submissionBatchLimit
+          key: submissionBatchLimit
           label: 连续提交上限
           value: 3
           validation: required|number|min:1|max:20
@@ -286,6 +290,7 @@ spec:
           help: 同一 IP 在冷却周期内可连续提交的句子数量，达到上限后进入冷却
         - $formkit: number
           name: submissionCooldown
+          key: submissionCooldown
           label: 提交冷却时间（分钟）
           value: 10
           validation: required|number|min:0|max:1440
@@ -293,6 +298,7 @@ spec:
           help: 达到连续提交上限后的冷却时间；未达上限时单次提交也受此时间限制，0 表示不限制
         - $formkit: number
           name: submissionMaxPending
+          key: submissionMaxPending
           label: 待审核句子数量上限
           value: 50
           validation: required|number|min:0|max:1000
@@ -332,6 +338,7 @@ spec:
           help: 开启后，系统将按设定周期自动对所有句子进行相似度比对
         - $formkit: select
           name: similarityCron
+          key: similarityCron
           label: 定时检查时间
           if: "$get(enableScheduledCheck).value === true"
           value: "0 0 2 * * *"
@@ -348,6 +355,7 @@ spec:
           help: "相似度检查的执行时间，支持从预设中选择或手动输入 6 位 Cron 表达式（秒 分 时 日 月 周）"
         - $formkit: select
           name: similarityAlgorithm
+          key: similarityAlgorithm
           label: 相似度算法
           if: "$get(enableScheduledCheck).value === true"
           value: COSINE
@@ -359,6 +367,7 @@ spec:
           help: "余弦相似度基于 TF-IDF 加权的字符二元组向量，适合检测语义接近的句子；Jaccard 相似度基于字符二元组集合的重叠率，适合检测高度相似的句子"
         - $formkit: number
           name: similarityThreshold
+          key: similarityThreshold
           label: 相似度阈值
           if: "$get(enableScheduledCheck).value === true"
           value: 0.8
@@ -405,14 +414,21 @@ spec:
             - label: 亮色模式
               value: light
           help: 访客首次访问时展示的主题配色；若访客手动切换过主题，则以访客的选择为准
+        # 每个风格字段各自带 if，并显式声明 key：
+        # FormKit 要求「条件或迭代的 schema 节点」必须带显式 key，否则渲染层会复用先前
+        # 的 DOM 节点，出现字段样式丢失、组件报错。不把同风格字段包进独立的 if/then
+        # 条件节点，因为 Halo 只从 formSchema 的直接子节点提取带 name+value 的默认值，
+        # 嵌套进 then 之后这些默认值无法初始化到 ConfigMap。
         - $formkit: switch
           name: templateShowSakura
+          key: templateShowSakura
           label: 显示花瓣飘落动画
           value: true
           if: "$get(templateStyle).value === 'classic'"
           help: 关闭后，模板页面将不展示花瓣飘落背景动画
         - $formkit: switch
           name: templateShowHint
+          key: templateShowHint
           label: 显示首次操作提示
           value: true
           if: "$get(templateStyle).value === 'classic'"
@@ -420,12 +436,14 @@ spec:
         - $formkit: switch
           name: enableAutoRefresh
           id: enableAutoRefresh
+          key: enableAutoRefresh
           label: 定时自动切换句子
           value: false
           if: "$get(templateStyle).value === 'classic'"
           help: 开启后，页面将按照设定的时间间隔自动切换展示新的句子
         - $formkit: number
           name: autoRefreshInterval
+          key: autoRefreshInterval
           label: 自动切换间隔（秒）
           if: "$get(templateStyle).value === 'classic' && $get(enableAutoRefresh).value === true"
           value: 10
@@ -433,15 +451,25 @@ spec:
           max: 3600
           step: 1
           help: 句子自动切换的时间间隔，单位为秒，最小 3 秒，最大 3600 秒（1 小时）
+        # 简约卡片模板配色：留空则使用模板内置的暗色/亮色两套配色
+        - $formkit: color
+          name: templateCardsAccent
+          key: templateCardsAccent
+          label: 简约卡片 · 主色
+          value: ''
+          if: "$get(templateStyle).value === 'cards'"
+          help: 用于选中分类、主按钮、聚焦描边与链接等；留空使用内置配色，填充控件的文字色会按主色亮度自动改用黑或白
         - $formkit: switch
           name: templateShowBrand
           id: templateShowBrand
+          key: templateShowBrand
           label: 显示品牌首屏卡片
           value: true
           if: "$get(templateStyle).value === 'glass'"
           help: 开启后，液态玻璃模板在无分享句子时展示居中的品牌首屏卡片；关闭则直接进入句子列表
         - $formkit: text
           name: templateBrandTitle
+          key: templateBrandTitle
           label: 品牌首屏主标题
           value: 一句话，一段心绪
           placeholder: 请输入主标题
@@ -449,45 +477,44 @@ spec:
           help: 留空则使用默认文案"一句话，一段心绪"
         - $formkit: text
           name: templateBrandSubtitle
+          key: templateBrandSubtitle
           label: 品牌首屏副标题
           value: 在字里行间，拾起片刻的共鸣。
           placeholder: 请输入副标题
           if: "$get(templateStyle).value === 'glass' && $get(templateShowBrand).value === true"
           help: 留空则使用默认文案"在字里行间，拾起片刻的共鸣。"
-        # 简约卡片模板配色：留空则使用模板内置的暗色/亮色两套配色
-        - $formkit: color
-          name: templateCardsAccent
-          label: 简约卡片 · 主色
-          value: ''
-          if: "$get(templateStyle).value === 'cards'"
-          help: 用于选中分类、主按钮、聚焦描边与链接等；留空使用内置配色，填充控件的文字色会按主色亮度自动改用黑或白
         # 液态玻璃模板配色：留空则使用模板内置的暗色/亮色两套配色
         - $formkit: color
           name: templateGlassAccent
+          key: templateGlassAccent
           label: 主色
           value: ''
           if: "$get(templateStyle).value === 'glass'"
           help: 用于 logo、流光标题、主按钮与选中分类胶囊；留空使用内置配色
         - $formkit: color
           name: templateGlassAccentSecondary
+          key: templateGlassAccentSecondary
           label: 辅助色
           value: ''
           if: "$get(templateStyle).value === 'glass'"
           help: 与主色组成渐变（logo、标题、按钮、选中胶囊）；留空使用内置配色
         - $formkit: color
           name: templateGlassOrb1
+          key: templateGlassOrb1
           label: 背景光斑色 1
           value: ''
           if: "$get(templateStyle).value === 'glass'"
           help: 玻璃背景左上方的光斑，决定玻璃折射出的环境色；留空使用内置配色
         - $formkit: color
           name: templateGlassOrb2
+          key: templateGlassOrb2
           label: 背景光斑色 2
           value: ''
           if: "$get(templateStyle).value === 'glass'"
           help: 玻璃背景右上方的光斑；留空使用内置配色
         - $formkit: color
           name: templateGlassOrb3
+          key: templateGlassOrb3
           label: 背景光斑色 3
           value: ''
           if: "$get(templateStyle).value === 'glass'"
