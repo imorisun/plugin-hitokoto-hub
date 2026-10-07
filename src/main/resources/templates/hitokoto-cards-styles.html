@@ -27,6 +27,9 @@
         --accent: #818cf8;
         --accent-soft: rgba(129, 140, 248, 0.12);
         --accent-border: rgba(129, 140, 248, 0.4);
+        /* 主色被自定义后柔光与描边自动跟随；不支持 color-mix 的内核沿用上面的写死值 */
+        --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+        --accent-border: color-mix(in srgb, var(--accent) 40%, transparent);
         /* 强调色作为填充底时，其上的文字用深色以保证对比度 */
         --on-accent: #12121a;
         --heart: #fb7185;
@@ -53,6 +56,9 @@
         --accent: #4f46e5;
         --accent-soft: rgba(79, 70, 229, 0.08);
         --accent-border: rgba(79, 70, 229, 0.35);
+        /* 亮色模式下同样由主色推导 */
+        --accent-soft: color-mix(in srgb, var(--accent) 8%, transparent);
+        --accent-border: color-mix(in srgb, var(--accent) 35%, transparent);
         --on-accent: #ffffff;
         --heart: #e11d48;
         --border: rgba(23, 23, 43, 0.08);

@@ -5,6 +5,7 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.annotation.Bean;
@@ -21,9 +22,75 @@ import top.puresky.hitokotohub.finder.HitokotoFinder;
 @Configuration(proxyBeanMethods = false)
 public class HitokotoTemplateRouter {
 
+    /**
+     * 配色值的字符白名单：允许十六进制、rgb(a)/hsl(a) 等常见写法，
+     * 拒绝 {@code ; { } < > 引号} 等可能截断 style 属性或注入额外声明的字符。
+     */
+    private static final Pattern SAFE_COLOR_VALUE =
+        Pattern.compile("^[#a-zA-Z0-9(),.%\\s/+\\-]{1,64}$");
+
     private final TemplateNameResolver templateNameResolver;
     private final SettingConfig settingConfig;
     private final HitokotoFinder hitokotoFinder;
+
+    /**
+     * 把管理员配置的颜色追加为 CSS 自定义属性；留空或格式不合法则跳过，
+     * 交由样式表内置的配色生效。
+     */
+    private static void appendGlassColorVar(StringBuilder sb, String name, String value) {
+        if (StringUtils.isBlank(value)) {
+            return;
+        }
+        String color = value.trim();
+        if (!SAFE_COLOR_VALUE.matcher(color).matches()) {
+            return;
+        }
+        sb.append(name).append(':').append(color).append(';');
+    }
+
+    /**
+     * 简约卡片模板配色：主色 + 依据主色亮度自动择定的前景色，
+     * 避免自定义主色后填充式控件（选中分类、主按钮）上的文字不可读。
+     */
+    private static void appendCardsColorVars(StringBuilder sb, String accent) {
+        if (StringUtils.isBlank(accent)) {
+            return;
+        }
+        String color = accent.trim();
+        if (!SAFE_COLOR_VALUE.matcher(color).matches()) {
+            return;
+        }
+        sb.append("--accent:").append(color).append(';');
+        sb.append("--on-accent:")
+            .append(isLightColor(color) ? "#12121a" : "#ffffff").append(';');
+    }
+
+    /**
+     * 用 YIQ 感知亮度判断颜色偏亮还是偏暗，偏亮则配深色前景。
+     * 仅能精确识别 #rgb / #rrggbb 写法，其余格式（rgb、hsl、关键字）回退为白色前景。
+     */
+    private static boolean isLightColor(String color) {
+        if (!color.startsWith("#")) {
+            return false;
+        }
+        String hex = color.substring(1);
+        if (hex.length() == 3) {
+            hex = new StringBuilder().append(hex.charAt(0)).append(hex.charAt(0))
+                .append(hex.charAt(1)).append(hex.charAt(1))
+                .append(hex.charAt(2)).append(hex.charAt(2)).toString();
+        }
+        if (hex.length() != 6) {
+            return false;
+        }
+        try {
+            int r = Integer.parseInt(hex.substring(0, 2), 16);
+            int g = Integer.parseInt(hex.substring(2, 4), 16);
+            int b = Integer.parseInt(hex.substring(4, 6), 16);
+            return (r * 299 + g * 587 + b * 114) / 1000 > 150;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
 
     @Bean
     RouterFunction<ServerResponse> hitokotoRouterFunction() {
@@ -77,6 +144,24 @@ public class HitokotoTemplateRouter {
                 model.put("templateBrandSubtitle", StringUtils.defaultIfBlank(
                     templateConfig.getTemplateBrandSubtitle(),
                     SettingConfig.TemplateConfig.DEFAULT_BRAND_SUBTITLE));
+                // 液态玻璃模板配色：仅在管理员填写时覆盖样式变量，
+                // 留空则由样式表内置的暗色/亮色两套配色各自生效
+                var glassVars = new StringBuilder();
+                appendGlassColorVar(glassVars, "--accent",
+                    templateConfig.getTemplateGlassAccent());
+                appendGlassColorVar(glassVars, "--accent-2",
+                    templateConfig.getTemplateGlassAccentSecondary());
+                appendGlassColorVar(glassVars, "--orb-1",
+                    templateConfig.getTemplateGlassOrb1());
+                appendGlassColorVar(glassVars, "--orb-2",
+                    templateConfig.getTemplateGlassOrb2());
+                appendGlassColorVar(glassVars, "--orb-3",
+                    templateConfig.getTemplateGlassOrb3());
+                model.put("templateGlassVars", glassVars.toString());
+                // 简约卡片模板配色：主色 + 自动择定的前景色（留空则用样式表内置配色）
+                var cardsVars = new StringBuilder();
+                appendCardsColorVars(cardsVars, templateConfig.getTemplateCardsAccent());
+                model.put("templateCardsVars", cardsVars.toString());
                 // 分享链接直达视图：禁用自动切换句子，避免打断被分享句子的展示
                 model.put("shareView", shareView);
                 // 投递入口是否渲染由服务端一次性决定，避免先渲染按钮再异步隐藏造成闪烁；

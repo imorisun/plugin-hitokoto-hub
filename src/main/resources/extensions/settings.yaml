@@ -454,6 +454,44 @@ spec:
           placeholder: 请输入副标题
           if: "$get(templateStyle).value === 'glass' && $get(templateShowBrand).value === true"
           help: 留空则使用默认文案"在字里行间，拾起片刻的共鸣。"
+        # 简约卡片模板配色：留空则使用模板内置的暗色/亮色两套配色
+        - $formkit: color
+          name: templateCardsAccent
+          label: 简约卡片 · 主色
+          value: ''
+          if: "$get(templateStyle).value === 'cards'"
+          help: 用于选中分类、主按钮、聚焦描边与链接等；留空使用内置配色，填充控件的文字色会按主色亮度自动改用黑或白
+        # 液态玻璃模板配色：留空则使用模板内置的暗色/亮色两套配色
+        - $formkit: color
+          name: templateGlassAccent
+          label: 主色
+          value: ''
+          if: "$get(templateStyle).value === 'glass'"
+          help: 用于 logo、流光标题、主按钮与选中分类胶囊；留空使用内置配色
+        - $formkit: color
+          name: templateGlassAccentSecondary
+          label: 辅助色
+          value: ''
+          if: "$get(templateStyle).value === 'glass'"
+          help: 与主色组成渐变（logo、标题、按钮、选中胶囊）；留空使用内置配色
+        - $formkit: color
+          name: templateGlassOrb1
+          label: 背景光斑色 1
+          value: ''
+          if: "$get(templateStyle).value === 'glass'"
+          help: 玻璃背景左上方的光斑，决定玻璃折射出的环境色；留空使用内置配色
+        - $formkit: color
+          name: templateGlassOrb2
+          label: 背景光斑色 2
+          value: ''
+          if: "$get(templateStyle).value === 'glass'"
+          help: 玻璃背景右上方的光斑；留空使用内置配色
+        - $formkit: color
+          name: templateGlassOrb3
+          label: 背景光斑色 3
+          value: ''
+          if: "$get(templateStyle).value === 'glass'"
+          help: 玻璃背景下方的光斑；留空使用内置配色
     - group: share
       label: 分享设置
       formSchema:

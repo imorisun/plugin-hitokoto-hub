@@ -28,6 +28,10 @@
         --accent-2: #a879ff;
         --accent-soft: rgba(10, 132, 255, 0.22);
         --accent-glow: rgba(124, 92, 255, 0.4);
+        /* 柔光与辉光由主色/辅助色推导：管理员自定义配色后观感依然协调；
+           后面两行会覆盖前面的写死值，不支持 color-mix 的旧内核则沿用写死值 */
+        --accent-soft: color-mix(in srgb, var(--accent) 22%, transparent);
+        --accent-glow: color-mix(in srgb, var(--accent-2) 40%, transparent);
         /* 强调色作为填充底时，其上的文字固定用白色以保证对比度 */
         --on-accent: #ffffff;
         --heart: #ff5d7a;
@@ -75,6 +79,9 @@
         --accent-2: #8b5cf6;
         --accent-soft: rgba(10, 107, 255, 0.14);
         --accent-glow: rgba(120, 90, 240, 0.28);
+        /* 亮色模式下柔光/辉光更淡，同样由主色与辅助色推导 */
+        --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+        --accent-glow: color-mix(in srgb, var(--accent-2) 30%, transparent);
         --on-accent: #ffffff;
         --heart: #e8355c;
 

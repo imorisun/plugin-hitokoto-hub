@@ -231,6 +231,19 @@ public interface SettingConfig {
         private String templateBrandTitle;
         @Schema(description = "玻璃模板品牌首屏副标题，留空则使用默认文案")
         private String templateBrandSubtitle;
+        // 以下配色留空时由模板样式表内置的暗色/亮色两套配色各自生效
+        @Schema(description = "玻璃模板主色，留空使用内置配色")
+        private String templateGlassAccent;
+        @Schema(description = "玻璃模板辅助色（渐变第二色），留空使用内置配色")
+        private String templateGlassAccentSecondary;
+        @Schema(description = "玻璃模板背景光斑色 1，留空使用内置配色")
+        private String templateGlassOrb1;
+        @Schema(description = "玻璃模板背景光斑色 2，留空使用内置配色")
+        private String templateGlassOrb2;
+        @Schema(description = "玻璃模板背景光斑色 3，留空使用内置配色")
+        private String templateGlassOrb3;
+        @Schema(description = "简约卡片模板主色，留空使用内置配色")
+        private String templateCardsAccent;
         @Schema(description = "是否启用定时自动切换句子")
         private Boolean enableAutoRefresh;
         @Schema(description = "自动切换间隔（秒）")
