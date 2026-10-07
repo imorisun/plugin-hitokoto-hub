@@ -6,19 +6,39 @@
 [![Release](https://img.shields.io/github/v/release/imorisun/plugin-hitokoto-hub?sort=semver&color=orange)](https://github.com/imorisun/plugin-hitokoto-hub/releases)
 [![License](https://img.shields.io/badge/License-GPL--3.0-green.svg)](./LICENSE)
 
-轻言（Hitokoto Hub）是一款面向 [Halo 2.x](https://halo.run) 的开源插件，为你的网站注入「一句话」的灵动与温度。你可以创建并管理海量句子，按分类归档，通过公开 API 随机获取、搜索、点赞与分享；插件还提供内置展示页、主题 Finder API、AI 生成、相似度检测、访客投递审核与数据看板等能力。无论是诗词名言、影视台词还是生活感悟，轻言让你的网站成为一个会说话的角落。
+轻言（Hitokoto Hub）是一款面向 [Halo 2.x](https://halo.run) 的开源插件，为你的网站注入「一句话」的灵动与温度。你可以创建并管理海量句子、按分类归档，通过公开 API 随机获取、搜索、点赞与分享；插件还提供内置展示页、主题 Finder API、AI 生成、相似度检测、访客投递审核与数据看板等能力。无论是诗词名言、影视台词还是生活感悟，轻言都能让你的网站成为一个会说话的角落。
 
-## ✨ 功能特性
+## 目录
+
+- [核心特性](#核心特性)
+- [在线演示](#在线演示)
+- [环境要求](#环境要求)
+- [安装部署](#安装部署)
+- [快速上手](#快速上手)
+- [公开 API 使用示例](#公开-api-使用示例)
+- [主题集成](#主题集成)
+- [配置说明](#配置说明)
+- [定时任务](#定时任务)
+- [数据模型](#数据模型)
+- [项目结构](#项目结构)
+- [开发指南](#开发指南)
+- [可用数据源](#可用数据源)
+- [常见问题](#常见问题)
+- [贡献指南](#贡献指南)
+- [许可证](#许可证)
+- [致谢](#致谢)
+
+## 核心特性
 
 **句子管理**
 
-- 创建、编辑、删除与批量操作句子，支持 JSON / Excel / CSV 批量导入，自动识别表头并映射字段别名
-- 支持按分类导出为 JSON 或 Excel，配合「未分类」兜底机制，数据永不丢失
+- 创建、编辑、删除与批量操作句子，支持 JSON / Excel / CSV 批量导入，自动识别表头并映射字段别名（如 `hitokoto`、`content`、`句子内容` 等）
+- 支持按分类（可多选，逗号分隔）导出为 JSON 或 Excel，配合「未分类」兜底机制，数据永不丢失
 
 **分类归档**
 
 - 自定义分类体系，左侧面板便捷管理；内置受保护的「未分类」分类
-- 删除分类时，其下句子自动迁入「未分类」；分类句子数量实时统计，杜绝缓存不一致
+- 删除分类时，其下句子自动迁入「未分类」；分类句子数量由 `CategoryCountService` 实时统计，杜绝缓存不一致
 
 **开放接口**
 
@@ -37,10 +57,14 @@
 - 内置 SVG 分享卡片生成（暗色 / 亮色双主题），支持复制链接、保存图片、复制内容
 - 分享链接可直达指定句子，适合在社交媒体或文章中引用
 
-**主题集成**
+**模板展示与主题集成**
 
 - 提供 `hitokotoFinder` Finder API，可在主题 Thymeleaf 模板中直接调用
-- 内置展示页 `/hitokoto`：花瓣飘落动画、暗色 / 亮色 / 跟随系统主题、双击点赞、定时自动切换
+- 内置展示页 `/hitokoto`，提供三种模板风格，可在插件设置中一键切换：
+  - **经典 · 单句沉浸式**：花瓣飘落动画、双击点赞、定时自动切换、分享弹窗、访客投递
+  - **简约 · 卡片列表**：卡片流展示多条句子，支持分类切换、点赞、分享与投递
+  - **液态玻璃 · iOS 风格**：玻璃拟态视觉、品牌首屏卡片、分类联动、复制分享链接、访客投递
+- 三种风格均支持暗色 / 亮色 / 跟随系统主题，访客手动切换后以其选择为准
 
 **AI 生成（可选）**
 
@@ -53,7 +77,7 @@
 
 **访客投递**
 
-- 访客可在线投递句子，PENDING / APPROVED / REJECTED 三态审核工作流
+- 访客可在线投递句子，`PENDING` / `APPROVED` / `REJECTED` 三态审核工作流
 - 基于 IP 的连续提交上限、冷却时间与待审核数量上限三重限流
 
 **权限与运维**
@@ -62,7 +86,7 @@
 - 数据自清理：过期缓存、统计记录、日志数据定时清理，支持条数与天数双重保留策略
 - Reconciler 自动维护数据一致性：分类名归一化、「未分类」删除保护、删除分类时的句子迁移与统计清理
 
-## 🚀 在线演示
+## 在线演示
 
 | 资源 | 链接 |
 |------|------|
@@ -72,18 +96,27 @@
 | GitHub 仓库 | <https://github.com/imorisun/plugin-hitokoto-hub> |
 | 问题反馈 | <https://github.com/imorisun/plugin-hitokoto-hub/issues> |
 
-## 📋 环境要求
+## 环境要求
+
+### 运行环境
 
 | 依赖项 | 版本要求 | 说明 |
 |--------|----------|------|
 | Halo | `>= 2.25.0` | 必需，插件基于 Halo 2.25 平台构建 |
-| Java | `21` | 构建时需要 JDK 21 |
-| Node.js | `>= 18` | 构建前端时需要，推荐使用 pnpm |
 | AI Foundation | 任意版本（可选） | 若需使用 AI 生成功能，需安装 [AI Foundation](https://www.halo.run/store/apps/app-acslk9nu) |
 
-> AI Foundation 为可选依赖：未安装时，AI 生成相关组件不会加载，不影响其他功能。相似度检查为纯本地算法实现，不依赖 AI Foundation。
+> AI Foundation 为可选依赖（`pluginDependencies: ai-foundation?: "*"`）：未安装时 AI 生成相关组件不会加载，不影响其他功能。相似度检查为纯本地算法实现，不依赖 AI Foundation。
 
-## 📦 安装
+### 构建环境（仅从源码构建时需要）
+
+| 依赖项 | 版本要求 | 说明 |
+|--------|----------|------|
+| Java | `21` | Gradle toolchain 编译目标为 JDK 21 |
+| Node.js | `>= 18` | 构建后台前端时需要 |
+| pnpm | `10.x`（推荐） | 前端包管理器，`packageManager` 字段声明为 `pnpm@10.12.4` |
+| Gradle | 随 Wrapper 提供 | 使用项目自带 `gradlew` / `gradlew.bat` 即可 |
+
+## 安装部署
 
 ### 方式一：应用市场安装（推荐）
 
@@ -97,9 +130,31 @@
 
 ### 方式三：从源码构建
 
-参考下方[开发指南](#-开发指南)。
+```bash
+# 1. 克隆项目
+git clone https://github.com/imorisun/plugin-hitokoto-hub.git
+cd plugin-hitokoto-hub
 
-## 🎯 快速开始
+# 2. 构建前端（后台控制台 UI）
+cd ui
+pnpm install
+pnpm build
+
+# 3. 回到根目录构建插件
+cd ..
+./gradlew build
+# 构建产物位于 build/libs/plugin-hitokoto-hub-*.jar
+```
+
+> `./gradlew build` 已通过 `processUiResources` 任务自动将前端产物拷贝进插件 jar，无需手动处理。
+
+### 初始化与升级
+
+- 首次启用插件时，系统会自动创建内置的「未分类」分类（受 Reconciler 保护，不可删除）
+- 插件启动时会自动迁移「分类为空或已失效」的历史句子至「未分类」
+- 若从旧版本升级后出现异常，请参考[常见问题](#更新插件后出现问题)
+
+## 快速上手
 
 ### 1. 创建分类
 
@@ -111,15 +166,19 @@
 
 点击「新建句子」，填写内容、作者、来源并选择分类。还可以设置自定义跳转链接（`linkUrl`）或关联文章（`postName`），前台展示时句子可跳转至对应页面。
 
-> 非超级管理员创建的句子默认未发布，需管理员在后台手动发布后才会出现在前台。
+> 前台随机接口仅返回已发布（`status.isPublished = true`）的句子。非超级管理员创建的句子默认未发布，需管理员在后台手动发布后才会出现在前台。
 
 ### 3. 批量导入 / 导出
 
 - **JSON 导入**：直接粘贴 JSON 数组
-- **Excel / CSV 导入**：上传 `.xlsx` 或 `.csv` 文件，插件自动识别表头并映射字段
-- **导出**：支持按分类导出为 JSON 或 Excel
+- **Excel / CSV 导入**：上传 `.xlsx` 或 `.csv` 文件，插件自动识别表头并映射字段（支持 RFC 4180 引号转义、字段内换行与 UTF-8 BOM），单文件上限 10 MB
+- **导出**：支持按分类（多个分类以逗号分隔）导出为 JSON 或 Excel
 
-### 4. 调用公开接口
+### 4. 访问内置展示页
+
+启用插件后即可访问 `/hitokoto` 查看展示页，样式与行为可在「插件 → 轻言 → 设置 → 模板展示设置」中调整。
+
+## 公开 API 使用示例
 
 所有公开接口均无需鉴权，前缀为 `/apis/public.api.hitokotohub.puresky.top/v1alpha1`：
 
@@ -151,9 +210,9 @@ curl 'https://your-domain.com/apis/public.api.hitokotohub.puresky.top/v1alpha1/s
 curl 'https://your-domain.com/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/sentence-xxxx/share/card?theme=dark'
 ```
 
-## 🎨 主题集成
+## 主题集成
 
-插件内置默认展示页 `/hitokoto`，支持暗色 / 亮色 / 跟随系统三种主题、花瓣飘落动画、双击点赞、句子分享、定时自动切换，样式与行为可在「模板展示设置」中调整。你也可以通过 Finder API 或 REST API 在自己的主题中自定义展示。
+插件内置默认展示页 `/hitokoto`，支持暗色 / 亮色 / 跟随系统三种主题，并提供经典单句、简约卡片、液态玻璃三种模板风格。你也可以通过 Finder API 或 REST API 在自己的主题中自定义展示。
 
 ### Finder API（推荐）
 
@@ -183,9 +242,8 @@ curl 'https://your-domain.com/apis/public.api.hitokotohub.puresky.top/v1alpha1/s
 </div>
 ```
 
-`SentenceVo` 字段：`name`、`author`、`content`、`source`、`categoryName`、`likeCount`、`viewCount`、`jumpUrl`
-
-`CategoryVo` 字段：`name`、`displayName`、`description`、`sentenceCount`
+- `SentenceVo` 字段：`name`、`author`、`content`、`source`、`categoryName`、`likeCount`、`viewCount`、`jumpUrl`
+- `CategoryVo` 字段：`name`、`displayName`、`description`、`sentenceCount`
 
 ### REST API
 
@@ -203,11 +261,11 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 
 ### 分享直达
 
-访问 `/hitokoto?sentence=sentence-xxxx` 可直达指定句子的展示页面。分享视图会自动暂停句子轮播，聚焦展示被分享的句子。
+访问 `/hitokoto?sentence=sentence-xxxx` 可直达指定句子的展示页面。分享视图会自动暂停句子轮播（经典模板），聚焦展示被分享的句子。
 
-## 📖 API 文档
+### API 总览
 
-### 公开 API（无需鉴权）
+#### 公开 API（无需鉴权）
 
 前缀：`/apis/public.api.hitokotohub.puresky.top/v1alpha1`
 
@@ -224,7 +282,7 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 | `/sentence/{name}/share` | GET | 获取句子分享数据 |
 | `/sentence/{name}/share/card` | GET | 获取分享卡片 SVG。参数：`theme=dark\|light`（默认 dark） |
 
-### 后台管理 API
+#### 后台管理 API
 
 前缀：`/apis/console.api.hitokotohub.puresky.top/v1alpha1`，需具备「一言查看 / 一言管理」角色权限：
 
@@ -235,12 +293,12 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 | `/sentence/-/batch` | POST | 批量创建句子 |
 | `/sentence/-/import-excel` | POST | 上传 `.xlsx` 批量导入 |
 | `/sentence/-/import-csv` | POST | 上传 `.csv` 批量导入 |
-| `/sentence/-/export` | GET | 导出句子。参数：`format=json\|excel`、`categoryName` |
-| `/sentence/-/clear-uncategorized` | POST | 清空未分类句子 |
+| `/sentence/-/export` | GET | 导出句子。参数：`format=json\|excel`、`categoryName`（多个分类以逗号分隔） |
+| `/sentence/-/clear-uncategorized` | DELETE | 清空未分类句子 |
 | `/categories` | GET | 分页获取分类列表（含实时句子数量） |
 | `/overview` | GET | 概览统计 |
-| `/overview/view-statistics` | GET | 分类浏览量时序数据（ECharts 折线图） |
-| `/overview/today-sentence-details` | GET | 今日句子维度的浏览 / 点赞详情 |
+| `/overview/view-statistics` | GET | 分类浏览量时序数据（ECharts 折线图）。参数：`days`、`granularity`、`eventType` |
+| `/overview/today-sentence-details` | GET | 今日句子维度的浏览 / 点赞详情。参数：`eventType=VIEW\|LIKE`（默认 LIKE） |
 | `/sentence-submissions` | GET | 分页查询访客提交记录 |
 | `/sentence-submissions/{name}/approve` | POST | 审核通过（可配置自动发布） |
 | `/sentence-submissions/{name}/reject` | POST | 审核拒绝 |
@@ -250,14 +308,14 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 | `/ai-generate-logs/{name}` | DELETE | 删除 AI 生成日志 |
 | `/similarity-check-logs` | GET | 分页查询相似度检查日志 |
 | `/similarity-check-logs/{name}` | GET | 查询单次检查日志详情 |
-| `/similarity-check-logs/-/trigger` | POST | 手动触发相似度检查 |
+| `/similarity-check-logs/-/trigger` | POST | 手动触发相似度检查（可选 `algorithm`、`threshold` 覆盖设置） |
 | `/similarity-check-config` | GET | 获取相似度检查配置 |
 | `/similarity-check-groups` | GET | 获取相似句子分组结果 |
 | `/similarity-check-groups/-/delete-nonoptimal` | POST | 批量删除分组内非最优句子 |
 | `/sentence/{name}/share` | GET | 获取指定句子分享数据（含未发布） |
 | `/sentence/{name}/share/card` | GET | 获取指定句子分享卡片 SVG |
 
-### 扩展 CRUD API
+#### 扩展 CRUD API
 
 插件通过 Halo 扩展机制暴露标准 CRUD 接口：
 
@@ -266,9 +324,9 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 
 完整的 OpenAPI 定义见 [api-docs/openapi/v3_0/extensionApis.json](./api-docs/openapi/v3_0/extensionApis.json)，或参考 [Apifox 在线文档](https://plugin-hitokoto-hub.apifox.cn/)。
 
-## ⚙️ 配置说明
+## 配置说明
 
-插件设置位于「插件 → 轻言 → 设置」，共分为六组：
+插件设置位于「插件 → 轻言 → 设置」，共分为六组。
 
 ### 基本设置
 
@@ -327,13 +385,17 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 
 | 设置项 | 默认值 | 说明 |
 |--------|--------|------|
+| 模板风格 | 经典 · 单句沉浸式 | `classic`（经典单句）、`cards`（简约卡片列表）、`glass`（液态玻璃）；与所选风格无关的设置项会自动隐藏 |
 | 左上角文字 | LiteWords | 模板页面左上角展示的文字，留空则使用 LiteWords |
 | 点击回到站点首页 | false | 开启后点击左上角文字将跳转回主站首页；关闭则仅作展示，不可点击 |
 | 默认主题 | 跟随系统 | 访客首次访问时的主题：`auto` / `dark` / `light`；访客手动切换后以其选择为准 |
-| 显示花瓣飘落动画 | true | 关闭后模板页面不展示花瓣飘落背景 |
-| 显示首次操作提示 | true | 开启后页面加载时显示「双击屏幕任意位置点赞」提示 |
-| 定时自动切换句子 | false | 开启后页面按设定间隔自动切换展示新句子 |
-| 自动切换间隔 | 10 秒 | 句子自动切换的时间间隔（3-3600 秒） |
+| 显示花瓣飘落动画 | true | **仅经典模板**，关闭后不展示花瓣飘落背景 |
+| 显示首次操作提示 | true | **仅经典模板**，开启后页面加载时显示「双击屏幕任意位置点赞」提示 |
+| 定时自动切换句子 | false | **仅经典模板**，开启后页面按设定间隔自动切换展示新句子 |
+| 自动切换间隔 | 10 秒 | **仅经典模板**，句子自动切换的时间间隔（3-3600 秒） |
+| 显示品牌首屏卡片 | true | **仅液态玻璃模板**，无分享句子时展示居中品牌首屏卡片；关闭则直接进入句子列表 |
+| 品牌首屏主标题 | 一句话，一段心绪 | **仅液态玻璃模板**，留空使用默认文案 |
+| 品牌首屏副标题 | 在字里行间，拾起片刻的共鸣。 | **仅液态玻璃模板**，留空使用默认文案 |
 
 ### 分享设置
 
@@ -341,7 +403,7 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 |--------|--------|------|
 | 站点名称 | 轻言 | 展示在分享卡片上的站点名称，留空则使用 Halo 站点标题 |
 
-## 🔄 定时任务
+## 定时任务
 
 以下任务由插件自动注册，无需手动配置：
 
@@ -355,7 +417,7 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 | AI 自动生成句子 | AI 设置 → 自动生成时间 | 仅开启时注册，配置变更后自动重新注册 |
 | 定时相似度检查 | 相似度设置 → 定时检查时间 | 仅开启时注册，配置变更后自动重新注册 |
 
-## 📊 数据模型
+## 数据模型
 
 插件注册了 6 个自定义扩展模型（GVK group: `hitokotohub.puresky.top`，version: `v1alpha1`）：
 
@@ -401,13 +463,13 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 
 > 相似句子分组结果 `SimilarityGroup` 不是扩展模型，仅作为 API 响应结构：通过并查集归组后按综合评分（发布状态、点赞、浏览、内容长度、作者 / 来源完整度）选出组内最优句子，供一键清理使用。
 
-## 🏗️ 项目结构
+## 项目结构
 
 ```
 plugin-hitokoto-hub/
 ├── src/main/java/top/puresky/hitokotohub/
 │   ├── HitokotoHubPlugin.java              # 插件入口：注册扩展索引、迁移孤儿句子
-│   ├── HitokotoTemplateRouter.java         # 内置展示页路由 /hitokoto（含分享直达）
+│   ├── HitokotoTemplateRouter.java         # 内置展示页路由 /hitokoto（含分享直达、模板风格选择）
 │   ├── PluginConfiguration.java            # Spring Bean 配置
 │   ├── UncategorizedConstants.java         # 「未分类」内置分类常量
 │   ├── config/                             # 设置配置读取
@@ -455,12 +517,13 @@ plugin-hitokoto-hub/
 │   └── utils/                              # 工具类（IP 冷却缓存、HTTP、索引注册等）
 ├── src/main/resources/
 │   ├── extensions/
-│   │   ├── settings.yaml                   # basic / ai / submission / similarity / template / share 六组设置
+│   │   ├── settings.yaml                   # 六组设置：basic / ai / submission / similarity / template / share
 │   │   └── role-template-*.yaml            # 公共接口 / 查看 / 管理三层角色模板
 │   ├── templates/
-│   │   ├── hitokoto.html                   # 内置展示页（含分享弹窗、提交表单）
-│   │   ├── hitokoto-styles.html
-│   │   └── hitokoto-scripts.html
+│   │   ├── hitokoto.html                   # 经典单句模板（含分享弹窗、提交表单）
+│   │   ├── hitokoto-cards.html             # 简约卡片列表模板
+│   │   ├── hitokoto-glass.html             # 液态玻璃模板
+│   │   └── hitokoto-*-styles.html / hitokoto-*-scripts.html
 │   ├── plugin.yaml                         # 插件清单
 │   └── logo.png
 ├── ui/                                     # 后台前端（Vue 3 + Element Plus + ECharts）
@@ -474,17 +537,17 @@ plugin-hitokoto-hub/
 │       │   ├── AiGenerateLogList.vue       # AI 生成日志
 │       │   └── SimilarityCheck.vue         # 相似度检查
 │       ├── composables/                    # 组合式函数
-│       └── views/HomeView.vue
+│       └── views/HomeView.vue              # 后台入口（概览 / 数据列表 / 访客提交 / AI 日志 / 相似度检查）
 └── api-docs/openapi/v3_0/                  # OpenAPI 文档
 ```
 
-## 🔧 开发指南
+## 开发指南
 
 ### 技术栈
 
-- **后端**：Java 21、Spring WebFlux、Reactor、Halo Extension API、FastExcel
-- **前端**：Vue 3、TypeScript、Element Plus、ECharts、Rsbuild、Tailwind CSS
-- **构建**：Gradle、pnpm
+- **后端**：Java 21、Spring WebFlux、Reactor、Halo Extension API、FastExcel、Lombok
+- **前端**：Vue 3、TypeScript、Element Plus、ECharts、canvas-confetti、Rsbuild、Tailwind CSS、Vitest
+- **构建**：Gradle（Halo Plugin DevTools）、pnpm
 
 ### 本地开发
 
@@ -519,6 +582,22 @@ pnpm dev
 ./gradlew reload       # 代码变更后热重载插件
 ```
 
+### 运行测试与代码检查
+
+```bash
+# 后端单元测试（JUnit 5）
+./gradlew test
+
+# 前端类型检查 + 单元测试
+cd ui
+pnpm type-check
+pnpm test:unit
+
+# 前端代码检查与格式化
+pnpm lint       # oxlint + eslint
+pnpm prettier   # 格式化 src/
+```
+
 ### 重新生成 API 客户端
 
 后端 API 发生变化时，可重新生成 OpenAPI 文档与前端 API 客户端：
@@ -528,13 +607,13 @@ pnpm dev
 ./gradlew generateOpenApiClient    # 重新生成 ui/src/api/generated
 ```
 
-## 📚 可用数据源
+## 可用数据源
 
 可从以下数据源导入句子到轻言：
 
 - [sentences-bundle](https://github.com/hitokoto-osc/sentences-bundle) — 一言社区官方句子库
 
-## ❓ 常见问题
+## 常见问题
 
 ### 更新插件后出现问题
 
@@ -550,7 +629,9 @@ AI 自动生成需要同时满足：
 
 1. 已安装并启用 [AI Foundation](https://www.halo.run/store/apps/app-acslk9nu)
 2. 在 AI Foundation 中已配置可用的语言模型
-3. 在轻言设置中选择了对应的语言模型
+3. 在轻言设置中选择了对应的语言模型，并配置了生成数量与目标分类
+
+> 手动触发接口在 AI Foundation 不可用时会返回 `503`，并提示「请先安装并启用」。
 
 ### 句子未在前台显示
 
@@ -571,11 +652,51 @@ AI 自动生成需要同时满足：
 
 若 Halo 部署在 Nginx / CDN 等反向代理之后，请开启「信任反向代理头」以正确识别访客 IP；若 Halo 直连公网，则建议关闭该选项，防止伪造 `X-Forwarded-For` 头绕过点赞与提交限流。
 
-## 📄 许可证
+### 导入 Excel / CSV 失败
 
-[GPL-3.0](./LICENSE) © [晨阳](https://github.com/imorisun)
+- 仅支持 `.xlsx` 与 `.csv`，单文件不超过 10 MB
+- 必须包含可识别的句子内容列，表头别名支持 `hitokoto`、`content`、`sentence`、`句子内容`、`内容`、`一言` 等
+- 导入前需在弹窗中选择目标分类
 
-## 🙏 致谢
+## 贡献指南
+
+欢迎任何形式的贡献：报告问题、提交改进建议或发起 Pull Request。
+
+### 报告问题
+
+提交 [Issue](https://github.com/imorisun/plugin-hitokoto-hub/issues) 时，请尽量提供：
+
+- 问题描述与复现步骤
+- 期望结果与实际结果
+- Halo 版本、插件版本、相关设置项
+- 相关的错误日志或截图
+
+### 提交代码
+
+1. **Fork** 本仓库并创建你的功能分支：`git checkout -b feature/your-feature`
+2. 遵循现有代码风格进行开发：
+   - 后端使用 Java 21 与 Spring WebFlux 响应式编程模型，遵循 Halo Extension API 约定；公共 API 端点统一放在 `/sentence/` 路径下
+   - 前端使用 Vue 3 + TypeScript + Element Plus，模板相关脚本变量统一使用 `Browse` 前缀以避免命名冲突
+3. 提交前请确保构建与测试通过：
+
+   ```bash
+   ./gradlew build            # 后端构建（含测试）
+   cd ui && pnpm lint && pnpm type-check && pnpm test:unit
+   ```
+
+4. 提交信息请清晰描述改动意图，随后推送分支并创建 Pull Request
+5. 在 PR 描述中说明改动内容、动机与验证方式
+
+### 开发注意事项
+
+- 相似度检查需限制总句子数与句子对数量（如 5 万句 / 20 万对上限）以避免 OOM，切勿一次性 `fetchAllSentences().block()` 全量加载
+- 提交记录需按 `submissionMaxKeep` 配置进行清理，避免数据无限增长
+
+## 许可证
+
+本项目基于 [GPL-3.0](./LICENSE) 许可证开源，© [晨阳](https://github.com/imorisun)
+
+## 致谢
 
 - [Halo](https://github.com/halo-dev/halo) — 强大易用的开源建站工具
 - [一言](https://hitokoto.cn) — 一言项目，灵感来源

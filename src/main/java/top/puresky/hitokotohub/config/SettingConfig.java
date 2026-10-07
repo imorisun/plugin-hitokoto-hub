@@ -203,9 +203,17 @@ public interface SettingConfig {
     @Data
     class TemplateConfig {
         public static final String GROUP = "template";
-        /** 模板风格：classic 经典单句沉浸式（默认），cards 简约卡片列表 */
+        /** 模板风格：classic 经典单句沉浸式（默认），cards 简约卡片列表，glass 液态玻璃 */
         public static final String TEMPLATE_STYLE_CARDS = "cards";
-        @Schema(description = "模板风格：classic 经典单句沉浸式，cards 简约卡片列表")
+        /** 模板风格：glass 液态玻璃卡片列表 */
+        public static final String TEMPLATE_STYLE_GLASS = "glass";
+        /**
+         * 液态玻璃模板品牌首屏的兜底默认值，必须与 {@code extensions/settings.yaml} 中
+         * 对应字段的 {@code value} 保持一致。
+         */
+        public static final String DEFAULT_BRAND_TITLE = "一句话，一段心绪";
+        public static final String DEFAULT_BRAND_SUBTITLE = "在字里行间，拾起片刻的共鸣。";
+        @Schema(description = "模板风格：classic 经典单句沉浸式，cards 简约卡片列表，glass 液态玻璃")
         private String templateStyle;
         @Schema(description = "模板左上角展示的文字，留空则使用默认文字 LiteWords")
         private String templateLogoText;
@@ -217,6 +225,12 @@ public interface SettingConfig {
         private Boolean templateShowSakura;
         @Schema(description = "是否显示首次操作提示")
         private Boolean templateShowHint;
+        @Schema(description = "玻璃模板是否显示品牌首屏卡片")
+        private Boolean templateShowBrand;
+        @Schema(description = "玻璃模板品牌首屏主标题，留空则使用默认文案")
+        private String templateBrandTitle;
+        @Schema(description = "玻璃模板品牌首屏副标题，留空则使用默认文案")
+        private String templateBrandSubtitle;
         @Schema(description = "是否启用定时自动切换句子")
         private Boolean enableAutoRefresh;
         @Schema(description = "自动切换间隔（秒）")

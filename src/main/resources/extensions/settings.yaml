@@ -379,7 +379,9 @@ spec:
               value: classic
             - label: 简约 · 卡片列表
               value: cards
-          help: 选择 /hitokoto 页面使用的模板风格；"简约卡片"以卡片流展示多条句子并支持分类切换。与所选风格无关的展示设置会自动隐藏
+            - label: 液态玻璃 · iOS 风格
+              value: glass
+          help: 选择 /hitokoto 页面使用的模板风格；"简约卡片"与"液态玻璃"均以卡片流展示多条句子并支持分类切换。与所选风格无关的展示设置会自动隐藏
         - $formkit: text
           name: templateLogoText
           label: 左上角文字
@@ -431,6 +433,27 @@ spec:
           max: 3600
           step: 1
           help: 句子自动切换的时间间隔，单位为秒，最小 3 秒，最大 3600 秒（1 小时）
+        - $formkit: switch
+          name: templateShowBrand
+          id: templateShowBrand
+          label: 显示品牌首屏卡片
+          value: true
+          if: "$get(templateStyle).value === 'glass'"
+          help: 开启后，液态玻璃模板在无分享句子时展示居中的品牌首屏卡片；关闭则直接进入句子列表
+        - $formkit: text
+          name: templateBrandTitle
+          label: 品牌首屏主标题
+          value: 一句话，一段心绪
+          placeholder: 请输入主标题
+          if: "$get(templateStyle).value === 'glass' && $get(templateShowBrand).value === true"
+          help: 留空则使用默认文案"一句话，一段心绪"
+        - $formkit: text
+          name: templateBrandSubtitle
+          label: 品牌首屏副标题
+          value: 在字里行间，拾起片刻的共鸣。
+          placeholder: 请输入副标题
+          if: "$get(templateStyle).value === 'glass' && $get(templateShowBrand).value === true"
+          help: 留空则使用默认文案"在字里行间，拾起片刻的共鸣。"
     - group: share
       label: 分享设置
       formSchema:
