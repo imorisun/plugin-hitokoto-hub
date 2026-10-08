@@ -16,6 +16,7 @@ import top.puresky.hitokotohub.UncategorizedConstants;
 import top.puresky.hitokotohub.config.SettingConfig.AiConfig;
 import top.puresky.hitokotohub.config.SettingConfig.BasicConfig;
 import top.puresky.hitokotohub.config.SettingConfig.SubmissionConfig;
+import top.puresky.hitokotohub.config.SettingConfig.TemplateConfig;
 
 /**
  * 校验设置项的默认值在「设置页定义」与「运行期兜底」两处保持一致。
@@ -48,6 +49,12 @@ class SettingConfigDefaultsTest {
         assertEquals(SubmissionConfig.DEFAULT_COOLDOWN_MINUTES, defaults.get("submissionCooldown"));
         assertEquals(SubmissionConfig.DEFAULT_BATCH_LIMIT, defaults.get("submissionBatchLimit"));
         assertEquals(SubmissionConfig.DEFAULT_MAX_PENDING, defaults.get("submissionMaxPending"));
+
+        assertEquals(TemplateConfig.DEFAULT_GLASS_EDGE_HIGHLIGHT,
+            defaults.get("templateGlassEdgeHighlight"));
+        assertEquals(TemplateConfig.DEFAULT_GLASS_SHEEN, defaults.get("templateGlassSheen"));
+        assertEquals(TemplateConfig.DEFAULT_GLASS_GLINT, defaults.get("templateGlassGlint"));
+        assertEquals(TemplateConfig.DEFAULT_GLASS_BLUR, defaults.get("templateGlassBlur"));
     }
 
     /** AI 生成的目标分类默认为内置的「未分类」，保证开箱即用可直接生成。 */

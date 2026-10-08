@@ -31,6 +31,12 @@
         if (actual === 'light') {
             html.setAttribute('data-theme', 'light');
         }
+        /* 顶栏色也在这里定好：<meta> 在本脚本之前，此时已经存在。
+           若等 body 末尾的脚本再改，亮色下会先闪一下深色顶栏 */
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+            meta.setAttribute('content', actual === 'light' ? '#eef0f5' : '#06060b');
+        }
     })();
 </script>
 </th:block>
@@ -90,7 +96,7 @@
                 var meta = document.querySelector('meta[name="theme-color"]');
                 if (meta) {
                     meta.setAttribute('content',
-                        actual === 'light' ? '#e9edfa' : '#06060b');
+                        actual === 'light' ? '#eef0f5' : '#06060b');
                 }
             }
 
@@ -369,7 +375,10 @@
         var refreshBtn = null;
         var tabsEl = null;
         var currentCategory = '';
-        var loadingGrid = false;
+        /* 分类是"先点亮标签、再发请求"，所以不能在前一次请求未回来时把新请求丢掉，
+           否则标签指向 B、内容却还是 A，且没有任何提示。
+           改为每次请求自增序号，只有最新一次的结果允许落到界面上 */
+        var loadToken = 0;
 
         /* 归属信息：作者 + 可点击出处（复用聚光卡片与网格卡片的结构） */
         function buildCitation(s) {
@@ -442,7 +451,6 @@
         }
 
         function setGridLoading(loading) {
-            loadingGrid = loading;
             if (grid) grid.classList.toggle('is-loading', loading);
             if (refreshBtn) refreshBtn.classList.toggle('is-loading', loading);
         }
@@ -472,7 +480,7 @@
         }
 
         async function loadSentences() {
-            if (loadingGrid) return;
+            var token = ++loadToken;
             setGridLoading(true);
             try {
                 var url = RANDOM_API + '?limit=' + PAGE_SIZE;
@@ -482,11 +490,15 @@
                 var res = await fetch(url);
                 if (!res.ok) throw new Error('fetch failed');
                 var data = await res.json();
+                /* 已被更新的请求取代：结果与当前分类无关，直接丢弃 */
+                if (token !== loadToken) return;
                 renderGrid((data && data.sentences) || []);
             } catch (e) {
+                if (token !== loadToken) return;
                 showToast('加载失败，请稍后再试');
             } finally {
-                setGridLoading(false);
+                /* 加载态归最新一次请求管，避免旧请求把新请求的转圈提前关掉 */
+                if (token === loadToken) setGridLoading(false);
             }
         }
 

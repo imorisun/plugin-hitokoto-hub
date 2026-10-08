@@ -386,11 +386,9 @@ spec:
           options:
             - label: 经典 · 单句沉浸式
               value: classic
-            - label: 简约 · 卡片列表
-              value: cards
             - label: 液态玻璃 · iOS 风格
               value: glass
-          help: 选择 /hitokoto 页面使用的模板风格；"简约卡片"与"液态玻璃"均以卡片流展示多条句子并支持分类切换。与所选风格无关的展示设置会自动隐藏
+          help: 选择 /hitokoto 页面使用的模板风格；"液态玻璃"以卡片流展示多条句子并支持分类切换。与所选风格无关的展示设置会自动隐藏
         - $formkit: text
           name: templateLogoText
           label: 左上角文字
@@ -400,7 +398,7 @@ spec:
         - $formkit: switch
           name: templateLogoLinkEnabled
           label: 点击回到站点首页
-          value: false
+          value: true
           help: 开启后，点击模板页面左上角的文字将跳转回主站首页；关闭则仅作展示，不可点击
         - $formkit: select
           name: templateTheme
@@ -451,14 +449,6 @@ spec:
           max: 3600
           step: 1
           help: 句子自动切换的时间间隔，单位为秒，最小 3 秒，最大 3600 秒（1 小时）
-        # 简约卡片模板配色：留空则使用模板内置的暗色/亮色两套配色
-        - $formkit: color
-          name: templateCardsAccent
-          key: templateCardsAccent
-          label: 简约卡片 · 主色
-          value: ''
-          if: "$get(templateStyle).value === 'cards'"
-          help: 用于选中分类、主按钮、聚焦描边与链接等；留空使用内置配色，填充控件的文字色会按主色亮度自动改用黑或白
         - $formkit: switch
           name: templateShowBrand
           id: templateShowBrand
@@ -519,6 +509,47 @@ spec:
           value: ''
           if: "$get(templateStyle).value === 'glass'"
           help: 玻璃背景下方的光斑；留空使用内置配色
+        # 液态玻璃高光与模糊强度：100 即模板默认档位，调高更亮更"厚"、调低更含蓄
+        - $formkit: number
+          name: templateGlassEdgeHighlight
+          key: templateGlassEdgeHighlight
+          label: 边缘高光强度（%）
+          value: 100
+          min: 0
+          max: 200
+          step: 5
+          if: "$get(templateStyle).value === 'glass'"
+          help: 玻璃边缘的描边光晕与四向内发光；100 为模板默认强度，可在默认基础上再增减
+        - $formkit: number
+          name: templateGlassSheen
+          key: templateGlassSheen
+          label: 表面掠光强度（%）
+          value: 100
+          min: 0
+          max: 200
+          step: 5
+          if: "$get(templateStyle).value === 'glass'"
+          help: 玻璃表面那层斜向反光与缓缓掠过的高光；100 为模板默认强度
+        - $formkit: number
+          name: templateGlassGlint
+          key: templateGlassGlint
+          label: 指针高光强度（%）
+          value: 100
+          min: 0
+          max: 200
+          step: 5
+          if: "$get(templateStyle).value === 'glass'"
+          help: 鼠标/手指划过卡片与按钮时的镜面高光；100 为模板默认强度
+        - $formkit: number
+          name: templateGlassBlur
+          key: templateGlassBlur
+          label: 背景模糊强度（%）
+          value: 100
+          min: 0
+          max: 200
+          step: 5
+          if: "$get(templateStyle).value === 'glass'"
+          help: 玻璃的磨砂模糊程度，数值越高越浑厚；100 为内置强度（窄屏会自动下调以保帧率）
     - group: share
       label: 分享设置
       formSchema:

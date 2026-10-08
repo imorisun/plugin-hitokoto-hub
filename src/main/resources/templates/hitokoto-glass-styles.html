@@ -21,13 +21,21 @@
         --bg-2: #0c0c16;
 
         --text: #f4f5fa;
+        /* 三档文字色：最低的一档用在出处、字数提示等小字上，也要保证可读，
+           所以 alpha 压得比"看起来舒服"的位置更高一些 */
         --text-secondary: rgba(244, 245, 250, 0.68);
-        --text-tertiary: rgba(244, 245, 250, 0.42);
+        --text-tertiary: rgba(244, 245, 250, 0.52);
 
-        --accent: #0a84ff;
-        --accent-2: #a879ff;
-        --accent-soft: rgba(10, 132, 255, 0.22);
-        --accent-glow: rgba(124, 92, 255, 0.4);
+        /* 现代简约的冷色体系：整页收在"正蓝 → 蓝靛"一条蓝轴上（同色系邻近色）。
+           主色去掉了原来的青味、辅色去掉了紫味，两端色相更近、饱和度也压到相近水平，
+           渐变因此不再"青一头紫一头"，只剩一条干净的蓝。
+           背景光斑同样只取自这条蓝轴的低饱和冷调，避免"彩虹背景"那种热闹感，
+           玻璃面板本身才是视觉主角。
+           填充式控件（主按钮、选中胶囊）上的文字为白，故主色/辅色都保留了足够的深度 */
+        --accent: #3f86e8;
+        --accent-2: #6672ee;
+        --accent-soft: rgba(63, 134, 232, 0.20);
+        --accent-glow: rgba(102, 114, 238, 0.36);
         /* 柔光与辉光由主色/辅助色推导：管理员自定义配色后观感依然协调；
            后面两行会覆盖前面的写死值，不支持 color-mix 的旧内核则沿用写死值 */
         --accent-soft: color-mix(in srgb, var(--accent) 22%, transparent);
@@ -40,35 +48,49 @@
         --glass-tint: rgba(255, 255, 255, 0.10);
         --glass-tint-2: rgba(255, 255, 255, 0.03);
         --glass-border: rgba(255, 255, 255, 0.14);
-        --glass-hl-strong: rgba(255, 255, 255, 0.85);
-        --glass-hl-soft: rgba(255, 255, 255, 0.16);
+        /* 高光强度分两级相乘：
+           --xx-base 是模板自身的默认档位系数（边缘光 70%、掠光 30%、指针高光 60%）；
+           --xx-scale 由插件设置按百分比注入（100% → 1）。
+           下面的绝对基值即"未缩减"的原始强度。
+           两者相乘后：设置里的 100% 就等于本模板的默认观感，调高即在默认基础上再增强；
+           未注入倍率时（--scale 回退 1）同样落在默认档位。
+           用倍率而非绝对值，暗色与亮色两套基值才能各自保留。 */
+        --hl-base: 0.7;
+        --sheen-base: 0.3;
+        --glint-base: 0.6;
+        /* 掠光扫描单独一档：它是"会走的光"，是最容易被认出玻璃的细节。
+           若与静态 sheen 共用 30% 那一档，峰值只剩 0.066，肉眼几乎看不出移动，
+           所以这里另给一档（与指针高光同为 60%）；它仍受设置里的掠光强度控制 */
+        --sweep-base: 0.6;
+        /* 描边环亮端的强度。它只被环形光使用，改这一个值就能整体增减边缘光 */
+        --glass-hl-strong: rgba(255, 255, 255, calc(0.45 * var(--hl-base) * var(--hl-scale, 1)));
+        --glass-hl-soft: rgba(255, 255, 255, calc(0.16 * var(--hl-base) * var(--hl-scale, 1)));
 
-        /* 边缘色散：上冷下暖，模拟白光在玻璃棱边被分离出的冷/暖光晕 */
-        --rim-cool: rgba(176, 212, 255, 0.62);
-        --rim-warm: rgba(255, 194, 230, 0.42);
-        /* 135° 对角 sheen：玻璃表面那层斜向反光 */
-        --sheen-a: rgba(255, 255, 255, 0.32);
-        --sheen-b: rgba(255, 255, 255, 0.05);
+        /* sheen：玻璃表面那层斜向反光（光源在左上）。
+           斜向渐变必然让一条对角线两端比另一对角亮，所以强度压得比较低 ——
+           亮度差足够小，四角就不会再被看成"一凸一凹" */
+        --sheen-a: rgba(255, 255, 255, calc(0.14 * var(--sheen-base) * var(--sheen-scale, 1)));
+        --sheen-b: rgba(255, 255, 255, calc(0.02 * var(--sheen-base) * var(--sheen-scale, 1)));
         /* 指针划过时的镜面高光 */
-        --glint: rgba(255, 255, 255, 0.34);
+        --glint: rgba(255, 255, 255, calc(0.34 * var(--glint-base) * var(--glint-scale, 1)));
 
         /* 四向 rim：顶缘最亮、底缘次之、左右极淡，最后一条是底缘内发光。
            只有一圈完整的 rim，玻璃才有"厚度"，单靠顶缘一条高光会显得像塑料薄膜。
-           颜色刻意写字面值而不引用上面的 token：自定义属性里再嵌 var() 时，
-           主题切换能否重算并不稳定，写死最稳。 */
+           各档基值仍按主题写字面值（暗/亮两套差异直接体现在这里），
+           只把与主题无关的 --hl-base 与 --hl-scale 乘进去。 */
         --rim-all:
-            inset 0 1px 1px rgba(255, 255, 255, 0.50),
-            inset 0 -1px 1px rgba(255, 255, 255, 0.24),
-            inset 1px 0 1px rgba(255, 255, 255, 0.15),
-            inset -1px 0 1px rgba(255, 255, 255, 0.15),
-            inset 0 -16px 26px -16px rgba(255, 255, 255, 0.09);
+            inset 0 1px 1px rgba(255, 255, 255, calc(0.50 * var(--hl-base) * var(--hl-scale, 1))),
+            inset 0 -1px 1px rgba(255, 255, 255, calc(0.24 * var(--hl-base) * var(--hl-scale, 1))),
+            inset 1px 0 1px rgba(255, 255, 255, calc(0.15 * var(--hl-base) * var(--hl-scale, 1))),
+            inset -1px 0 1px rgba(255, 255, 255, calc(0.15 * var(--hl-base) * var(--hl-scale, 1))),
+            inset 0 -16px 26px -16px rgba(255, 255, 255, calc(0.09 * var(--hl-base) * var(--hl-scale, 1)));
 
         --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
         --glass-shadow-hover: 0 20px 56px rgba(0, 0, 0, 0.55);
 
         /* 滤镜拆成参数：明暗两套主题与窄屏断点各自调档
            降对比 + 升亮度 + 升饱和 = 官方材质那种"乳白通透"的观感 */
-        --glass-blur: 22px;
+        --glass-blur: calc(22px * var(--blur-scale, 1));
         --glass-sat: 190%;
         --glass-contrast: 92%;
         --glass-bright: 1.12;
@@ -79,10 +101,11 @@
         /* 按压时扩散的液面涟漪 */
         --ripple: rgba(255, 255, 255, 0.5);
 
-        /* 背景光斑颜色 */
-        --orb-1: #4f7cff;
-        --orb-2: #b45cff;
-        --orb-3: #22d3ee;
+        /* 背景光斑颜色：全部取自上面那条蓝轴，三档只做明暗与极小的色相偏移，
+           饱和度再压低一档，让背景是一团安静的冷光，而不是三块彩斑 */
+        --orb-1: #34579e;
+        --orb-2: #4855a6;
+        --orb-3: #3a6499;
 
         --toast-bg: rgba(30, 30, 42, 0.72);
 
@@ -95,17 +118,17 @@
 
     [data-theme="light"] {
         color-scheme: light;
-        --bg: #e9edfa;
-        --bg-2: #f6f7fd;
+        --bg: #eef0f5;
+        --bg-2: #f8f9fc;
 
-        --text: #101018;
-        --text-secondary: rgba(16, 16, 24, 0.62);
-        --text-tertiary: rgba(16, 16, 24, 0.38);
+        --text: #111119;
+        --text-secondary: rgba(17, 17, 25, 0.62);
+        --text-tertiary: rgba(17, 17, 25, 0.55);
 
-        --accent: #0a6bff;
-        --accent-2: #8b5cf6;
-        --accent-soft: rgba(10, 107, 255, 0.14);
-        --accent-glow: rgba(120, 90, 240, 0.28);
+        --accent: #2f7ad2;
+        --accent-2: #5b67e2;
+        --accent-soft: rgba(47, 122, 210, 0.13);
+        --accent-glow: rgba(91, 103, 226, 0.26);
         /* 亮色模式下柔光/辉光更淡，同样由主色与辅助色推导 */
         --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
         --accent-glow: color-mix(in srgb, var(--accent-2) 30%, transparent);
@@ -115,21 +138,19 @@
         --glass-tint: rgba(255, 255, 255, 0.55);
         --glass-tint-2: rgba(255, 255, 255, 0.28);
         --glass-border: rgba(255, 255, 255, 0.75);
-        --glass-hl-strong: rgba(255, 255, 255, 0.98);
-        --glass-hl-soft: rgba(255, 255, 255, 0.44);
+        --glass-hl-strong: rgba(255, 255, 255, calc(0.62 * var(--hl-base) * var(--hl-scale, 1)));
+        --glass-hl-soft: rgba(255, 255, 255, calc(0.44 * var(--hl-base) * var(--hl-scale, 1)));
 
-        --rim-cool: rgba(186, 220, 255, 0.85);
-        --rim-warm: rgba(255, 208, 238, 0.65);
-        --sheen-a: rgba(255, 255, 255, 0.60);
-        --sheen-b: rgba(255, 255, 255, 0.10);
-        --glint: rgba(255, 255, 255, 0.80);
+        --sheen-a: rgba(255, 255, 255, calc(0.28 * var(--sheen-base) * var(--sheen-scale, 1)));
+        --sheen-b: rgba(255, 255, 255, calc(0.05 * var(--sheen-base) * var(--sheen-scale, 1)));
+        --glint: rgba(255, 255, 255, calc(0.80 * var(--glint-base) * var(--glint-scale, 1)));
         /* 亮色模式下 rim 整体更亮，否则在浅底上完全看不出来 */
         --rim-all:
-            inset 0 1px 1px rgba(255, 255, 255, 0.95),
-            inset 0 -1px 1px rgba(255, 255, 255, 0.55),
-            inset 1px 0 1px rgba(255, 255, 255, 0.42),
-            inset -1px 0 1px rgba(255, 255, 255, 0.42),
-            inset 0 -16px 26px -16px rgba(255, 255, 255, 0.28);
+            inset 0 1px 1px rgba(255, 255, 255, calc(0.95 * var(--hl-base) * var(--hl-scale, 1))),
+            inset 0 -1px 1px rgba(255, 255, 255, calc(0.55 * var(--hl-base) * var(--hl-scale, 1))),
+            inset 1px 0 1px rgba(255, 255, 255, calc(0.42 * var(--hl-base) * var(--hl-scale, 1))),
+            inset -1px 0 1px rgba(255, 255, 255, calc(0.42 * var(--hl-base) * var(--hl-scale, 1))),
+            inset 0 -16px 26px -16px rgba(255, 255, 255, calc(0.28 * var(--hl-base) * var(--hl-scale, 1)));
 
         --glass-shadow: 0 12px 34px rgba(38, 48, 96, 0.16);
         --glass-shadow-hover: 0 20px 48px rgba(38, 48, 96, 0.22);
@@ -142,9 +163,10 @@
         --chip-bg-hover: rgba(255, 255, 255, 0.78);
         --ripple: rgba(12, 46, 120, 0.16);
 
-        --orb-1: #7aa8ff;
-        --orb-2: #c9a4ff;
-        --orb-3: #7ee7f5;
+        /* 亮色下同样取自同一条蓝轴：淡蓝 → 淡靛，三档明度接近、饱和度压得很低 */
+        --orb-1: #a6c2ee;
+        --orb-2: #b1b9f0;
+        --orb-3: #a5c9ea;
 
         --toast-bg: rgba(255, 255, 255, 0.78);
     }
@@ -241,8 +263,10 @@
     /* 三层背景叠加：
        ① 极细颗粒（overlay）—— 每次渲染都固定不动，形成"雾面"的物理质感；
           之前贴在整页最底层，会被玻璃层整个盖住，所以改到面板内部；
-       ② 135° 对角 sheen —— 玻璃表面的斜向反光；
+       ② sheen —— 斜向掠过的表面反光（左上 → 右下，低强度）；
        ③ 半透明底色渐变。
+       ②③ 走斜向是为保留"光斜着照下来"的方向感。斜向必然让一条对角线的
+       两个角比另一对角亮，所以两层都压成低强度，靠差值小来避免角落发凹。
        再叠上多层 backdrop-filter 与四向 rim，才是"像玻璃"的关键。 */
     .glass {
         position: relative;
@@ -261,26 +285,37 @@
         box-shadow: var(--glass-shadow), var(--rim-all);
     }
 
-    /* 渐变描边光晕：用 mask 只保留 1px 边框环；冷 → 中性 → 暖的色相偏移，
-       模拟白光在玻璃棱边被折射分离出的色散 */
+    /* 渐变描边光晕：用 mask 只保留 1px 边框环。
+       斜向渐变（左上亮 → 右下淡），与面板表面的斜照方向一致。
+       亮端一律用中性白，不用带色相的冷/暖色 —— 角落里一条彩色的边
+       会被读成阴影或倒角，比亮度差更容易显出"凹进去"。 */
     .glass::before {
         content: "";
         position: absolute;
         inset: 0;
         border-radius: inherit;
         padding: 1px;
-        background: linear-gradient(158deg,
-            var(--rim-cool) 0%,
-            var(--glass-hl-strong) 16%,
-            var(--glass-hl-soft) 34%,
-            rgba(255, 255, 255, 0) 54%,
-            var(--glass-hl-soft) 76%,
-            var(--rim-warm) 100%);
+        background: linear-gradient(150deg,
+            var(--glass-hl-strong) 0%,
+            var(--glass-hl-soft) 30%,
+            rgba(255, 255, 255, 0) 58%,
+            var(--glass-hl-soft) 100%);
         -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
         -webkit-mask-composite: xor;
         mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
         mask-composite: exclude;
         pointer-events: none;
+    }
+
+    /* 可滚动的玻璃容器不挂上面这层描边环。
+       ::before 是绝对定位元素，会随容器内容一起位移（实测把 scrollLeft 设为 200px，
+       它就同步左移 200px），于是横向滚动分类、或纵向滚动弹窗表单时，
+       端部那圈亮弧会"粘"在内容上一起滑走，看上去就是光影错位。
+       这两处的边缘改由 border 与 --rim-all 的 inset 高光承担：
+       二者都属于元素自身绘制，不随内容滚动，观感基本一致。 */
+    .glass-tabs::before,
+    .glass-modal__panel::before {
+        display: none;
     }
 
     /* 缓慢掠过玻璃表面的高光：只用 transform 位移，不重排、不逐帧重绘毛玻璃区域 */
@@ -295,9 +330,9 @@
         border-radius: 50%;
         background: linear-gradient(100deg,
             rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.09) 38%,
-            rgba(255, 255, 255, 0.22) 50%,
-            rgba(255, 255, 255, 0.09) 62%,
+            rgba(255, 255, 255, calc(0.09 * var(--sweep-base) * var(--sheen-scale, 1))) 38%,
+            rgba(255, 255, 255, calc(0.22 * var(--sweep-base) * var(--sheen-scale, 1))) 50%,
+            rgba(255, 255, 255, calc(0.09 * var(--sweep-base) * var(--sheen-scale, 1))) 62%,
             rgba(255, 255, 255, 0) 100%);
         mix-blend-mode: screen;
         transform: translate3d(-8%, 0, 0) rotate(6deg);
@@ -608,28 +643,24 @@
         color: var(--text-secondary);
     }
 
-    /* 品牌首屏：无分享句时展示，用流光渐变标题撑起视觉冲击力 */
+    /* 品牌首屏：无分享句时展示，主色到辅色的静态渐变标题撑起视觉 */
     .glass-spotlight--brand {
         text-align: center;
         padding: 58px 34px;
     }
 
+    /* 这里刻意不放循环流光：`background-position` 动画无法合成、每帧重绘，
+       而且会让整页永远不进入静止态，与"简约"的观感相抵 */
     .brand-title {
         margin: 0 0 14px;
         font-size: clamp(1.8rem, 5vw, 3rem);
         font-weight: 800;
         letter-spacing: 0.6px;
-        background: linear-gradient(100deg,
-            var(--accent) 0%, var(--accent-2) 45%, var(--accent) 90%);
-        background-size: 220% 100%;
+        background: linear-gradient(96deg,
+            var(--accent) 0%, var(--accent-2) 55%, var(--accent) 100%);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
-        animation: brandSheen 9s linear infinite;
-    }
-
-    @keyframes brandSheen {
-        to { background-position: 200% 0; }
     }
 
     .brand-sub {
@@ -687,19 +718,12 @@
         transform: scale(0.93, 0.88);
     }
 
+    /* 选中态同样用静态渐变：流动底色既费重绘，也让"选中"这件事显得太吵 */
     .glass-tab.is-active {
         color: var(--on-accent);
         background: linear-gradient(120deg,
             var(--accent) 0%, var(--accent-2) 42%, var(--accent) 100%);
-        background-size: 220% 100%;
         box-shadow: 0 6px 18px var(--accent-soft);
-        animation: tabFlow 7s ease-in-out infinite;
-    }
-
-    /* 选中胶囊的底色缓慢流动，像液态玻璃里被搅动的一抹光 */
-    @keyframes tabFlow {
-        0%, 100% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
     }
 
     .glass-refresh {
@@ -1132,9 +1156,10 @@
 
     /* ==================== 响应式：iPhone ==================== */
     @media (max-width: 640px) {
-        /* 窄屏降低模糊半径，减少 GPU 逐帧重算开销，保证 60fps */
+        /* 窄屏降低模糊半径，减少 GPU 逐帧重算开销，保证 60fps
+           （基值降档，插件设置的模糊倍率仍然生效） */
         :root {
-            --glass-blur: 16px;
+            --glass-blur: calc(16px * var(--blur-scale, 1));
         }
 
         .glass-header {
@@ -1201,8 +1226,6 @@
         }
 
         .glass-orb,
-        .brand-title,
-        .glass-tab.is-active,
         .glass-header__bar::after,
         .glass-spotlight::after {
             animation: none !important;

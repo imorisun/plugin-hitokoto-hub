@@ -60,11 +60,10 @@
 **模板展示与主题集成**
 
 - 提供 `hitokotoFinder` Finder API，可在主题 Thymeleaf 模板中直接调用
-- 内置展示页 `/hitokoto`，提供三种模板风格，可在插件设置中一键切换：
+- 内置展示页 `/hitokoto`，提供两种模板风格，可在插件设置中一键切换：
   - **经典 · 单句沉浸式**：花瓣飘落动画、双击点赞、定时自动切换、分享弹窗、访客投递
-  - **简约 · 卡片列表**：卡片流展示多条句子，支持分类切换、点赞、分享与投递
   - **液态玻璃 · iOS 风格**：玻璃拟态视觉、品牌首屏卡片、分类联动、复制分享链接、访客投递
-- 三种风格均支持暗色 / 亮色 / 跟随系统主题，访客手动切换后以其选择为准
+- 两种风格均支持暗色 / 亮色 / 跟随系统主题，访客手动切换后以其选择为准
 
 **AI 生成（可选）**
 
@@ -212,7 +211,7 @@ curl 'https://your-domain.com/apis/public.api.hitokotohub.puresky.top/v1alpha1/s
 
 ## 主题集成
 
-插件内置默认展示页 `/hitokoto`，支持暗色 / 亮色 / 跟随系统三种主题，并提供经典单句、简约卡片、液态玻璃三种模板风格。你也可以通过 Finder API 或 REST API 在自己的主题中自定义展示。
+插件内置默认展示页 `/hitokoto`，支持暗色 / 亮色 / 跟随系统三种主题，并提供经典单句、液态玻璃两种模板风格。你也可以通过 Finder API 或 REST API 在自己的主题中自定义展示。
 
 ### Finder API（推荐）
 
@@ -385,7 +384,7 @@ fetch('/apis/public.api.hitokotohub.puresky.top/v1alpha1/sentence/like?name=sent
 
 | 设置项 | 默认值 | 说明 |
 |--------|--------|------|
-| 模板风格 | 经典 · 单句沉浸式 | `classic`（经典单句）、`cards`（简约卡片列表）、`glass`（液态玻璃）；与所选风格无关的设置项会自动隐藏 |
+| 模板风格 | 经典 · 单句沉浸式 | `classic`（经典单句）、`glass`（液态玻璃）；与所选风格无关的设置项会自动隐藏 |
 | 左上角文字 | LiteWords | 模板页面左上角展示的文字，留空则使用 LiteWords |
 | 点击回到站点首页 | false | 开启后点击左上角文字将跳转回主站首页；关闭则仅作展示，不可点击 |
 | 默认主题 | 跟随系统 | 访客首次访问时的主题：`auto` / `dark` / `light`；访客手动切换后以其选择为准 |
@@ -521,7 +520,6 @@ plugin-hitokoto-hub/
 │   │   └── role-template-*.yaml            # 公共接口 / 查看 / 管理三层角色模板
 │   ├── templates/
 │   │   ├── hitokoto.html                   # 经典单句模板（含分享弹窗、提交表单）
-│   │   ├── hitokoto-cards.html             # 简约卡片列表模板
 │   │   ├── hitokoto-glass.html             # 液态玻璃模板
 │   │   └── hitokoto-*-styles.html / hitokoto-*-scripts.html
 │   ├── plugin.yaml                         # 插件清单

@@ -203,9 +203,7 @@ public interface SettingConfig {
     @Data
     class TemplateConfig {
         public static final String GROUP = "template";
-        /** 模板风格：classic 经典单句沉浸式（默认），cards 简约卡片列表，glass 液态玻璃 */
-        public static final String TEMPLATE_STYLE_CARDS = "cards";
-        /** 模板风格：glass 液态玻璃卡片列表 */
+        /** 模板风格：glass 液态玻璃卡片列表；其余取值（含未配置）渲染经典单句模板 */
         public static final String TEMPLATE_STYLE_GLASS = "glass";
         /**
          * 液态玻璃模板品牌首屏的兜底默认值，必须与 {@code extensions/settings.yaml} 中
@@ -213,7 +211,17 @@ public interface SettingConfig {
          */
         public static final String DEFAULT_BRAND_TITLE = "一句话，一段心绪";
         public static final String DEFAULT_BRAND_SUBTITLE = "在字里行间，拾起片刻的共鸣。";
-        @Schema(description = "模板风格：classic 经典单句沉浸式，cards 简约卡片列表，glass 液态玻璃")
+        /**
+         * 液态玻璃高光/模糊强度的兜底默认值（百分比，100 即模板默认档位），
+         * 必须与 {@code extensions/settings.yaml} 中对应字段的 {@code value} 保持一致。
+         * 模板默认观感（边缘光 70%、掠光 30%、指针高光 60%）由样式表的 --xx-base 系数承担，
+         * 与这里的设置默认值 100 相乘后正好等于默认观感。
+         */
+        public static final int DEFAULT_GLASS_EDGE_HIGHLIGHT = 100;
+        public static final int DEFAULT_GLASS_SHEEN = 100;
+        public static final int DEFAULT_GLASS_GLINT = 100;
+        public static final int DEFAULT_GLASS_BLUR = 100;
+        @Schema(description = "模板风格：classic 经典单句沉浸式，glass 液态玻璃")
         private String templateStyle;
         @Schema(description = "模板左上角展示的文字，留空则使用默认文字 LiteWords")
         private String templateLogoText;
@@ -242,8 +250,15 @@ public interface SettingConfig {
         private String templateGlassOrb2;
         @Schema(description = "玻璃模板背景光斑色 3，留空使用内置配色")
         private String templateGlassOrb3;
-        @Schema(description = "简约卡片模板主色，留空使用内置配色")
-        private String templateCardsAccent;
+        // 以下强度百分比为模板默认档位（100）的倍数，样式表已按默认档位调低过观感
+        @Schema(description = "玻璃模板边缘高光强度（%），100 为模板默认强度")
+        private Integer templateGlassEdgeHighlight;
+        @Schema(description = "玻璃模板表面掠光强度（%），100 为模板默认强度")
+        private Integer templateGlassSheen;
+        @Schema(description = "玻璃模板指针高光强度（%），100 为模板默认强度")
+        private Integer templateGlassGlint;
+        @Schema(description = "玻璃模板背景模糊强度（%），100 为内置强度")
+        private Integer templateGlassBlur;
         @Schema(description = "是否启用定时自动切换句子")
         private Boolean enableAutoRefresh;
         @Schema(description = "自动切换间隔（秒）")

@@ -49,47 +49,15 @@ public class HitokotoTemplateRouter {
     }
 
     /**
-     * 简约卡片模板配色：主色 + 依据主色亮度自动择定的前景色，
-     * 避免自定义主色后填充式控件（选中分类、主按钮）上的文字不可读。
+     * 把百分比强度（0~200）换算为倍率并追加为 CSS 自定义属性；留空则跳过（沿用样式表内置强度）。
+     * 以倍率而非绝对值注入，是为了让暗色/亮色两套主题各自的基值继续生效，只调整相对强弱。
      */
-    private static void appendCardsColorVars(StringBuilder sb, String accent) {
-        if (StringUtils.isBlank(accent)) {
+    private static void appendGlassScaleVar(StringBuilder sb, String name, Integer percent) {
+        if (percent == null) {
             return;
         }
-        String color = accent.trim();
-        if (!SAFE_COLOR_VALUE.matcher(color).matches()) {
-            return;
-        }
-        sb.append("--accent:").append(color).append(';');
-        sb.append("--on-accent:")
-            .append(isLightColor(color) ? "#12121a" : "#ffffff").append(';');
-    }
-
-    /**
-     * 用 YIQ 感知亮度判断颜色偏亮还是偏暗，偏亮则配深色前景。
-     * 仅能精确识别 #rgb / #rrggbb 写法，其余格式（rgb、hsl、关键字）回退为白色前景。
-     */
-    private static boolean isLightColor(String color) {
-        if (!color.startsWith("#")) {
-            return false;
-        }
-        String hex = color.substring(1);
-        if (hex.length() == 3) {
-            hex = new StringBuilder().append(hex.charAt(0)).append(hex.charAt(0))
-                .append(hex.charAt(1)).append(hex.charAt(1))
-                .append(hex.charAt(2)).append(hex.charAt(2)).toString();
-        }
-        if (hex.length() != 6) {
-            return false;
-        }
-        try {
-            int r = Integer.parseInt(hex.substring(0, 2), 16);
-            int g = Integer.parseInt(hex.substring(2, 4), 16);
-            int b = Integer.parseInt(hex.substring(4, 6), 16);
-            return (r * 299 + g * 587 + b * 114) / 1000 > 150;
-        } catch (NumberFormatException e) {
-            return false;
-        }
+        int clamped = Math.max(0, Math.min(200, percent));
+        sb.append(name).append(':').append(clamped / 100.0).append(';');
     }
 
     @Bean
@@ -157,24 +125,26 @@ public class HitokotoTemplateRouter {
                     templateConfig.getTemplateGlassOrb2());
                 appendGlassColorVar(glassVars, "--orb-3",
                     templateConfig.getTemplateGlassOrb3());
+                // 高光与模糊强度：注入倍率，样式表用 calc() 乘以各主题的内置基值
+                appendGlassScaleVar(glassVars, "--hl-scale",
+                    templateConfig.getTemplateGlassEdgeHighlight());
+                appendGlassScaleVar(glassVars, "--sheen-scale",
+                    templateConfig.getTemplateGlassSheen());
+                appendGlassScaleVar(glassVars, "--glint-scale",
+                    templateConfig.getTemplateGlassGlint());
+                appendGlassScaleVar(glassVars, "--blur-scale",
+                    templateConfig.getTemplateGlassBlur());
                 model.put("templateGlassVars", glassVars.toString());
-                // 简约卡片模板配色：主色 + 自动择定的前景色（留空则用样式表内置配色）
-                var cardsVars = new StringBuilder();
-                appendCardsColorVars(cardsVars, templateConfig.getTemplateCardsAccent());
-                model.put("templateCardsVars", cardsVars.toString());
                 // 分享链接直达视图：禁用自动切换句子，避免打断被分享句子的展示
                 model.put("shareView", shareView);
                 // 投递入口是否渲染由服务端一次性决定，避免先渲染按钮再异步隐藏造成闪烁；
                 // 判定口径与 SentenceSubmissionPublicEndpoint 的 config 接口保持一致
                 model.put("submissionEnabled",
                     Boolean.TRUE.equals(submissionConfig.getEnableSubmission()));
-                // 按插件设置选择模板风格：cards 渲染简约卡片列表，glass 渲染液态玻璃模板，
-                // 其余（含未配置）渲染经典单句模板
+                // 按插件设置选择模板风格：glass 渲染液态玻璃模板，其余（含未配置）渲染经典单句模板
                 String templateStyle = templateConfig.getTemplateStyle();
-                String defaultTemplateName = SettingConfig.TemplateConfig.TEMPLATE_STYLE_CARDS
-                    .equalsIgnoreCase(templateStyle) ? "hitokoto-cards"
-                    : (SettingConfig.TemplateConfig.TEMPLATE_STYLE_GLASS
-                        .equalsIgnoreCase(templateStyle) ? "hitokoto-glass" : "hitokoto");
+                String defaultTemplateName = SettingConfig.TemplateConfig.TEMPLATE_STYLE_GLASS
+                    .equalsIgnoreCase(templateStyle) ? "hitokoto-glass" : "hitokoto";
                 return templateNameResolver.resolveTemplateNameOrDefault(request.exchange(),
                         defaultTemplateName)
                     .flatMap(templateName -> ServerResponse.ok().render(templateName, model));
