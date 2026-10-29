@@ -112,7 +112,7 @@
 |--------|----------|------|
 | Java | `21` | Gradle toolchain 编译目标为 JDK 21 |
 | Node.js | `>= 18` | 构建后台前端时需要 |
-| pnpm | `10.x`（推荐） | 前端包管理器，`packageManager` 字段声明为 `pnpm@10.12.4` |
+| pnpm | `12`（推荐） | 前端包管理器，`packageManager` 字段声明为 `pnpm@12` |
 | Gradle | 随 Wrapper 提供 | 使用项目自带 `gradlew` / `gradlew.bat` 即可 |
 
 ## 安装部署
