@@ -46,8 +46,6 @@ nbdist/
 ### VSCode
 *.project
 *.factorypath
-.vscode
-!.vscode/extensions.json
 
 ### Compiled class file
 *.class
